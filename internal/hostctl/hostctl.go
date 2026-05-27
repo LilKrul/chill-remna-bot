@@ -157,7 +157,7 @@ func (c *Controller) addPostgresToCompose() error {
 
 // SelfUpdate запускает отдельный одноразовый контейнер-контроллер (pull+up).
 func (c *Controller) SelfUpdate(ctx context.Context) error {
-	script := fmt.Sprintf("docker compose -p %s pull && docker compose -p %s up -d", c.project, c.project)
+	script := fmt.Sprintf("docker compose -p %s up -d --build", c.project)
 	args := []string{
 		"run", "-d", "--rm",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",

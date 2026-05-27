@@ -1,16 +1,16 @@
-# chill-remna-bot — основной файл деплоя (готовый образ из GHCR).
+# chill-remna-bot — деплой сборкой из исходников (registry не нужен).
 # Сценарий (см. УСТАНОВКА.md):
 #   mkdir -p /opt/remnachillbot && cd /opt/remnachillbot
-#   git clone https://github.com/Mrvibecodic/chill-remna-bot.git .
+#   git clone <repo-url> .
 #   nano docker-compose.yml      # заменить 2 строки с токенами ниже
-#   docker compose up -d
+#   docker compose up -d --build
 #   # затем в Telegram боту: /start
 #
 # Стартует ТОЛЬКО бот, без базы. БД появляется по выбору в мастере:
 #   • SQLite  — бот создаёт файл в томе bot-data;
 #   • Postgres — бот сам допишет сюда сервис db и поднимет его (через docker.sock).
-# При выборе «Локально» бот сам подключится к docker-сети вашей панели
-# (контейнер PANEL_CONTAINER) — вручную создавать сети не нужно.
+# При выборе «Локально» бот сам подключится к сети контейнера панели (PANEL_CONTAINER).
+# Сети создавать вручную НЕ нужно.
 #
 # Если ставите НЕ в /opt/remnachillbot — поправьте путь "/opt/remnachillbot:/compose"
 # и COMPOSE_HOST_DIR. Если контейнер панели называется не "remnawave" — задайте PANEL_CONTAINER.
@@ -19,8 +19,8 @@ name: remnachillbot
 
 services:
   bot:
-    image: ghcr.io/mrvibecodic/chill-remna-bot:latest
-    pull_policy: always
+    build: .
+    image: chill-remna-bot:local
     container_name: remnabot
     restart: unless-stopped
     environment:
