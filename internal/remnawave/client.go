@@ -115,6 +115,17 @@ type panelUser struct {
 	Uuid            string `json:"uuid"`
 	ExpireAt        string `json:"expireAt"`
 	SubscriptionURL string `json:"subscriptionUrl"`
+	Tag             string `json:"tag"`
+	Username        string `json:"username"`
+}
+
+// BotTag помечает аккаунты, созданные этим ботом.
+// Жёсткие правила безопасности: бот продлевает ТОЛЬКО свои аккаунты, и НИКОГДА
+// не удаляет и не отключает (DISABLED) пользователей панели (таких вызовов нет).
+const BotTag = "CHILLBOT"
+
+func ownedByBot(u *panelUser, telegramID int64) bool {
+	return u.Tag == BotTag || u.Username == fmt.Sprintf("tg_%d", telegramID)
 }
 
 // CreateOrUpdateUser создаёт юзера в панели или продлевает существующего
@@ -130,6 +141,9 @@ func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, month
 	expire := nextExpire(existing, months)
 
 	if existing != nil && existing.Uuid != "" {
+		if !ownedByBot(existing, telegramID) {
+			return "", fmt.Errorf("аккаунт этого пользователя создан НЕ через бота — изменять его запрещено")
+		}
 		return c.upsertCall(ctx, http.MethodPatch, "/api/users", map[string]any{
 			"uuid":     existing.Uuid,
 			"expireAt": expire,
@@ -140,6 +154,7 @@ func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, month
 		"username":   fmt.Sprintf("tg_%d", telegramID),
 		"telegramId": telegramID,
 		"expireAt":   expire,
+		"tag":        BotTag,
 	}
 	if squadUUID != "" {
 		body["activeInternalSquads"] = []string{squadUUID}

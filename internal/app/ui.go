@@ -56,10 +56,49 @@ func (a *App) userMenuRows(lang string) [][]models.InlineKeyboardButton {
 
 func (a *App) adminMenuRows(lang string) [][]models.InlineKeyboardButton {
 	return [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.buy"), "menu:buy"), btn(i18n.T(lang, "btn.status"), "menu:status")},
-		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.emoji"), "menu:emoji")},
-		{btn(i18n.T(lang, "btn.banner"), "menu:welcome"), btn(i18n.T(lang, "btn.update"), "menu:update")},
+		{btn(i18n.T(lang, "btn.buy"), "menu:buy")},
+		{btn(i18n.T(lang, "menu.cat_iface"), "menu:iface"), btn(i18n.T(lang, "menu.cat_pay"), "menu:pay")},
+		{btn(i18n.T(lang, "menu.cat_manage"), "menu:manage")},
 	}
+}
+
+func (a *App) showIface(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	a.sendKB(ctx, chatID, i18n.T(lang, "menu.cat_iface"), [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.banner"), "menu:welcome"), btn(i18n.T(lang, "btn.emoji"), "menu:emoji")},
+		homeRow(lang),
+	})
+}
+
+func (a *App) showPay(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	a.sendKB(ctx, chatID, i18n.T(lang, "menu.cat_pay"), [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p")},
+		homeRow(lang),
+	})
+}
+
+func (a *App) showManage(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	a.sendKB(ctx, chatID, i18n.T(lang, "menu.cat_manage"), [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.update"), "menu:update")},
+		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
+		homeRow(lang),
+	})
+}
+
+// startReconfigure перезапускает мастер с шага БД, СОХРАНЯЯ текущий конфиг
+// (P2P, баннер, эмодзи, язык) — меняются только БД и подключение к панели.
+func (a *App) startReconfigure(ctx context.Context, chatID int64) {
+	a.mu.Lock()
+	var base model.BotConfig
+	if a.botCfg != nil {
+		base = *a.botCfg
+	}
+	w := &wizard{step: stepDB, cfg: base}
+	a.wiz[chatID] = w
+	a.mu.Unlock()
+	a.gotoDB(ctx, chatID, w)
 }
 
 // --- стартовый баннер / меню ---
@@ -97,6 +136,7 @@ func (a *App) welcomeContent(name string) (models.InputFile, string, []models.Me
 }
 
 func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name string) {
+	a.msg.RemoveKeyboard(ctx, chatID)
 	lang := a.botLang()
 	photo, caption, ents := a.welcomeContent(name)
 	var rows [][]models.InlineKeyboardButton
@@ -114,6 +154,7 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 }
 
 func (a *App) showRegister(ctx context.Context, chatID int64, name string) {
+	a.msg.RemoveKeyboard(ctx, chatID)
 	lang := a.botLang()
 	a.sendKB(ctx, chatID, i18n.T(lang, "register.prompt", name), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.register"), "menu:register")},
@@ -154,6 +195,22 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "update":
 		if isAdmin {
 			a.handleUpdate(ctx, chatID)
+		}
+	case "iface":
+		if isAdmin {
+			a.showIface(ctx, chatID)
+		}
+	case "pay":
+		if isAdmin {
+			a.showPay(ctx, chatID)
+		}
+	case "manage":
+		if isAdmin {
+			a.showManage(ctx, chatID)
+		}
+	case "reconf":
+		if isAdmin {
+			a.startReconfigure(ctx, chatID)
 		}
 	}
 }

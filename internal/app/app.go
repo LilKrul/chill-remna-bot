@@ -29,6 +29,7 @@ type messenger interface {
 	SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton)
 	SendPhoto(ctx context.Context, chatID int64, fileID, caption string, rows [][]models.InlineKeyboardButton)
 	SendBanner(ctx context.Context, chatID int64, photo models.InputFile, caption string, entities []models.MessageEntity, rm models.ReplyMarkup)
+	RemoveKeyboard(ctx context.Context, chatID int64)
 	AnswerCallback(ctx context.Context, id string)
 }
 
@@ -429,6 +430,17 @@ func (m botMessenger) SendBanner(ctx context.Context, chatID int64, photo models
 	}
 	if _, err := m.b.SendPhoto(ctx, p); err != nil {
 		m.log.Error("send banner", "err", err)
+	}
+}
+
+func (m botMessenger) RemoveKeyboard(ctx context.Context, chatID int64) {
+	msg, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        "🔄",
+		ReplyMarkup: models.ReplyKeyboardRemove{RemoveKeyboard: true},
+	})
+	if err == nil && msg != nil {
+		_, _ = m.b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: msg.ID})
 	}
 }
 

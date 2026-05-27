@@ -36,7 +36,8 @@ func (f *fakeMsg) SendPhoto(_ context.Context, _ int64, _, caption string, _ [][
 func (f *fakeMsg) SendBanner(_ context.Context, _ int64, _ models.InputFile, caption string, _ []models.MessageEntity, _ models.ReplyMarkup) {
 	f.add(caption)
 }
-func (f *fakeMsg) add(s string) { f.mu.Lock(); f.texts = append(f.texts, s); f.mu.Unlock() }
+func (f *fakeMsg) RemoveKeyboard(_ context.Context, _ int64) {}
+func (f *fakeMsg) add(s string)                              { f.mu.Lock(); f.texts = append(f.texts, s); f.mu.Unlock() }
 func (f *fakeMsg) last() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
