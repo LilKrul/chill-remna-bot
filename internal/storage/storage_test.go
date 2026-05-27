@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -139,8 +140,25 @@ func eachStore(t *testing.T, fn func(t *testing.T, st Storage)) {
 			if err := st.Migrate(context.Background()); err != nil {
 				t.Fatal(err)
 			}
+			// PG-БД общая между тестами — чистим данные, чтобы счётчики были детерминированы.
+			cleanPGData(t, dsn)
 			fn(t, st)
 		})
+	}
+}
+
+// cleanPGData очищает таблицы данных в общей PG-БД (settings/schema_migrations не трогаем).
+func cleanPGData(t *testing.T, dsn string) {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, tbl := range []string{"payments", "p2p_requests", "users"} {
+		if _, err := db.Exec("DELETE FROM " + tbl); err != nil {
+			t.Fatalf("очистка %s: %v", tbl, err)
+		}
 	}
 }
 
