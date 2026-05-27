@@ -1,0 +1,51 @@
+# chill-remna-bot — запуск бота Remnawave.
+# Репозиторий: https://github.com/Mrvibecodic/chill-remna-bot
+#
+# Движок БД выбирается профилем compose:
+#
+#   SQLite (по умолчанию, ничего лишнего):
+#       docker compose --profile sqlite up -d --build
+#
+#   PostgreSQL 17 (для нагруженных проектов):
+#       docker compose --profile postgres up -d --build
+#
+# Перед первым запуском один раз создайте общую сеть (идемпотентно):
+#       docker network create remnawave-network 2>/dev/null || true
+#
+# Сеть remnawave-network (external) нужна для локального режима, чтобы бот
+# достучался до панели по адресу http://remnawave:3000. На сервере панели она
+# обычно уже существует; на отдельном сервере команда выше создаст пустую.
+
+services:
+  bot-sqlite:
+    profiles: ["sqlite"]
+    build: .
+    image: chill-remna-bot:latest
+    container_name: remnabot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_KIND: sqlite
+      DATA_DIR: /data
+    volumes:
+      - bot-data:/data
+    networks:
+      - remnawave-network
+
+  bot-postgres:
+    profiles: ["postgres"]
+    build: .
+    image: chill-remna-bot:latest
+    container_name: remnabot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_KIND: postgres
+      DATABASE_URL: postgres://remnabot:remnabot@db:5432/remnabot?sslmode=disable
+      DATA_DIR: /data
+    volumes:
+      - bot-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:

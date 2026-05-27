@@ -1,0 +1,87 @@
+# Деплой ГОТОВЫМ ОБРАЗОМ из GHCR — без клонирования репозитория и без сборки.
+#
+# Как пользоваться:
+#   1) Скопируйте на сервер ТОЛЬКО этот файл (можно переименовать в docker-compose.yml).
+#   2) Впишите ниже BOT_TOKEN и ADMIN_TELEGRAM_ID (в обоих сервисах, какой используете).
+#   3) Создайте общую сеть (один раз):
+#         docker network create remnawave-network 2>/dev/null || true
+#   4) Подтяните образ и запустите (выберите профиль БД):
+#         docker compose -f docker-compose.deploy.yml --profile sqlite pull
+#         docker compose -f docker-compose.deploy.yml --profile sqlite up -d
+#      либо PostgreSQL:
+#         docker compose -f docker-compose.deploy.yml --profile postgres pull
+#         docker compose -f docker-compose.deploy.yml --profile postgres up -d
+#   5) В Telegram напишите боту /start — дальше настройка через мастер.
+#
+# Обновление до новой версии:
+#         docker compose -f docker-compose.deploy.yml --profile sqlite pull
+#         docker compose -f docker-compose.deploy.yml --profile sqlite up -d
+#
+# ВАЖНО: образ в GHCR приватный, пока репозиторий приватный. Чтобы `pull` работал,
+# либо сделайте пакет публичным (GitHub → репозиторий → Packages → пакет →
+# Package settings → Change visibility → Public), либо залогиньтесь на сервере:
+#         echo <GHCR_TOKEN_с_read:packages> | docker login ghcr.io -u Mrvibecodic --password-stdin
+
+services:
+  bot-sqlite:
+    profiles: ["sqlite"]
+    image: ghcr.io/mrvibecodic/chill-remna-bot:latest
+    pull_policy: always
+    container_name: remnabot
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: "ВПИШИТЕ_ТОКЕН_БОТА"
+      ADMIN_TELEGRAM_ID: "ВПИШИТЕ_ВАШ_TELEGRAM_ID"
+      DB_KIND: sqlite
+      DATA_DIR: /data
+    volumes:
+      - bot-data:/data
+    networks:
+      - remnawave-network
+
+  bot-postgres:
+    profiles: ["postgres"]
+    image: ghcr.io/mrvibecodic/chill-remna-bot:latest
+    pull_policy: always
+    container_name: remnabot
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: "ВПИШИТЕ_ТОКЕН_БОТА"
+      ADMIN_TELEGRAM_ID: "ВПИШИТЕ_ВАШ_TELEGRAM_ID"
+      DB_KIND: postgres
+      DATABASE_URL: postgres://remnabot:remnabot@db:5432/remnabot?sslmode=disable
+      DATA_DIR: /data
+    volumes:
+      - bot-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - remnawave-network
+
+  db:
+    profiles: ["postgres"]
+    image: postgres:17-alpine
+    container_name: remnabot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: remnabot
+      POSTGRES_PASSWORD: remnabot
+      POSTGRES_DB: remnabot
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remnabot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - remnawave-network
+
+volumes:
+  bot-data:
+  pg-data:
+
+networks:
+  remnawave-network:
+    external: true

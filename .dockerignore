@@ -1,0 +1,19 @@
+# Не тащим в build-контекст лишнее — образ собирается быстрее и чище.
+.git
+.gitignore
+.env
+*.env
+!.env.example
+# данные/секреты, если запускали локально без Docker
+data/
+*.db
+*.db-wal
+*.db-shm
+secret.key
+bootstrap.json
+# документация в образе не нужна
+*.md
+# артефакты
+bot
+/out
+.gotool/
