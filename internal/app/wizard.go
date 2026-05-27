@@ -75,7 +75,15 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		a.onP2PUser(ctx, chatID, val)
 	case "adm":
 		if isAdmin {
-			a.onAdmin(ctx, chatID, val)
+			a.onAdmin(ctx, chatID, val, cqMsgID(cq))
+		}
+	case "star":
+		if isAdmin {
+			a.onStars(ctx, chatID, val)
+		}
+	case "pay":
+		if isAdmin {
+			a.onPayments(ctx, chatID, val)
 		}
 	case "emo":
 		if isAdmin {
@@ -94,6 +102,14 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 			a.onSquad(ctx, chatID, val)
 		}
 	}
+}
+
+// cqMsgID — id сообщения, к которому привязана инлайн-кнопка (0, если недоступно).
+func cqMsgID(cq *models.CallbackQuery) int {
+	if cq.Message.Message != nil {
+		return cq.Message.Message.ID
+	}
+	return 0
 }
 
 func (a *App) wizardCallback(ctx context.Context, chatID int64, w *wizard, key, val string) {

@@ -33,6 +33,9 @@ type messenger interface {
 	Delete(ctx context.Context, chatID int64, msgID int)
 	RemoveKeyboard(ctx context.Context, chatID int64)
 	AnswerCallback(ctx context.Context, id string)
+	// SendInvoice выставляет счёт (для Telegram Stars currency=XTR, providerToken="").
+	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
+	AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string)
 }
 
 type App struct {
@@ -189,6 +192,10 @@ func (a *App) handle(ctx context.Context, b *bot.Bot, update *models.Update) {
 	switch {
 	case update.CallbackQuery != nil:
 		a.handleCallback(ctx, update.CallbackQuery)
+	case update.PreCheckoutQuery != nil:
+		a.handlePreCheckout(ctx, update.PreCheckoutQuery)
+	case update.Message != nil && update.Message.SuccessfulPayment != nil:
+		a.handleSuccessfulPayment(ctx, update.Message)
 	case update.Message != nil && update.Message.Text != "":
 		a.handleMessage(ctx, update.Message)
 	case update.Message != nil && len(update.Message.Photo) > 0:
@@ -511,6 +518,27 @@ func (m botMessenger) Delete(ctx context.Context, chatID int64, msgID int) {
 		return
 	}
 	_, _ = m.b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: msgID})
+}
+
+func (m botMessenger) SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int) {
+	if _, err := m.b.SendInvoice(ctx, &bot.SendInvoiceParams{
+		ChatID:      chatID,
+		Title:       title,
+		Description: description,
+		Payload:     payload,
+		Currency:    currency,
+		Prices:      []models.LabeledPrice{{Label: title, Amount: amount}},
+	}); err != nil {
+		m.log.Error("send invoice", "err", err)
+	}
+}
+
+func (m botMessenger) AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string) {
+	if _, err := m.b.AnswerPreCheckoutQuery(ctx, &bot.AnswerPreCheckoutQueryParams{
+		PreCheckoutQueryID: id, OK: ok, ErrorMessage: errMsg,
+	}); err != nil {
+		m.log.Error("answer precheckout", "err", err)
+	}
 }
 
 func (m botMessenger) RemoveKeyboard(ctx context.Context, chatID int64) {

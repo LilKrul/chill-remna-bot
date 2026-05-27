@@ -91,18 +91,37 @@ func (a *App) onBuyPlan(ctx context.Context, chatID int64, val string) {
 
 func (a *App) showMethods(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	if !a.p2pConfig().Enabled {
-		a.send(ctx, chatID, i18n.T(lang, "buy.no_methods"))
+	months := a.getUI(chatID).buyMonths
+	a.mu.Lock()
+	var p2p model.P2PConfig
+	var stars model.StarsConfig
+	if a.botCfg != nil {
+		p2p = a.botCfg.P2P
+		stars = a.botCfg.Stars
+	}
+	a.mu.Unlock()
+
+	var rows [][]models.InlineKeyboardButton
+	if p2p.Enabled {
+		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "method.p2p_btn"), "method:p2p")})
+	}
+	if stars.Enabled && stars.Prices[months] > 0 {
+		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "method.stars_btn", stars.Prices[months]), "method:stars")})
+	}
+	if len(rows) == 0 {
+		a.sendKB(ctx, chatID, i18n.T(lang, "buy.no_methods"), [][]models.InlineKeyboardButton{homeRow(lang)})
 		return
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_method"), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "method.p2p_btn"), "method:p2p")},
-	})
+	rows = append(rows, homeRow(lang))
+	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_method"), rows)
 }
 
 func (a *App) onMethod(ctx context.Context, chatID int64, val string) {
-	if val == "p2p" {
+	switch val {
+	case "p2p":
 		a.startP2P(ctx, chatID)
+	case "stars":
+		a.startStars(ctx, chatID)
 	}
 }
 
@@ -246,8 +265,15 @@ func (a *App) showP2PAdmin(ctx context.Context, chatID int64) {
 	})
 }
 
-func (a *App) onAdmin(ctx context.Context, chatID int64, val string) {
+func (a *App) onAdmin(ctx context.Context, chatID int64, val string, srcMsgID int) {
 	action, arg, _ := strings.Cut(val, ":")
+	// Решение по уведомлению-заявке удаляет само уведомление — остаётся только результат.
+	switch action {
+	case "uok", "uno", "pok", "pno":
+		if srcMsgID != 0 {
+			a.msg.Delete(ctx, chatID, srcMsgID)
+		}
+	}
 	switch action {
 	case "toggle":
 		a.mu.Lock()
@@ -329,18 +355,8 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 		a.send(ctx, adminChat, i18n.T(alang, "admin.not_found"))
 		return
 	}
-	a.mu.Lock()
-	panel := a.panel
-	squad := ""
-	if a.botCfg != nil {
-		squad = a.botCfg.P2P.SquadUUID
-	}
-	a.mu.Unlock()
-	if panel == nil {
-		a.send(ctx, adminChat, i18n.T(alang, "admin.provision_fail", "панель не подключена"))
-		return
-	}
-	link, err := panel.CreateOrUpdateUser(ctx, req.TelegramID, req.Months, squad)
+	amount := req.Price + curSuffix(a.p2pConfig().Currency)
+	link, err := a.finalizePurchase(ctx, req.TelegramID, req.Months, model.PayMethodP2P, amount)
 	if err != nil {
 		a.send(ctx, adminChat, i18n.T(alang, "admin.provision_fail", err.Error()))
 		return
@@ -350,6 +366,32 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 	_ = a.store.UpdateP2PRequest(ctx, req)
 	a.notify(ctx, req.TelegramID, i18n.T(a.lang(req.TelegramID), "p2p.user_paid_ok", link))
 	a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
+}
+
+// finalizePurchase — единый финализатор: создаёт/продлевает аккаунт в панели,
+// пишет запись в лог оплат и возвращает ссылку на подписку. Используется и для
+// P2P (после ручного подтверждения), и для Telegram Stars (после оплаты).
+func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int, method, amount string) (string, error) {
+	a.mu.Lock()
+	panel := a.panel
+	squad := ""
+	if a.botCfg != nil {
+		squad = a.botCfg.P2P.SquadUUID
+	}
+	a.mu.Unlock()
+	if panel == nil {
+		return "", fmt.Errorf("панель не подключена")
+	}
+	link, err := panel.CreateOrUpdateUser(ctx, telegramID, months, squad)
+	if err != nil {
+		return "", err
+	}
+	if a.store != nil {
+		_ = a.store.AddPayment(ctx, &model.Payment{
+			TelegramID: telegramID, Method: method, Months: months, Amount: amount, Status: model.PaymentPaid,
+		})
+	}
+	return link, nil
 }
 
 // handleAdminText обрабатывает текстовый ввод админа вне мастера установки
@@ -370,6 +412,10 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		req.Comment = text
 		req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
 		_ = a.store.UpdateP2PRequest(ctx, req)
+		_ = a.store.AddPayment(ctx, &model.Payment{
+			TelegramID: req.TelegramID, Method: model.PayMethodP2P, Months: req.Months,
+			Amount: req.Price + curSuffix(a.p2pConfig().Currency), Status: model.PaymentRejected, Comment: text,
+		})
 		a.notify(ctx, req.TelegramID, i18n.T(a.lang(req.TelegramID), "p2p.user_paid_rejected", text))
 		a.send(ctx, chatID, i18n.T(lang, "admin.done"))
 		return
@@ -413,6 +459,21 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
 		a.showP2PAdmin(ctx, chatID)
+	case "starprice":
+		mo := ui.priceMonths
+		ui.adminInput = ""
+		ui.priceMonths = 0
+		v, _ := strconv.Atoi(strings.TrimSpace(text))
+		a.mu.Lock()
+		if a.botCfg != nil {
+			if a.botCfg.Stars.Prices == nil {
+				a.botCfg.Stars.Prices = map[int]int{}
+			}
+			a.botCfg.Stars.Prices[mo] = v
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showStarsAdmin(ctx, chatID)
 	}
 }
 

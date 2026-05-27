@@ -50,6 +50,7 @@ type BotConfig struct {
 	DBKind    string        `json:"db_kind"`
 	Panel     PanelConfig   `json:"panel"`
 	P2P       P2PConfig     `json:"p2p"`
+	Stars     StarsConfig   `json:"stars"`
 	Welcome   WelcomeConfig `json:"welcome"`
 	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id (анимированные premium),
 	// заполняется через /emoji. Дополняет/перекрывает env PREMIUM_EMOJI.
@@ -75,6 +76,36 @@ const (
 	P2PApproved  = "approved"
 	P2PRejected  = "rejected"
 )
+
+// Способы оплаты (для лога и единого финализатора).
+const (
+	PayMethodP2P   = "p2p"
+	PayMethodStars = "stars"
+)
+
+// Статусы записи в логе оплат.
+const (
+	PaymentPaid     = "paid"
+	PaymentRejected = "rejected"
+)
+
+// StarsConfig — оплата через Telegram Stars (валюта XTR, без внешнего мерчанта).
+type StarsConfig struct {
+	Enabled bool        `json:"enabled"`
+	Prices  map[int]int `json:"prices"` // месяцы(1/3/6/12) -> цена в звёздах
+}
+
+// Payment — запись в логе оплат/действий (видна админу).
+type Payment struct {
+	ID         int64
+	TelegramID int64
+	Method     string // p2p | stars
+	Months     int
+	Amount     string // человекочитаемая сумма, напр. "150 руб" или "100 ⭐"
+	Status     string // paid | rejected
+	Comment    string // напр. причина отказа
+	CreatedAt  string
+}
 
 // P2PConfig — настройки P2P-оплаты (перевод на карту с ручной проверкой).
 type P2PConfig struct {

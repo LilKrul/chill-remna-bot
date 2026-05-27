@@ -21,11 +21,12 @@ import (
 
 // fakeMsg перехватывает исходящие сообщения вместо реального Telegram.
 type fakeMsg struct {
-	mu      sync.Mutex
-	texts   []string
-	seq     int
-	live    map[int]string // id -> текст активных (неудалённых) сообщений
-	deleted []int
+	mu       sync.Mutex
+	texts    []string
+	seq      int
+	live     map[int]string // id -> текст активных (неудалённых) сообщений
+	deleted  []int
+	invoices []string // currency:amount:payload
 }
 
 func (f *fakeMsg) Send(_ context.Context, _ int64, text string) int { return f.add(text) }
@@ -46,6 +47,12 @@ func (f *fakeMsg) Delete(_ context.Context, _ int64, id int) {
 	f.mu.Unlock()
 }
 func (f *fakeMsg) RemoveKeyboard(_ context.Context, _ int64) {}
+func (f *fakeMsg) SendInvoice(_ context.Context, _ int64, title, _, payload, currency string, amount int) {
+	f.mu.Lock()
+	f.invoices = append(f.invoices, currency+":"+strconv.Itoa(amount)+":"+payload)
+	f.mu.Unlock()
+}
+func (f *fakeMsg) AnswerPreCheckout(_ context.Context, _ string, _ bool, _ string) {}
 func (f *fakeMsg) add(s string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -77,6 +84,7 @@ type fakeStore struct {
 	cfg   *model.BotConfig
 	users map[int64]*model.User
 	reqs  map[int64]*model.P2PRequest
+	pays  map[int64]*model.Payment
 	seq   int64
 }
 
@@ -122,6 +130,41 @@ func (s *fakeStore) SetUserInfo(_ context.Context, id int64, username, firstName
 func (s *fakeStore) HasApprovedPurchase(_ context.Context, id int64) (bool, error) {
 	for _, r := range s.reqs {
 		if r.TelegramID == id && r.Status == model.P2PApproved {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (s *fakeStore) AddPayment(_ context.Context, p *model.Payment) error {
+	if s.pays == nil {
+		s.pays = map[int64]*model.Payment{}
+	}
+	if p.ID == 0 {
+		s.seq++
+		p.ID = s.seq
+	}
+	cp := *p
+	s.pays[p.ID] = &cp
+	return nil
+}
+func (s *fakeStore) ListPayments(_ context.Context, limit, offset int) ([]model.Payment, int, error) {
+	var all []model.Payment
+	for _, p := range s.pays {
+		all = append(all, *p)
+	}
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+func (s *fakeStore) HasPaidPayment(_ context.Context, id int64) (bool, error) {
+	for _, p := range s.pays {
+		if p.TelegramID == id && p.Status == model.PaymentPaid {
 			return true, nil
 		}
 	}
@@ -654,5 +697,88 @@ func TestUserCard_AllowP2P(t *testing.T) {
 	a.handleCallback(ctx, cb(100, "usr:p2poff:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || u.P2PApproved {
 		t.Fatalf("P2P-доступ должен быть снят: %+v", u)
+	}
+}
+
+func successPayMsg(uid int64, payload string, amount int) *models.Message {
+	return &models.Message{
+		From: &models.User{ID: uid}, Chat: models.Chat{ID: uid},
+		SuccessfulPayment: &models.SuccessfulPayment{Currency: "XTR", TotalAmount: amount, InvoicePayload: payload},
+	}
+}
+func cbMsg(uid int64, data string, msgID int) *models.CallbackQuery {
+	return &models.CallbackQuery{ID: "cbid", Data: data, From: models.User{ID: uid},
+		Message: models.MaybeInaccessibleMessage{Message: &models.Message{ID: msgID}}}
+}
+
+// Полный флоу Telegram Stars: выбор метода -> инвойс -> precheckout -> оплата -> провижн + лог + ссылка.
+func TestStarsFlow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
+	}))
+	defer srv.Close()
+
+	fm := &fakeMsg{}
+	fs := &fakeStore{}
+	a := &App{
+		cfg: &config.Config{AdminID: 100, DataDir: t.TempDir()},
+		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		msg: fm, wiz: map[int64]*wizard{}, ui: map[int64]*uiState{}, store: fs,
+	}
+	a.botCfg = &model.BotConfig{
+		Installed: true, Language: "ru",
+		Stars: model.StarsConfig{Enabled: true, Prices: map[int]int{1: 100}},
+	}
+	a.panel = remnawave.New(model.PanelConfig{Mode: model.ModeRemote, BaseURL: srv.URL, APIToken: "t"})
+	ctx := context.Background()
+	const user int64 = 555
+
+	a.handleCallback(ctx, cb(user, "buy:1"))
+	a.handleCallback(ctx, cb(user, "method:stars"))
+	if len(fm.invoices) != 1 || fm.invoices[0] != "XTR:100:stars:1" {
+		t.Fatalf("инвойс не выставлен корректно: %v", fm.invoices)
+	}
+	// precheckout (должен ответить ok без паники)
+	a.handlePreCheckout(ctx, &models.PreCheckoutQuery{ID: "pc1", InvoicePayload: "stars:1"})
+	// успешная оплата
+	a.handleSuccessfulPayment(ctx, successPayMsg(user, "stars:1", 100))
+
+	if !strings.Contains(fm.joined(), "sub/abc") {
+		t.Fatalf("после оплаты не пришла ссылка:\n%s", fm.joined())
+	}
+	if ok, _ := fs.HasPaidPayment(ctx, user); !ok {
+		t.Fatal("оплата не записана в лог")
+	}
+	// после покупки nav показывает «Мои подписки»
+	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|" {
+		t.Fatalf("после Stars-оплаты ожидались Мои подписки: %s", btnData(row))
+	}
+}
+
+// Уведомление-заявка удаляется после решения админа.
+func TestModerationNotificationDeleted(t *testing.T) {
+	a, fm, fs := newTestApp(t)
+	a.store = fs
+	a.botCfg = &model.BotConfig{Installed: true, Language: "ru", P2P: model.P2PConfig{Enabled: true, Prices: map[int]string{1: "100"}}}
+	ctx := context.Background()
+
+	// одобряем доступ пользователю по уведомлению с msgID=777
+	const notifID = 777
+	a.handleCallback(ctx, cbMsg(100, "adm:uok:555", notifID))
+	found := false
+	for _, id := range fm.deleted {
+		if id == notifID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("уведомление (msgID=%d) должно быть удалено; deleted=%v", notifID, fm.deleted)
+	}
+	if u, _ := fs.GetUser(ctx, 555); u == nil || !u.P2PApproved {
+		t.Fatal("доступ должен быть выдан")
 	}
 }

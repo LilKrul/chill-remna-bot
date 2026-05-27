@@ -40,6 +40,10 @@ type Storage interface {
 	GetP2PRequest(ctx context.Context, id int64) (*model.P2PRequest, error)
 	UpdateP2PRequest(ctx context.Context, r *model.P2PRequest) error
 
+	AddPayment(ctx context.Context, p *model.Payment) error
+	ListPayments(ctx context.Context, limit, offset int) ([]model.Payment, int, error)
+	HasPaidPayment(ctx context.Context, telegramID int64) (bool, error)
+
 	Kind() string
 	Close() error
 }
@@ -249,4 +253,50 @@ func (b *base) UpdateP2PRequest(ctx context.Context, r *model.P2PRequest) error 
 			" WHERE id = "+b.ph(5),
 		r.Status, r.Screenshot, r.Comment, r.DecidedAt, r.ID)
 	return err
+}
+
+func (b *base) AddPayment(ctx context.Context, p *model.Payment) error {
+	if p.ID == 0 {
+		p.ID = time.Now().UnixNano()
+	}
+	if p.CreatedAt == "" {
+		p.CreatedAt = nowStr()
+	}
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO payments (id, telegram_id, method, months, amount, status, comment, created_at) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+", "+b.ph(8)+")",
+		p.ID, p.TelegramID, p.Method, p.Months, p.Amount, p.Status, p.Comment, p.CreatedAt)
+	return err
+}
+
+func (b *base) ListPayments(ctx context.Context, limit, offset int) ([]model.Payment, int, error) {
+	var total int
+	if err := b.db.QueryRowContext(ctx, "SELECT COUNT(1) FROM payments").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := b.db.QueryContext(ctx,
+		"SELECT id, telegram_id, method, months, amount, status, comment, created_at FROM payments "+
+			"ORDER BY created_at DESC, id DESC LIMIT "+b.ph(1)+" OFFSET "+b.ph(2),
+		limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []model.Payment
+	for rows.Next() {
+		var p model.Payment
+		if err := rows.Scan(&p.ID, &p.TelegramID, &p.Method, &p.Months, &p.Amount, &p.Status, &p.Comment, &p.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, p)
+	}
+	return out, total, rows.Err()
+}
+
+func (b *base) HasPaidPayment(ctx context.Context, telegramID int64) (bool, error) {
+	var n int
+	err := b.db.QueryRowContext(ctx,
+		"SELECT COUNT(1) FROM payments WHERE telegram_id = "+b.ph(1)+" AND status = "+b.ph(2),
+		telegramID, model.PaymentPaid).Scan(&n)
+	return n > 0, err
 }

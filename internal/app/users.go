@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"remnabot/internal/i18n"
+	"remnabot/internal/model"
 )
 
 const usersPageSize = 8
@@ -164,6 +165,73 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
 			_ = a.store.DeleteUser(ctx, uid)
 		}
 		a.showUsers(ctx, chatID, 0)
+	}
+}
+
+// --- админ: лог оплат ---
+
+func payMethodLabel(method string) string {
+	switch method {
+	case "stars":
+		return "⭐"
+	case "p2p":
+		return "P2P"
+	}
+	return method
+}
+
+func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
+	lang := a.lang(chatID)
+	if a.store == nil {
+		return
+	}
+	if page < 0 {
+		page = 0
+	}
+	items, total, err := a.store.ListPayments(ctx, usersPageSize, page*usersPageSize)
+	if err != nil {
+		a.send(ctx, chatID, "❌ "+err.Error())
+		return
+	}
+	back := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:manage"), btn(i18n.T(lang, "btn.home"), "menu:home")}
+	if total == 0 {
+		a.sendKB(ctx, chatID, i18n.T(lang, "payments.empty"), [][]models.InlineKeyboardButton{back})
+		return
+	}
+	pages := (total + usersPageSize - 1) / usersPageSize
+	var sb strings.Builder
+	sb.WriteString(i18n.T(lang, "payments.title", total, page+1, pages))
+	for _, p := range items {
+		date := p.CreatedAt
+		if len(date) >= 10 {
+			date = date[:10]
+		}
+		status := i18n.T(lang, "payments.st_paid")
+		if p.Status == model.PaymentRejected {
+			status = i18n.T(lang, "payments.st_rejected")
+		}
+		sb.WriteString("\n" + i18n.T(lang, "payments.line", date, payMethodLabel(p.Method), p.TelegramID, p.Months, p.Amount, status))
+	}
+	var rows [][]models.InlineKeyboardButton
+	var nav []models.InlineKeyboardButton
+	if page > 0 {
+		nav = append(nav, btn(i18n.T(lang, "btn.prev"), "pay:page:"+strconv.Itoa(page-1)))
+	}
+	if page+1 < pages {
+		nav = append(nav, btn(i18n.T(lang, "btn.next"), "pay:page:"+strconv.Itoa(page+1)))
+	}
+	if len(nav) > 0 {
+		rows = append(rows, nav)
+	}
+	rows = append(rows, back)
+	a.sendKB(ctx, chatID, sb.String(), rows)
+}
+
+func (a *App) onPayments(ctx context.Context, chatID int64, val string) {
+	action, arg, _ := strings.Cut(val, ":")
+	if action == "page" {
+		page, _ := strconv.Atoi(arg)
+		a.showPayments(ctx, chatID, page)
 	}
 }
 

@@ -292,3 +292,25 @@ func TestUserInfoAndPurchase(t *testing.T) {
 		}
 	})
 }
+
+func TestPaymentsLog(t *testing.T) {
+	eachStore(t, func(t *testing.T, st Storage) {
+		ctx := context.Background()
+		if ok, _ := st.HasPaidPayment(ctx, 555); ok {
+			t.Fatal("без записей оплат быть не должно")
+		}
+		if err := st.AddPayment(ctx, &model.Payment{TelegramID: 555, Method: model.PayMethodStars, Months: 1, Amount: "100 ⭐", Status: model.PaymentPaid}); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.AddPayment(ctx, &model.Payment{TelegramID: 555, Method: model.PayMethodP2P, Months: 3, Amount: "300 руб", Status: model.PaymentRejected, Comment: "no screenshot"}); err != nil {
+			t.Fatal(err)
+		}
+		if ok, _ := st.HasPaidPayment(ctx, 555); !ok {
+			t.Fatal("после paid-оплаты должно определяться")
+		}
+		items, total, err := st.ListPayments(ctx, 10, 0)
+		if err != nil || total != 2 || len(items) != 2 {
+			t.Fatalf("ListPayments: total=%d len=%d err=%v", total, len(items), err)
+		}
+	})
+}

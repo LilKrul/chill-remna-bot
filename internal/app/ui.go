@@ -66,6 +66,9 @@ func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
 	if a.store == nil {
 		return false
 	}
+	if ok, _ := a.store.HasPaidPayment(ctx, chatID); ok {
+		return true
+	}
 	ok, _ := a.store.HasApprovedPurchase(ctx, chatID)
 	return ok
 }
@@ -109,7 +112,7 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 func (a *App) showPay(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.sendKB(ctx, chatID, i18n.T(lang, "menu.pay_title"), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p")},
+		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
 		homeRow(lang),
 	})
 }
@@ -117,8 +120,9 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 func (a *App) showManage(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.sendKB(ctx, chatID, i18n.T(lang, "menu.manage_title"), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.users"), "menu:users"), btn(i18n.T(lang, "btn.status"), "menu:status")},
-		{btn(i18n.T(lang, "btn.update"), "menu:update"), btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
+		{btn(i18n.T(lang, "btn.users"), "menu:users"), btn(i18n.T(lang, "btn.payments"), "menu:payments")},
+		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.update"), "menu:update")},
+		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
 		homeRow(lang),
 	})
 }
@@ -255,6 +259,14 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "users":
 		if isAdmin {
 			a.showUsers(ctx, chatID, 0)
+		}
+	case "stars":
+		if isAdmin {
+			a.showStarsAdmin(ctx, chatID)
+		}
+	case "payments":
+		if isAdmin {
+			a.showPayments(ctx, chatID, 0)
 		}
 	}
 }
