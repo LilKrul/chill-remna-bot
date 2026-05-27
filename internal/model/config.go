@@ -2,6 +2,8 @@
 // (storage, remnawave, app), чтобы не плодить циклические импорты.
 package model
 
+import "encoding/json"
+
 // Поддерживаемые движки БД.
 const (
 	DBSQLite   = "sqlite"
@@ -43,14 +45,24 @@ type PanelConfig struct {
 
 // BotConfig — вся конфигурация бота, хранится одной зашифрованной строкой в БД.
 type BotConfig struct {
-	Installed bool        `json:"installed"`
-	Language  string      `json:"language"`
-	DBKind    string      `json:"db_kind"`
-	Panel     PanelConfig `json:"panel"`
-	P2P       P2PConfig   `json:"p2p"`
+	Installed bool          `json:"installed"`
+	Language  string        `json:"language"`
+	DBKind    string        `json:"db_kind"`
+	Panel     PanelConfig   `json:"panel"`
+	P2P       P2PConfig     `json:"p2p"`
+	Welcome   WelcomeConfig `json:"welcome"`
 	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id (анимированные premium),
 	// заполняется через /emoji. Дополняет/перекрывает env PREMIUM_EMOJI.
 	PremiumEmoji map[string]string `json:"premium_emoji"`
+}
+
+// WelcomeConfig — стартовый баннер: картинка (file_id или URL) + текст с
+// форматированием (entities Telegram, чтобы сохранить переносы и стили).
+type WelcomeConfig struct {
+	ImageFileID string          `json:"image_file_id"`
+	ImageURL    string          `json:"image_url"`
+	Text        string          `json:"text"`
+	Entities    json.RawMessage `json:"entities"`
 }
 
 // PlanMonths — фиксированные сроки подписки (в месяцах).

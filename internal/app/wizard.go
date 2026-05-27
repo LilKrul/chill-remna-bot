@@ -72,6 +72,14 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onAdmin(ctx, chatID, val)
 		}
+	case "emo":
+		if isAdmin {
+			a.onEmoji(ctx, chatID, val)
+		}
+	case "wel":
+		if isAdmin {
+			a.onWelcome(ctx, chatID, val)
+		}
 	}
 }
 

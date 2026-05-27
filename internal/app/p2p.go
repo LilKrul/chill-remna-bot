@@ -16,11 +16,13 @@ import (
 
 // uiState — рантайм-состояние меню/покупки/админки по chatID (вне мастера установки).
 type uiState struct {
-	buyMonths    int    // выбранный срок плана
-	awaitShotReq int64  // id заявки P2P, по которой ждём скриншот
-	rejectReq    int64  // id заявки, для которой админ вводит причину отказа
-	adminInput   string // ожидаемый ввод админа: "cards"|"price"|"squad"
-	priceMonths  int    // при adminInput=="price" — для какого срока
+	buyMonths     int    // выбранный срок плана
+	awaitShotReq  int64  // id заявки P2P, по которой ждём скриншот
+	rejectReq     int64  // id заявки, для которой админ вводит причину отказа
+	adminInput    string // ожидаемый ввод админа: "cards"|"price"|"squad"
+	priceMonths   int    // при adminInput=="price" — для какого срока
+	welcomeAwait  string // ожидаем для баннера: "img"|"txt"
+	awaitEmojiFor string // ожидаем аним-эмодзи для этой стандартной эмодзи
 }
 
 func (a *App) getUI(chatID int64) *uiState {
@@ -57,17 +59,6 @@ func (a *App) p2pConfig() model.P2PConfig {
 }
 
 // --- меню / покупка ---
-
-func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool) {
-	lang := a.lang(chatID)
-	text := i18n.T(lang, "menu.installed")
-	if isAdmin {
-		text += "\n\n" + i18n.T(lang, "menu.admin_hint")
-	}
-	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "menu.buy"), "menu:buy")},
-	})
-}
 
 func (a *App) onMenu(ctx context.Context, chatID int64, val string) {
 	if val == "buy" {
@@ -200,6 +191,10 @@ func (a *App) onP2PUser(ctx context.Context, chatID int64, val string) {
 func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 	chatID := m.Chat.ID
 	ui := a.getUI(chatID)
+	if ui.welcomeAwait == "img" {
+		a.setWelcomeImageFile(ctx, chatID, m.Photo[len(m.Photo)-1].FileID)
+		return
+	}
 	if ui.awaitShotReq == 0 || a.store == nil {
 		return
 	}

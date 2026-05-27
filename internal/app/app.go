@@ -27,6 +27,7 @@ type messenger interface {
 	Send(ctx context.Context, chatID int64, text string)
 	SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton)
 	SendPhoto(ctx context.Context, chatID int64, fileID, caption string, rows [][]models.InlineKeyboardButton)
+	SendBanner(ctx context.Context, chatID int64, photo models.InputFile, caption string, entities []models.MessageEntity, rm models.ReplyMarkup)
 	AnswerCallback(ctx context.Context, id string)
 }
 
@@ -232,17 +233,34 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		return
 	case strings.HasPrefix(text, "/emoji"):
 		if isAdmin {
-			a.getUI(chatID).adminInput = "emoji"
-			a.send(ctx, chatID, i18n.T(a.lang(chatID), "admin.ask_emoji"))
+			a.showEmojiGrid(ctx, chatID)
+		}
+		return
+	case strings.HasPrefix(text, "/welcome"):
+		if isAdmin {
+			a.showWelcomeAdmin(ctx, chatID)
 		}
 		return
 	}
 
+	// быстрые кнопки (постоянная клавиатура)
+	if a.handleReplyButton(ctx, chatID, text, isAdmin) {
+		return
+	}
 	if !isAdmin {
 		return
 	}
-	if a.getUI(chatID).adminInput == "emoji" {
-		a.collectEmoji(ctx, chatID, m)
+	ui := a.getUI(chatID)
+	if ui.welcomeAwait == "txt" {
+		a.setWelcomeText(ctx, chatID, m)
+		return
+	}
+	if ui.welcomeAwait == "img" {
+		a.setWelcomeImageURL(ctx, chatID, text)
+		return
+	}
+	if ui.awaitEmojiFor != "" {
+		a.setEmojiFor(ctx, chatID, m)
 		return
 	}
 	a.mu.Lock()
@@ -375,6 +393,18 @@ func (m botMessenger) SendPhoto(ctx context.Context, chatID int64, fileID, capti
 	}
 	if _, err := m.b.SendPhoto(ctx, p); err != nil {
 		m.log.Error("send photo", "err", err)
+	}
+}
+
+func (m botMessenger) SendBanner(ctx context.Context, chatID int64, photo models.InputFile, caption string, entities []models.MessageEntity, rm models.ReplyMarkup) {
+	p := &bot.SendPhotoParams{ChatID: chatID, Photo: photo, Caption: caption, ReplyMarkup: rm}
+	if len(entities) > 0 {
+		p.CaptionEntities = entities
+	} else {
+		p.ParseMode = models.ParseModeHTML
+	}
+	if _, err := m.b.SendPhoto(ctx, p); err != nil {
+		m.log.Error("send banner", "err", err)
 	}
 }
 
