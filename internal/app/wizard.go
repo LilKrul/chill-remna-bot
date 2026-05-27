@@ -177,6 +177,11 @@ func (a *App) onLocationChosen(ctx context.Context, chatID int64, w *wizard, val
 	w.cfg.Panel.Mode = val
 	if val == model.ModeLocal {
 		w.cfg.Panel.BaseURL = remnawave.LocalBaseURL
+		if a.ctl != nil && a.ctl.Available() {
+			if err := a.ctl.ConnectPanelNetwork(ctx); err != nil {
+				a.log.Warn("подключение к сети панели", "err", err)
+			}
+		}
 		a.gotoToken(ctx, chatID, w)
 		return
 	}

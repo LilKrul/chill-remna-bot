@@ -1,6 +1,6 @@
-// Package hostctl позволяет боту управлять docker compose на хосте через
-// смонтированный docker.sock: поднять PostgreSQL по выбору пользователя
-// (дописав сервис в compose-файл) и обновить себя.
+// Package hostctl позволяет боту управлять docker на хосте через смонтированный
+// docker.sock: подключиться к сети панели, поднять PostgreSQL по выбору
+// пользователя (дописав сервис в compose-файл) и обновить себя.
 package hostctl
 
 import (
@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -18,16 +19,20 @@ import (
 const PostgresDSN = "postgres://remnabot:remnabot@db:5432/remnabot?sslmode=disable"
 
 type Controller struct {
-	composeFile string
-	project     string
-	hostDir     string
+	composeFile    string
+	project        string
+	hostDir        string
+	panelContainer string // имя контейнера панели (для подключения к её сети)
+	selfContainer  string // имя контейнера бота
 }
 
 func New() *Controller {
 	return &Controller{
-		composeFile: env("COMPOSE_FILE_PATH", "/compose/docker-compose.yml"),
-		project:     env("COMPOSE_PROJECT", "remnachillbot"),
-		hostDir:     env("COMPOSE_HOST_DIR", "/opt/remnachillbot"),
+		composeFile:    env("COMPOSE_FILE_PATH", "/compose/docker-compose.yml"),
+		project:        env("COMPOSE_PROJECT", "remnachillbot"),
+		hostDir:        env("COMPOSE_HOST_DIR", "/opt/remnachillbot"),
+		panelContainer: env("PANEL_CONTAINER", "remnawave"),
+		selfContainer:  env("SELF_CONTAINER", "remnabot"),
 	}
 }
 
@@ -38,7 +43,7 @@ func env(k, def string) string {
 	return def
 }
 
-// Available сообщает, может ли бот управлять docker compose.
+// Available сообщает, может ли бот управлять docker (есть сокет, бинарь и compose-файл).
 func (c *Controller) Available() bool {
 	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
 		return false
@@ -52,7 +57,32 @@ func (c *Controller) Available() bool {
 	return true
 }
 
-// EnablePostgres дописывает сервис db, поднимает его и ждёт готовности.
+// ConnectPanelNetwork подключает контейнер бота ко всем пользовательским сетям
+// контейнера панели, чтобы бот мог обращаться к ней по имени (remnawave:3000).
+func (c *Controller) ConnectPanelNetwork(ctx context.Context) error {
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f",
+		`{{range $k,$_ := .NetworkSettings.Networks}}{{$k}} {{end}}`, c.panelContainer).Output()
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", c.panelContainer, err)
+	}
+	connected := false
+	for _, netName := range strings.Fields(string(out)) {
+		switch netName {
+		case "bridge", "host", "none":
+			continue
+		}
+		o, e := exec.CommandContext(ctx, "docker", "network", "connect", netName, c.selfContainer).CombinedOutput()
+		if e == nil || strings.Contains(string(o), "already exists") {
+			connected = true
+		}
+	}
+	if !connected {
+		return fmt.Errorf("у контейнера %q не найдено пользовательских сетей", c.panelContainer)
+	}
+	return nil
+}
+
+// EnablePostgres дописывает сервис db в compose, поднимает его и ждёт готовности.
 func (c *Controller) EnablePostgres(ctx context.Context) (string, error) {
 	if err := c.addPostgresToCompose(); err != nil {
 		return "", fmt.Errorf("правка compose: %w", err)
@@ -66,6 +96,8 @@ func (c *Controller) EnablePostgres(ctx context.Context) (string, error) {
 	return PostgresDSN, nil
 }
 
+// addPostgresToCompose добавляет сервис db и том pg-data, прописывает боту
+// DB_KIND/DATABASE_URL. db работает в сети проекта по умолчанию (как и бот).
 func (c *Controller) addPostgresToCompose() error {
 	data, err := os.ReadFile(c.composeFile)
 	if err != nil {
@@ -97,7 +129,6 @@ func (c *Controller) addPostgresToCompose() error {
 			"timeout":  "5s",
 			"retries":  10,
 		},
-		"networks": []any{"remnawave-network"},
 	}
 
 	if bot, ok := services["bot"].(map[string]any); ok {
@@ -135,8 +166,7 @@ func (c *Controller) SelfUpdate(ctx context.Context) error {
 		"docker:cli",
 		"sh", "-c", script,
 	}
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("self-update: %v: %s", err, out)
 	}
 	return nil
@@ -144,8 +174,7 @@ func (c *Controller) SelfUpdate(ctx context.Context) error {
 
 func (c *Controller) compose(ctx context.Context, args ...string) error {
 	full := append([]string{"compose", "-f", c.composeFile, "-p", c.project}, args...)
-	cmd := exec.CommandContext(ctx, "docker", full...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "docker", full...).CombinedOutput(); err != nil {
 		return fmt.Errorf("docker compose %v: %v: %s", args, err, out)
 	}
 	return nil

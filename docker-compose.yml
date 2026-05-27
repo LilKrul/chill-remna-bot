@@ -3,17 +3,17 @@
 #   mkdir -p /opt/remnachillbot && cd /opt/remnachillbot
 #   git clone https://github.com/Mrvibecodic/chill-remna-bot.git .
 #   nano docker-compose.yml      # заменить 2 строки с токенами ниже
-#   docker network create remnawave-network 2>/dev/null || true
 #   docker compose up -d
 #   # затем в Telegram боту: /start
 #
 # Стартует ТОЛЬКО бот, без базы. БД появляется по выбору в мастере:
 #   • SQLite  — бот создаёт файл в томе bot-data;
 #   • Postgres — бот сам допишет сюда сервис db и поднимет его (через docker.sock).
-# Поэтому проброшены docker.sock и каталог проекта (самоменеджмент + /update).
+# При выборе «Локально» бот сам подключится к docker-сети вашей панели
+# (контейнер PANEL_CONTAINER) — вручную создавать сети не нужно.
 #
-# Если разворачиваете НЕ в /opt/remnachillbot — поправьте путь в volumes
-# ("/opt/remnachillbot:/compose") и в COMPOSE_HOST_DIR.
+# Если ставите НЕ в /opt/remnachillbot — поправьте путь "/opt/remnachillbot:/compose"
+# и COMPOSE_HOST_DIR. Если контейнер панели называется не "remnawave" — задайте PANEL_CONTAINER.
 
 name: remnachillbot
 
@@ -30,16 +30,11 @@ services:
       COMPOSE_PROJECT: remnachillbot
       COMPOSE_FILE_PATH: /compose/docker-compose.yml
       COMPOSE_HOST_DIR: /opt/remnachillbot
+      PANEL_CONTAINER: remnawave
     volumes:
       - bot-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/remnachillbot:/compose
-    networks:
-      - remnawave-network
 
 volumes:
   bot-data:
-
-networks:
-  remnawave-network:
-    external: true

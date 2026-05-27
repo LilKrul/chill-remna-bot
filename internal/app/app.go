@@ -91,6 +91,11 @@ func (a *App) loadConfigIfStore(ctx context.Context) error {
 	if ok && cfg.Installed {
 		a.botCfg = cfg
 		a.panel = remnawave.New(cfg.Panel)
+		if cfg.Panel.Mode == model.ModeLocal && a.ctl != nil && a.ctl.Available() {
+			if err := a.ctl.ConnectPanelNetwork(ctx); err != nil {
+				a.log.Warn("подключение к сети панели", "err", err)
+			}
+		}
 		a.log.Info("конфигурация загружена, бот установлен", "db", a.store.Kind())
 	}
 	return nil
