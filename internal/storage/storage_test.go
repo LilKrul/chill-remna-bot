@@ -8,6 +8,8 @@ import (
 
 	"remnabot/internal/crypto"
 	"remnabot/internal/model"
+
+	_ "remnabot/internal/storage/drivers"
 )
 
 func testCrypter(t *testing.T) *crypto.Crypter {

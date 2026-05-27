@@ -12,9 +12,6 @@ import (
 
 	"remnabot/internal/crypto"
 	"remnabot/internal/model"
-
-	_ "github.com/jackc/pgx/v5/stdlib" // драйвер "pgx"
-	_ "modernc.org/sqlite"             // драйвер "sqlite" (чистый Go, без CGO)
 )
 
 // Storage — контракт хранилища. Один и тот же набор тестов гоняется против

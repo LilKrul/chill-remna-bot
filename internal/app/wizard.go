@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
 	"remnabot/internal/i18n"
@@ -44,7 +43,7 @@ func (a *App) startWizard(ctx context.Context, chatID int64) {
 }
 
 func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
-	_, _ = a.b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID})
+	a.msg.AnswerCallback(ctx, cq.ID)
 
 	chatID := cq.From.ID
 	if chatID != a.cfg.AdminID {

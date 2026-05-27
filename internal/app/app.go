@@ -21,6 +21,14 @@ import (
 	"remnabot/internal/storage"
 )
 
+// messenger абстрагирует отправку сообщений в Telegram — это «шов» для тестов
+// (в проде botMessenger поверх *bot.Bot, в тестах — фейк-перехватчик).
+type messenger interface {
+	Send(ctx context.Context, chatID int64, text string)
+	SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton)
+	AnswerCallback(ctx context.Context, id string)
+}
+
 type App struct {
 	cfg     *config.Config
 	crypter *crypto.Crypter
@@ -28,6 +36,10 @@ type App struct {
 	b       *bot.Bot
 
 	ctl *hostctl.Controller
+	msg messenger
+	// newStore — «шов» открытия хранилища (в тестах подменяется на фейк);
+	// nil → используется storage.Open(... a.crypter).
+	newStore func(kind, dsn string) (storage.Storage, error)
 
 	mu     sync.Mutex
 	store  storage.Storage
@@ -84,9 +96,16 @@ func (a *App) loadConfigIfStore(ctx context.Context) error {
 	return nil
 }
 
+func (a *App) openOne(kind, dsn string) (storage.Storage, error) {
+	if a.newStore != nil {
+		return a.newStore(kind, dsn)
+	}
+	return storage.Open(kind, dsn, a.crypter)
+}
+
 // openStore открывает БД, прогоняет миграции, запоминает выбор в bootstrap.json.
 func (a *App) openStore(kind, dsn string) error {
-	st, err := storage.Open(kind, dsn, a.crypter)
+	st, err := a.openOne(kind, dsn)
 	if err != nil {
 		return err
 	}
@@ -104,7 +123,7 @@ func (a *App) openStore(kind, dsn string) error {
 // switchStore открывает новое хранилище и при наличии старого переносит данные,
 // затем переключает активное хранилище (старое закрывается после переноса).
 func (a *App) switchStore(ctx context.Context, kind, dsn string) error {
-	newSt, err := storage.Open(kind, dsn, a.crypter)
+	newSt, err := a.openOne(kind, dsn)
 	if err != nil {
 		return err
 	}
@@ -137,6 +156,7 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 	a.b = b
+	a.msg = botMessenger{b: b, log: a.log}
 	a.log.Info("бот запущен")
 	b.Start(ctx)
 	return nil
@@ -227,27 +247,14 @@ func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	}
 }
 
+// --- отправка сообщений (через messenger) ---
+
 func (a *App) send(ctx context.Context, chatID int64, text string) {
-	_, err := a.b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: models.ParseModeHTML,
-	})
-	if err != nil {
-		a.log.Error("send message", "err", err)
-	}
+	a.msg.Send(ctx, chatID, text)
 }
 
 func (a *App) sendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
-	_, err := a.b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        text,
-		ParseMode:   models.ParseModeHTML,
-		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: rows},
-	})
-	if err != nil {
-		a.log.Error("send keyboard", "err", err)
-	}
+	a.msg.SendKB(ctx, chatID, text, rows)
 }
 
 func btn(text, data string) models.InlineKeyboardButton {
@@ -262,4 +269,31 @@ func (a *App) lang(chatID int64) string {
 		return a.botCfg.Language
 	}
 	return i18n.Fallback
+}
+
+// botMessenger — реальная отправка через Telegram (ParseMode=HTML).
+type botMessenger struct {
+	b   *bot.Bot
+	log *slog.Logger
+}
+
+func (m botMessenger) Send(ctx context.Context, chatID int64, text string) {
+	if _, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML,
+	}); err != nil {
+		m.log.Error("send message", "err", err)
+	}
+}
+
+func (m botMessenger) SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
+	if _, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML,
+		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: rows},
+	}); err != nil {
+		m.log.Error("send keyboard", "err", err)
+	}
+}
+
+func (m botMessenger) AnswerCallback(ctx context.Context, id string) {
+	_, _ = m.b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: id})
 }

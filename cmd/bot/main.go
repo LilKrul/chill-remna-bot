@@ -20,6 +20,8 @@ import (
 	"remnabot/internal/app"
 	"remnabot/internal/config"
 	"remnabot/internal/crypto"
+
+	_ "remnabot/internal/storage/drivers" // регистрация драйверов БД (sqlite, pgx)
 )
 
 func main() {
