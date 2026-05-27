@@ -43,3 +43,16 @@ func TestLoadDefaultDataDir(t *testing.T) {
 		t.Fatalf("DATA_DIR по умолчанию = %q", c.DataDir)
 	}
 }
+
+func TestParseEmojiMap(t *testing.T) {
+	if parseEmojiMap("") != nil {
+		t.Fatal("пустая строка -> nil")
+	}
+	m := parseEmojiMap("✅=123, ⏳=456 ,bad")
+	if m["✅"] != "123" || m["⏳"] != "456" {
+		t.Fatalf("неверный парсинг: %+v", m)
+	}
+	if _, ok := m["bad"]; ok {
+		t.Fatal("пара без '=' не должна попадать в карту")
+	}
+}

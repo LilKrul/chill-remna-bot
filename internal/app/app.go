@@ -156,7 +156,7 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 	a.b = b
-	a.msg = botMessenger{b: b, log: a.log}
+	a.msg = botMessenger{b: b, log: a.log, premium: a.cfg.PremiumEmoji}
 	a.log.Info("бот запущен")
 	b.Start(ctx)
 	return nil
@@ -273,11 +273,13 @@ func (a *App) lang(chatID int64) string {
 
 // botMessenger — реальная отправка через Telegram (ParseMode=HTML).
 type botMessenger struct {
-	b   *bot.Bot
-	log *slog.Logger
+	b       *bot.Bot
+	log     *slog.Logger
+	premium map[string]string
 }
 
 func (m botMessenger) Send(ctx context.Context, chatID int64, text string) {
+	text = applyPremiumEmoji(text, m.premium)
 	if _, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML,
 	}); err != nil {
@@ -286,6 +288,7 @@ func (m botMessenger) Send(ctx context.Context, chatID int64, text string) {
 }
 
 func (m botMessenger) SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
+	text = applyPremiumEmoji(text, m.premium)
 	if _, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML,
 		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: rows},
@@ -296,4 +299,20 @@ func (m botMessenger) SendKB(ctx context.Context, chatID int64, text string, row
 
 func (m botMessenger) AnswerCallback(ctx context.Context, id string) {
 	_, _ = m.b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: id})
+}
+
+// applyPremiumEmoji оборачивает обычные эмодзи в HTML-тег <tg-emoji> с
+// custom_emoji_id, чтобы показать анимированные (premium) версии. Запасной
+// (обычный) эмодзи остаётся внутри тега. При пустой карте текст не меняется.
+func applyPremiumEmoji(text string, m map[string]string) string {
+	if len(m) == 0 {
+		return text
+	}
+	for emoji, id := range m {
+		if id == "" {
+			continue
+		}
+		text = strings.ReplaceAll(text, emoji, "<tg-emoji emoji-id=\""+id+"\">"+emoji+"</tg-emoji>")
+	}
+	return text
 }

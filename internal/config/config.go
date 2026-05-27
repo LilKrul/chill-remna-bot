@@ -1,7 +1,5 @@
-// Package config читает параметры окружения, необходимые до подключения к БД.
-//
-// Философия проекта: env содержит только bootstrap-минимум, вся остальная
-// настройка делается мастером прямо в Telegram и хранится в БД.
+// Package config читает bootstrap-параметры из окружения. Всё остальное
+// настраивается мастером в Telegram и хранится в БД.
 package config
 
 import (
@@ -12,24 +10,28 @@ import (
 )
 
 type Config struct {
-	BotToken string // токен Telegram-бота (обязательно)
-	AdminID  int64  // Telegram ID администратора, которому доступен мастер (обязательно)
-	DataDir  string // каталог для файла SQLite, bootstrap.json и secret.key
+	BotToken string // токен бота (обязательно)
+	AdminID  int64  // Telegram ID администратора (обязательно)
+	DataDir  string // каталог данных (sqlite-файл, secret.key, bootstrap.json)
 
-	// Необязательное: если заданы в env (например, при запуске compose-профиля
-	// postgres), мастер не будет спрашивать движок/DSN, а возьмёт отсюда.
-	DBKind      string // "sqlite" | "postgres" | ""
-	DatabaseURL string // DSN PostgreSQL, если DBKind == postgres
-	SecretKey   string // ключ шифрования секретов; если пуст — сгенерируем в DataDir
+	DBKind      string // sqlite|postgres|"" (иначе спросит мастер)
+	DatabaseURL string // DSN PostgreSQL, если DBKind=postgres
+	SecretKey   string // ключ шифрования секретов (иначе генерируется в DataDir)
+
+	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id для анимированных
+	// (premium) эмодзи. Работает, если у владельца бота есть Telegram Premium.
+	// Формат env PREMIUM_EMOJI: "✅=123,⏳=456". Пусто — обычные эмодзи.
+	PremiumEmoji map[string]string
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		BotToken:    strings.TrimSpace(os.Getenv("BOT_TOKEN")),
-		DataDir:     envOr("DATA_DIR", "/data"),
-		DBKind:      strings.TrimSpace(os.Getenv("DB_KIND")),
-		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		SecretKey:   os.Getenv("SECRET_KEY"),
+		BotToken:     strings.TrimSpace(os.Getenv("BOT_TOKEN")),
+		DataDir:      envOr("DATA_DIR", "/data"),
+		DBKind:       strings.TrimSpace(os.Getenv("DB_KIND")),
+		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		SecretKey:    os.Getenv("SECRET_KEY"),
+		PremiumEmoji: parseEmojiMap(os.Getenv("PREMIUM_EMOJI")),
 	}
 	if c.BotToken == "" {
 		return nil, fmt.Errorf("BOT_TOKEN не задан")
@@ -44,6 +46,24 @@ func Load() (*Config, error) {
 	}
 	c.AdminID = id
 	return c, nil
+}
+
+func parseEmojiMap(raw string) map[string]string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	m := map[string]string{}
+	for _, pair := range strings.Split(raw, ",") {
+		k, v, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if ok && k != "" && v != "" {
+			m[k] = v
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
 }
 
 func envOr(key, def string) string {
