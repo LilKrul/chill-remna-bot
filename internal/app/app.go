@@ -32,6 +32,8 @@ type messenger interface {
 	SendBanner(ctx context.Context, chatID int64, photo models.InputFile, caption string, entities []models.MessageEntity, rm models.ReplyMarkup) int
 	Delete(ctx context.Context, chatID int64, msgID int)
 	RemoveKeyboard(ctx context.Context, chatID int64)
+	// SetCommandKeyboard ставит постоянную reply-клавиатуру (кнопка под полем ввода).
+	SetCommandKeyboard(ctx context.Context, chatID int64, label string)
 	AnswerCallback(ctx context.Context, id string)
 	// SendInvoice выставляет счёт (для Telegram Stars currency=XTR, providerToken="").
 	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
@@ -61,11 +63,12 @@ type App struct {
 	// каждое новое экранное сообщение удаляет предыдущее (чистота чата).
 	scrMu  sync.Mutex
 	screen map[int64][]int
+	kbSet  map[int64]bool // у кого уже выставлена постоянная reply-клавиатура
 }
 
 func New(cfg *config.Config, crypter *crypto.Crypter, log *slog.Logger) *App {
 	return &App{cfg: cfg, crypter: crypter, log: log, ctl: hostctl.New(), wiz: map[int64]*wizard{}, ui: map[int64]*uiState{},
-		screen: map[int64][]int{}}
+		screen: map[int64][]int{}, kbSet: map[int64]bool{}}
 }
 
 // Bootstrap при старте подхватывает ранее выбранную БД и конфиг.
@@ -221,6 +224,13 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		return
 	}
 
+	// Нажатие постоянной reply-кнопки «Главная».
+	if a.installed() && isHomeText(text) {
+		a.msg.Delete(ctx, chatID, m.ID)
+		a.enterHome(ctx, chatID, isAdmin, firstName, username)
+		return
+	}
+
 	switch {
 	case strings.HasPrefix(text, "/setup"):
 		if !isAdmin {
@@ -238,18 +248,7 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 			a.startWizard(ctx, chatID)
 			return
 		}
-		name := displayName(firstName, username)
-		if isAdmin {
-			a.showMenu(ctx, chatID, true, name)
-			return
-		}
-		if a.store != nil {
-			if u, _ := a.store.GetUser(ctx, chatID); u == nil {
-				a.showRegister(ctx, chatID, name)
-				return
-			}
-		}
-		a.showMenu(ctx, chatID, false, name)
+		a.enterHome(ctx, chatID, isAdmin, firstName, username)
 		return
 	case strings.HasPrefix(text, "/status"):
 		a.handleStatus(ctx, chatID)
@@ -314,24 +313,57 @@ func (a *App) handleStatus(ctx context.Context, chatID int64) {
 	a.mu.Lock()
 	installed := a.installed()
 	panel := a.panel
-	var dbKind, mode string
+	var dbKind, mode, methods string
 	if installed {
 		dbKind = a.botCfg.DBKind
 		mode = a.botCfg.Panel.Mode
+		methods = enabledMethods(a.botCfg)
 	}
 	lang := a.lang(chatID)
 	a.mu.Unlock()
 
+	isAdmin := chatID == a.cfg.AdminID
+	rows := a.statusNavRows(lang, isAdmin)
+
 	if !installed || panel == nil {
-		a.send(ctx, chatID, i18n.T(lang, "installed.hint"))
+		a.sendKB(ctx, chatID, i18n.T(lang, "installed.hint"), rows)
 		return
 	}
 	count, err := panel.SystemStats(ctx)
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "status.fail", err.Error()))
+		a.sendKB(ctx, chatID, i18n.T(lang, "status.fail", err.Error()), rows)
 		return
 	}
-	a.send(ctx, chatID, i18n.T(lang, "status.line", count, dbKind, mode))
+	a.sendKB(ctx, chatID, i18n.T(lang, "status.line", count, dbKind, mode, methods), rows)
+}
+
+// statusNavRows — кнопки под сервисным сообщением: «Назад» (админу, в Управление) + «Главная».
+func (a *App) statusNavRows(lang string, isAdmin bool) [][]models.InlineKeyboardButton {
+	if isAdmin {
+		return [][]models.InlineKeyboardButton{{
+			btn(i18n.T(lang, "btn.back"), "menu:manage"),
+			btn(i18n.T(lang, "btn.home"), "menu:home"),
+		}}
+	}
+	return [][]models.InlineKeyboardButton{{btn(i18n.T(lang, "btn.home"), "menu:home")}}
+}
+
+// enabledMethods — список включённых способов оплаты для сервисного статуса.
+func enabledMethods(cfg *model.BotConfig) string {
+	var m []string
+	if cfg.P2P.Enabled {
+		m = append(m, "P2P")
+	}
+	if cfg.Stars.Enabled {
+		m = append(m, "Stars")
+	}
+	if cfg.YooKassa.Enabled {
+		m = append(m, "ЮKassa")
+	}
+	if len(m) == 0 {
+		return "—"
+	}
+	return strings.Join(m, ", ")
 }
 
 // handleUpdate запускает самообновление образа через одноразовый контейнер.
@@ -419,6 +451,43 @@ func (a *App) notifyPhoto(ctx context.Context, chatID int64, fileID, caption str
 
 func btn(text, data string) models.InlineKeyboardButton {
 	return models.InlineKeyboardButton{Text: text, CallbackData: data}
+}
+
+// enterHome показывает домашний экран: админу — меню, новому юзеру — регистрацию.
+func (a *App) enterHome(ctx context.Context, chatID int64, isAdmin bool, firstName, username string) {
+	name := displayName(firstName, username)
+	if isAdmin {
+		a.showMenu(ctx, chatID, true, name)
+		return
+	}
+	if a.store != nil {
+		if u, _ := a.store.GetUser(ctx, chatID); u == nil {
+			a.showRegister(ctx, chatID, name)
+			return
+		}
+	}
+	a.showMenu(ctx, chatID, false, name)
+}
+
+// isHomeText распознаёт нажатие постоянной reply-кнопки «Главная» (RU/EN).
+func isHomeText(text string) bool {
+	t := strings.TrimSpace(text)
+	return t == i18n.T(model.LangRU, "btn.home") || t == i18n.T(model.LangEN, "btn.home")
+}
+
+// ensureHomeKey один раз за сессию ставит постоянную reply-кнопку «Главная».
+func (a *App) ensureHomeKey(ctx context.Context, chatID int64) {
+	a.scrMu.Lock()
+	if a.kbSet == nil {
+		a.kbSet = map[int64]bool{}
+	}
+	already := a.kbSet[chatID]
+	a.kbSet[chatID] = true
+	a.scrMu.Unlock()
+	if already {
+		return
+	}
+	a.msg.SetCommandKeyboard(ctx, chatID, i18n.T(a.lang(chatID), "btn.home"))
 }
 
 // pricing возвращает единый прайс (карты инициализированы).
@@ -561,6 +630,23 @@ func (m botMessenger) RemoveKeyboard(ctx context.Context, chatID int64) {
 		ChatID:      chatID,
 		Text:        "🔄",
 		ReplyMarkup: models.ReplyKeyboardRemove{RemoveKeyboard: true},
+	})
+	if err == nil && msg != nil {
+		_, _ = m.b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: msg.ID})
+	}
+}
+
+func (m botMessenger) SetCommandKeyboard(ctx context.Context, chatID int64, label string) {
+	// Ставим постоянную reply-клавиатуру и удаляем сообщение-носитель —
+	// клавиатура остаётся внизу, лишнего сообщения в чате нет.
+	msg, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: chatID,
+		Text:   "🏠",
+		ReplyMarkup: models.ReplyKeyboardMarkup{
+			Keyboard:       [][]models.KeyboardButton{{{Text: label}}},
+			ResizeKeyboard: true,
+			IsPersistent:   true,
+		},
 	})
 	if err == nil && msg != nil {
 		_, _ = m.b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: msg.ID})

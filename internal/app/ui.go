@@ -178,7 +178,7 @@ func (a *App) welcomeContent(name string) (models.InputFile, string, []models.Me
 }
 
 func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name string) {
-	a.msg.RemoveKeyboard(ctx, chatID)
+	a.ensureHomeKey(ctx, chatID)
 	lang := a.botLang()
 	photo, caption, ents := a.welcomeContent(name)
 	var rows [][]models.InlineKeyboardButton
@@ -196,7 +196,7 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 }
 
 func (a *App) showRegister(ctx context.Context, chatID int64, name string) {
-	a.msg.RemoveKeyboard(ctx, chatID)
+	a.ensureHomeKey(ctx, chatID)
 	lang := a.botLang()
 	a.sendKB(ctx, chatID, i18n.T(lang, "register.prompt", name), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.register"), "menu:register")},

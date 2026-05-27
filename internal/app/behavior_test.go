@@ -47,7 +47,8 @@ func (f *fakeMsg) Delete(_ context.Context, _ int64, id int) {
 	f.deleted = append(f.deleted, id)
 	f.mu.Unlock()
 }
-func (f *fakeMsg) RemoveKeyboard(_ context.Context, _ int64) {}
+func (f *fakeMsg) RemoveKeyboard(_ context.Context, _ int64)               {}
+func (f *fakeMsg) SetCommandKeyboard(_ context.Context, _ int64, _ string) {}
 func (f *fakeMsg) SendInvoice(_ context.Context, _ int64, title, _, payload, currency string, amount int) {
 	f.mu.Lock()
 	f.invoices = append(f.invoices, currency+":"+strconv.Itoa(amount)+":"+payload)
@@ -876,5 +877,22 @@ func TestYooKassaFlow(t *testing.T) {
 	a.handleCallback(ctx, cb(user, "ykc:pay_42"))
 	if len(fs.pays) != before {
 		t.Fatalf("повторная проверка не должна создавать новый платёж: было %d стало %d", before, len(fs.pays))
+	}
+}
+
+// Нажатие постоянной reply-кнопки «Главная» открывает меню (как /start).
+func TestHomeReplyButton(t *testing.T) {
+	a, fm, fs := newTestApp(t)
+	a.store = fs
+	a.botCfg = &model.BotConfig{Installed: true, Language: "ru"}
+	ctx := context.Background()
+	// админ жмёт reply-кнопку «🏠 Главная»
+	a.handleMessage(ctx, msgText(100, "🏠 Главная"))
+	if fm.joined() == "" {
+		t.Fatal("по кнопке «Главная» бот ничего не показал")
+	}
+	// входящее сообщение пользователя удаляется (чистота чата)
+	if len(fm.deleted) == 0 {
+		t.Fatal("сообщение-нажатие «Главная» должно удаляться")
 	}
 }

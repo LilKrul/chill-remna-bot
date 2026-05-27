@@ -71,7 +71,7 @@ var en = map[string]string{
 	"step.verify.fail":     "❌ Could not connect: %s\n\nFix the details and try again: /setup",
 
 	"installed.hint": "The bot is already set up. Available: /status, /update. Reinstall: /setup.",
-	"status.line":    "📊 <b>Status</b>\nPanel: reachable ✅\nUsers: %d\nDB: %s · Mode: %s",
+	"status.line":    "📊 <b>Service status</b>\n\nPanel: reachable ✅\nUsers in panel: %d\nDatabase: %s\nPanel mode: %s\nEnabled payments: %s",
 	"status.fail":    "📊 Panel unavailable: %s",
 	"setup.restart":  "Restarting the setup wizard.",
 
@@ -181,7 +181,7 @@ var en = map[string]string{
 		"People registered in the bot. Block and delete affect the bot ONLY and do NOT touch " +
 		"panel accounts.\n\nChoose a user:",
 	"users.empty": "👥 No users yet.",
-	"user.card": "👤 <b>User</b> <code>%d</code>\nRegistered: %s\nP2P access: %s\nStatus: %s\n\n" +
+	"user.card": "👤 <b>%s</b>\nRegistered: %s\nP2P access: %s\nStatus: %s\n\n" +
 		"⚠️ The actions below change bot access only; the panel account stays untouched.",
 	"user.active":           "active ✅",
 	"user.blocked":          "blocked 🚫",
