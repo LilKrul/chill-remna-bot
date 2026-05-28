@@ -143,7 +143,7 @@ var en = map[string]string{
 	"menu.admin_title":       "🛠 <b>Admin panel</b>\nChoose a section:",
 	"register.prompt":        "👋 Hi, %s!\nTo continue, please complete a quick registration.",
 	"update.done":            "✅ Bot updated and restarted.",
-	"welcome.title":          "🖼 <b>Start banner</b>\nImage and text the user sees on /start.",
+	"welcome.title":          "🖼 <b>/start banner</b>\n\nThe image and text shown on the very first /start. Empty = built-in default is used.",
 	"welcome.btn_image":      "🖼 Image",
 	"welcome.btn_text":       "📝 Text",
 	"welcome.ask_image":      "Send a photo (upload) or an image URL. It will become the start banner.",
@@ -156,18 +156,20 @@ var en = map[string]string{
 	"emoji.none_in_msg":      "No animated (premium) emoji in the message. Send a premium emoji.",
 
 	"menu.iface_title": "🎨 <b>Interface</b>\n\n" +
-		"Configure how the bot looks to users: the start banner (image and welcome text) " +
-		"and animated premium emoji in messages.\n\n" +
-		"Choose what to set up:",
-	"menu.pay_title": "💳 <b>Payment settings</b>\n\n" +
-		"Ways to accept payment. Currently available: card transfer (P2P) with manual review — " +
-		"card details, rotation between them, prices per period and the squad for new accounts.\n\n" +
-		"Choose a section:",
+		"How the bot looks to your customer:\n" +
+		"• 🖼 /start banner — main image + welcome text.\n" +
+		"• 🖼 Section banners — replace the image for any bot screen.\n" +
+		"• 🎨 Emoji — replace plain emoji with your premium ones.\n" +
+		"• 🛟 Contacts & terms — channel/support links and the agreement text.",
 	"menu.manage_title": "🛠 <b>Bot management</b>\n\n" +
-		"Utility functions: panel connection status, bot users (block and delete affect the bot " +
-		"only), bot updates and reconfiguring the DB and panel connection.\n\n" +
-		"Choose an action:",
-
+		"Utility functions:\n" +
+		"• 👥 Users — list, block/unblock, delete (syncs with panel).\n" +
+		"• 💸 Payments — log of all payments (P2P / Stars / YooKassa).\n" +
+		"• 📊 Status — panel connectivity and subscription summary.\n" +
+		"• 🌐 Subscription domain — single external host in subscription links.\n" +
+		"• 📡 API log — last 200 bot→panel requests (what/where/code/ms).\n" +
+		"• ⏳ Update — pull new image and restart.\n" +
+		"• 🔧 Reconfigure — restart DB and panel wizard.",
 	"btn.users":       "👥 Users",
 	"btn.back":        "⬅️ Back",
 	"btn.block":       "🚫 Block",
