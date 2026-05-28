@@ -247,12 +247,11 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		internalN, extStr,
 	)
 	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, title, [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.pricing"), "menu:pricing")},
-		{btn(i18n.T(lang, "subsetup.btn_traffic"), "prc:traffic"), btn(i18n.T(lang, "subsetup.btn_devices"), "prc:devices")},
-		{btn(i18n.T(lang, "subsetup.btn_strategy"), "prc:strategy"), btn(i18n.T(lang, "btn.squads"), "menu:squads")},
-		{btn(i18n.T(lang, "btn.trial_admin"), "menu:trial")},
-		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars"), btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa")},
-		{btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
+		{btn(i18n.T(lang, "subsetup.btn_quick"), "prc:quick")},
+		{btn(i18n.T(lang, "subsetup.btn_manual"), "menu:pricing")},
+		{btn(i18n.T(lang, "btn.trial_admin"), "menu:trial"), btn(i18n.T(lang, "btn.squads"), "menu:squads")},
+		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
+		{btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa"), btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
 		homeRow(lang),
 	})
 }

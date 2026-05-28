@@ -30,9 +30,9 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-// handleYooKassa — POST /webhook/yookassa. YooKassa не подписывает тело;
-// валидация — по списку IP с https://yookassa.ru/developers/using-api/webhooks
-// (производится снаружи в reverse-proxy ИЛИ внутри обработчика, см. Phase 2).
+// handleYooKassa — POST /webhook/yookassa. YooKassa не подписывает тело,
+// поэтому обработчик доверяет не телу, а перепроверяет платёж запросом к API
+// YooKassa (GetPayment) — см. HandleYooKassaWebhook.
 func (s *Server) handleYooKassa(w http.ResponseWriter, r *http.Request) {
 	body, err := readAllLimited(r, 256*1024)
 	if err != nil {

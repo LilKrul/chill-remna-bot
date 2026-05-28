@@ -87,6 +87,16 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		}
 	case "ykc":
 		a.onYKCheck(ctx, chatID, val)
+	case "cbc":
+		a.onCBCheck(ctx, chatID, val)
+	case "cb":
+		if isAdmin {
+			a.onCBAdmin(ctx, chatID, val)
+		}
+	case "wh":
+		if isAdmin {
+			a.onWebhooksAdmin(ctx, chatID, val)
+		}
 	case "prc":
 		if isAdmin {
 			a.onPricing(ctx, chatID, val)
