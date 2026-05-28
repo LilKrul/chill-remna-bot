@@ -85,19 +85,72 @@ func TestTransferSQLiteToSQLite(t *testing.T) {
 	ctx := context.Background()
 	src := openSQLiteTest(t)
 	dst := openSQLiteTest(t)
+
+	// Засеваем источник: конфиг + пользователь (с ником/блоком/терминами) +
+	// платёж + P2P-заявка + кэш медиа.
 	cfg := sampleConfig()
 	if err := src.SaveConfig(ctx, cfg); err != nil {
 		t.Fatal(err)
 	}
+	if err := src.UpsertUser(ctx, 777); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.SetUserInfo(ctx, 777, "vasya", "Вася"); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.SetBlocked(ctx, 777, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.SetTermsAccepted(ctx, 777, "2026-05-28T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.AddPayment(ctx, &model.Payment{TelegramID: 777, Method: model.PayMethodYooKassa, Months: 3, Amount: "450", Status: model.PaymentPaid, ExtID: "yk_1"}); err != nil {
+		t.Fatal(err)
+	}
+	pr := &model.P2PRequest{TelegramID: 777, Months: 1, Price: "150", Status: model.P2PApproved}
+	if err := src.CreateP2PRequest(ctx, pr); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.SaveMediaFileID(ctx, "main_menu", "file_abc"); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := Transfer(ctx, src, dst); err != nil {
 		t.Fatal(err)
 	}
+
+	// Конфиг.
 	got, ok, err := dst.LoadConfig(ctx)
-	if err != nil || !ok {
-		t.Fatalf("load из dst: ok=%v err=%v", ok, err)
+	if err != nil || !ok || got.Panel.APIToken != cfg.Panel.APIToken {
+		t.Fatalf("config не перенёсся: ok=%v err=%v", ok, err)
 	}
-	if got.Panel.APIToken != cfg.Panel.APIToken {
-		t.Fatal("Transfer потерял данные")
+	// Пользователь со всеми полями.
+	u, err := dst.GetUser(ctx, 777)
+	if err != nil || u == nil {
+		t.Fatalf("user не перенёсся: %v", err)
+	}
+	if u.Username != "vasya" || u.FirstName != "Вася" || !u.Blocked || u.TermsAcceptedAt == "" {
+		t.Fatalf("поля юзера потеряны: %+v", u)
+	}
+	// Платёж.
+	if ok, _ := dst.HasPaidPayment(ctx, 777); !ok {
+		t.Fatal("платёж не перенёсся")
+	}
+	if dup, _ := dst.PaymentByExtID(ctx, "yk_1"); !dup {
+		t.Fatal("ext_id платежа не перенёсся")
+	}
+	// P2P-заявка (id сохраняется).
+	if r, err := dst.GetP2PRequest(ctx, pr.ID); err != nil || r == nil || r.Status != model.P2PApproved {
+		t.Fatalf("p2p-заявка не перенёслась: %+v err=%v", r, err)
+	}
+	// Медиа-кэш.
+	if id, ok, _ := dst.LoadMediaFileID(ctx, "main_menu"); !ok || id != "file_abc" {
+		t.Fatalf("media_cache не перенёсся: id=%q ok=%v", id, ok)
+	}
+
+	// Идемпотентность: повторный перенос не должен падать (платёж-дубль пропускается).
+	if err := Transfer(ctx, src, dst); err != nil {
+		t.Fatalf("повторный Transfer упал: %v", err)
 	}
 }
 

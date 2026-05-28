@@ -76,6 +76,9 @@ type Storage interface {
 	// пойдёт по дефолтному URL из assets (используется кнопкой «Сбросить»).
 	DeleteMediaFileID(ctx context.Context, section string) error
 
+	Export(ctx context.Context) (*Snapshot, error)
+	Import(ctx context.Context, s *Snapshot) error
+
 	Kind() string
 	Close() error
 }
@@ -144,16 +147,16 @@ func (b *base) saveConfig(ctx context.Context, cfg *model.BotConfig, upsertSQL s
 // Transfer переносит данные из src в dst (при смене движка БД, напр. SQLite → PostgreSQL).
 // Сейчас это таблица настроек; по мере роста схемы сюда добавляются остальные таблицы.
 func Transfer(ctx context.Context, src, dst Storage) error {
-	cfg, ok, err := src.LoadConfig(ctx)
+	snap, err := src.Export(ctx)
 	if err != nil {
 		return err
 	}
-	if ok {
-		if err := dst.SaveConfig(ctx, cfg); err != nil {
+	if snap.Config != nil {
+		if err := dst.SaveConfig(ctx, snap.Config); err != nil {
 			return err
 		}
 	}
-	return nil
+	return dst.Import(ctx, snap)
 }
 
 func nowStr() string { return time.Now().UTC().Format(time.RFC3339) }
@@ -454,4 +457,175 @@ func (b *base) DeleteMediaFileID(ctx context.Context, section string) error {
 	_, err := b.db.ExecContext(ctx,
 		"DELETE FROM media_cache WHERE section = "+b.ph(1), section)
 	return err
+}
+
+// --- перенос данных между движками БД (SQLite ↔ PostgreSQL) ---
+
+// Snapshot — полный слепок данных бота. Config переносит Transfer через
+// SaveConfig (upsert настроек диалект-специфичен), остальное — через Import.
+type Snapshot struct {
+	Config   *model.BotConfig
+	Users    []model.User
+	Payments []model.Payment
+	P2P      []model.P2PRequest
+	Media    []MediaItem
+}
+
+// MediaItem — запись media_cache. updated_at не переносим: это лишь кэш
+// Telegram file_id, при импорте время проставляется заново.
+type MediaItem struct {
+	Section string
+	FileID  string
+}
+
+// Export читает все данные через общий *base (диалект-нейтральные SELECT).
+// Реализован один раз на base, поэтому оба драйвера (pg/sqlite) ведут себя
+// одинаково — это и обеспечивает идентичность переноса в обе стороны.
+func (b *base) Export(ctx context.Context) (*Snapshot, error) {
+	snap := &Snapshot{}
+	if cfg, ok, err := b.loadConfig(ctx); err != nil {
+		return nil, err
+	} else if ok {
+		snap.Config = cfg
+	}
+
+	urows, err := b.db.QueryContext(ctx,
+		"SELECT telegram_id, username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at FROM users")
+	if err != nil {
+		return nil, err
+	}
+	for urows.Next() {
+		var u model.User
+		var approved, blocked int
+		var terms, trial sql.NullString
+		if err := urows.Scan(&u.TelegramID, &u.Username, &u.FirstName, &approved, &blocked, &u.CreatedAt, &terms, &trial); err != nil {
+			urows.Close()
+			return nil, err
+		}
+		u.P2PApproved = approved != 0
+		u.Blocked = blocked != 0
+		u.TermsAcceptedAt = terms.String
+		u.TrialUsedAt = trial.String
+		snap.Users = append(snap.Users, u)
+	}
+	if err := urows.Err(); err != nil {
+		urows.Close()
+		return nil, err
+	}
+	urows.Close()
+
+	prows, err := b.db.QueryContext(ctx,
+		"SELECT id, telegram_id, method, months, amount, status, comment, ext_id, created_at FROM payments")
+	if err != nil {
+		return nil, err
+	}
+	for prows.Next() {
+		var p model.Payment
+		if err := prows.Scan(&p.ID, &p.TelegramID, &p.Method, &p.Months, &p.Amount, &p.Status, &p.Comment, &p.ExtID, &p.CreatedAt); err != nil {
+			prows.Close()
+			return nil, err
+		}
+		snap.Payments = append(snap.Payments, p)
+	}
+	if err := prows.Err(); err != nil {
+		prows.Close()
+		return nil, err
+	}
+	prows.Close()
+
+	rrows, err := b.db.QueryContext(ctx,
+		"SELECT id, telegram_id, months, price, status, screenshot, comment, created_at, decided_at FROM p2p_requests")
+	if err != nil {
+		return nil, err
+	}
+	for rrows.Next() {
+		var r model.P2PRequest
+		if err := rrows.Scan(&r.ID, &r.TelegramID, &r.Months, &r.Price, &r.Status, &r.Screenshot, &r.Comment, &r.CreatedAt, &r.DecidedAt); err != nil {
+			rrows.Close()
+			return nil, err
+		}
+		snap.P2P = append(snap.P2P, r)
+	}
+	if err := rrows.Err(); err != nil {
+		rrows.Close()
+		return nil, err
+	}
+	rrows.Close()
+
+	mrows, err := b.db.QueryContext(ctx, "SELECT section, file_id FROM media_cache")
+	if err != nil {
+		return nil, err
+	}
+	for mrows.Next() {
+		var m MediaItem
+		if err := mrows.Scan(&m.Section, &m.FileID); err != nil {
+			mrows.Close()
+			return nil, err
+		}
+		snap.Media = append(snap.Media, m)
+	}
+	if err := mrows.Err(); err != nil {
+		mrows.Close()
+		return nil, err
+	}
+	mrows.Close()
+
+	return snap, nil
+}
+
+// Import пишет данные слепка (кроме Config — его переносит Transfer). Идемпотентно
+// для users (ON CONFLICT) и payments (UNIQUE ext_id → пропуск дубля); рассчитан
+// прежде всего на перенос в ПУСТУЮ новую БД при смене движка.
+func (b *base) Import(ctx context.Context, s *Snapshot) error {
+	if s == nil {
+		return nil
+	}
+	for i := range s.Users {
+		if err := b.importUser(ctx, &s.Users[i]); err != nil {
+			return err
+		}
+	}
+	for i := range s.Payments {
+		if err := b.AddPayment(ctx, &s.Payments[i]); err != nil && !errors.Is(err, ErrDuplicateExtID) {
+			return err
+		}
+	}
+	for i := range s.P2P {
+		if err := b.CreateP2PRequest(ctx, &s.P2P[i]); err != nil && !isUniqueViolation(err) {
+			return err
+		}
+	}
+	for i := range s.Media {
+		if err := b.SaveMediaFileID(ctx, s.Media[i].Section, s.Media[i].FileID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// importUser вставляет пользователя со всеми полями, СОХРАНЯЯ created_at.
+// terms/trial выставляются отдельными сеттерами (диалект-безопасно: пустые
+// значения не пишутся — в PG это NULL-колонки timestamptz).
+func (b *base) importUser(ctx context.Context, u *model.User) error {
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO users (telegram_id, p2p_approved, blocked, created_at, username, first_name) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+") "+
+			"ON CONFLICT (telegram_id) DO UPDATE SET "+
+			"p2p_approved = excluded.p2p_approved, blocked = excluded.blocked, "+
+			"created_at = excluded.created_at, username = excluded.username, first_name = excluded.first_name",
+		u.TelegramID, boolToInt(u.P2PApproved), boolToInt(u.Blocked), u.CreatedAt, u.Username, u.FirstName)
+	if err != nil {
+		return err
+	}
+	if u.TermsAcceptedAt != "" {
+		if err := b.SetTermsAccepted(ctx, u.TelegramID, u.TermsAcceptedAt); err != nil {
+			return err
+		}
+	}
+	if u.TrialUsedAt != "" {
+		if err := b.SetTrialUsed(ctx, u.TelegramID, u.TrialUsedAt); err != nil {
+			return err
+		}
+	}
+	return nil
 }

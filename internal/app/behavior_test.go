@@ -329,6 +329,11 @@ func (s *fakeStore) DeleteMediaFileID(_ context.Context, section string) error {
 	return nil
 }
 
+func (s *fakeStore) Export(context.Context) (*storage.Snapshot, error) {
+	return &storage.Snapshot{}, nil
+}
+func (s *fakeStore) Import(context.Context, *storage.Snapshot) error { return nil }
+
 func (s *fakeStore) Kind() string { return "fake" }
 func (s *fakeStore) Close() error { return nil }
 
