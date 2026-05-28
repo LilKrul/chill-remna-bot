@@ -135,9 +135,10 @@ const (
 
 // Способы оплаты (для лога и единого финализатора).
 const (
-	PayMethodP2P      = "p2p"
-	PayMethodStars    = "stars"
-	PayMethodYooKassa = "yookassa"
+	PayMethodP2P       = "p2p"
+	PayMethodStars     = "stars"
+	PayMethodYooKassa  = "yookassa"
+	PayMethodCryptoBot = "cryptobot"
 )
 
 // Статусы записи в логе оплат.

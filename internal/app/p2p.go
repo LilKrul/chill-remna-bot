@@ -93,10 +93,12 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 	var stars model.StarsConfig
 	var yk model.YooKassaConfig
 	var pr model.Pricing
+	var cb model.CryptoBotConfig
 	if a.botCfg != nil {
 		p2p = a.botCfg.P2P
 		stars = a.botCfg.Stars
 		yk = a.botCfg.YooKassa
+		cb = a.botCfg.CryptoBot
 		pr = a.botCfg.Pricing
 	}
 	a.mu.Unlock()
@@ -111,6 +113,10 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 	}
 	if stars.Enabled && pr.StarPrice(months) > 0 {
 		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "method.stars_btn", pr.StarPrice(months)), "method:stars")})
+	}
+	if cb.Enabled && cb.Prices[months] != "" {
+		label := i18n.T(lang, "method.cb_btn", cb.Prices[months]+" "+cb.Asset)
+		rows = append(rows, []models.InlineKeyboardButton{btn(label, "method:cb")})
 	}
 	if len(rows) == 0 {
 		a.sendKB(ctx, chatID, i18n.T(lang, "buy.no_methods"), [][]models.InlineKeyboardButton{homeRow(lang)})
@@ -128,6 +134,8 @@ func (a *App) onMethod(ctx context.Context, chatID int64, val string) {
 		a.startStars(ctx, chatID)
 	case "yk":
 		a.startYooKassa(ctx, chatID)
+	case "cb":
+		a.startCryptoBot(ctx, chatID)
 	}
 }
 
@@ -573,6 +581,38 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		ui.adminInput = ""
 		_ = a.saveBotConfig(ctx)
 		a.showWebhooksAdmin(ctx, chatID)
+	case "cb_token":
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.CryptoBot.Token = strings.TrimSpace(text)
+		}
+		a.mu.Unlock()
+		ui.adminInput = ""
+		_ = a.saveBotConfig(ctx)
+		a.showCryptoBotAdmin(ctx, chatID)
+	case "cb_asset":
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.CryptoBot.Asset = strings.ToUpper(strings.TrimSpace(text))
+		}
+		a.mu.Unlock()
+		ui.adminInput = ""
+		_ = a.saveBotConfig(ctx)
+		a.showCryptoBotAdmin(ctx, chatID)
+	case "cbprice":
+		mo := ui.priceMonths
+		ui.adminInput = ""
+		ui.priceMonths = 0
+		a.mu.Lock()
+		if a.botCfg != nil {
+			if a.botCfg.CryptoBot.Prices == nil {
+				a.botCfg.CryptoBot.Prices = map[int]string{}
+			}
+			a.botCfg.CryptoBot.Prices[mo] = strings.TrimSpace(text)
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showCryptoBotAdmin(ctx, chatID)
 	case "ctc_group":
 		a.setContact(ctx, chatID, "group", text)
 	case "ctc_support":

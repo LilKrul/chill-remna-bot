@@ -600,6 +600,10 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 		a.onTrialAdmin(ctx, chatID, val)
 	case "wh":
 		a.onWebhooksAdmin(ctx, chatID, val)
+	case "cb":
+		a.onCBAdmin(ctx, chatID, val)
+	case "cbc":
+		a.onCBCheck(ctx, chatID, val)
 	default:
 		a.enterHome(ctx, chatID, isAdmin, fname, uname)
 	}

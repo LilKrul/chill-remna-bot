@@ -212,7 +212,7 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 func (a *App) showPay(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.mu.Lock()
-	p2pOn, starsOn, ykOn := false, false, false
+	p2pOn, starsOn, ykOn, cbOn := false, false, false, false
 	internalN, externalSet := 0, ""
 	hwid := 0
 	strat := "MONTH"
@@ -220,6 +220,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		p2pOn = a.botCfg.P2P.Enabled
 		starsOn = a.botCfg.Stars.Enabled
 		ykOn = a.botCfg.YooKassa.Enabled
+		cbOn = a.botCfg.CryptoBot.Enabled
 		internalN = len(a.botCfg.Plan.ActiveInternalSquads)
 		externalSet = a.botCfg.Plan.ExternalSquadUUID
 		hwid = a.botCfg.Pricing.DeviceLimit
@@ -241,7 +242,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		extStr = i18n.T(lang, "subsetup.ext_set")
 	}
 	title := i18n.T(lang, "subsetup.title",
-		mark(p2pOn), mark(starsOn), mark(ykOn),
+		mark(p2pOn), mark(starsOn), mark(ykOn), mark(cbOn),
 		a.formatTrafficLimits(), hwidStr, strat,
 		internalN, extStr,
 	)
@@ -251,6 +252,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "subsetup.btn_strategy"), "prc:strategy"), btn(i18n.T(lang, "btn.squads"), "menu:squads")},
 		{btn(i18n.T(lang, "btn.trial_admin"), "menu:trial")},
 		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars"), btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa")},
+		{btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
 		homeRow(lang),
 	})
 }
@@ -392,6 +394,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "webhooks":
 		if isAdmin {
 			a.showWebhooksAdmin(ctx, chatID)
+		}
+	case "cryptobot":
+		if isAdmin {
+			a.showCryptoBotAdmin(ctx, chatID)
 		}
 	case "squads":
 		if isAdmin {

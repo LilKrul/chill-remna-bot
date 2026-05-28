@@ -22,12 +22,6 @@ func (a *App) Healthy(_ context.Context) error {
 	return nil
 }
 
-// HandleCryptoBotWebhook — обработчик POST /webhook/cryptobot (Phase 4).
-func (a *App) HandleCryptoBotWebhook(_ context.Context, sig string, body []byte) (bool, error) {
-	a.log.Info("cryptobot webhook received (phase 1 stub)", "sig_len", len(sig), "body_len", len(body))
-	return false, nil
-}
-
 // webhookConfig возвращает копию конфига вебхука или пустую структуру.
 func (a *App) WebhookConfig() (addr string, enabled bool, publicURL string) {
 	a.mu.Lock()
