@@ -542,6 +542,37 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.showYooKassaAdmin(ctx, chatID)
 	case "subdomain":
 		a.setSubdomain(ctx, chatID, text)
+	case "wh_addr":
+		text = strings.TrimSpace(text)
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.Webhook.ListenAddr = text
+		}
+		a.mu.Unlock()
+		ui.adminInput = ""
+		_ = a.saveBotConfig(ctx)
+		a.showWebhooksAdmin(ctx, chatID)
+	case "wh_base":
+		text = strings.TrimSpace(text)
+		// Снимаем завершающий "/", чтобы потом не плодилось "//webhook".
+		text = strings.TrimRight(text, "/")
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.Webhook.PublicBaseURL = text
+		}
+		a.mu.Unlock()
+		ui.adminInput = ""
+		_ = a.saveBotConfig(ctx)
+		a.showWebhooksAdmin(ctx, chatID)
+	case "wh_secret":
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.Webhook.RemnawaveSecret = strings.TrimSpace(text)
+		}
+		a.mu.Unlock()
+		ui.adminInput = ""
+		_ = a.saveBotConfig(ctx)
+		a.showWebhooksAdmin(ctx, chatID)
 	case "ctc_group":
 		a.setContact(ctx, chatID, "group", text)
 	case "ctc_support":

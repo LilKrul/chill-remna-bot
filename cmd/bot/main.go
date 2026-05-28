@@ -15,11 +15,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"remnabot/internal/app"
 	"remnabot/internal/config"
 	"remnabot/internal/crypto"
+	"remnabot/internal/web"
 
 	_ "remnabot/internal/storage/drivers" // регистрация драйверов БД (sqlite, pgx)
 )
@@ -48,8 +50,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := a.Run(ctx); err != nil {
-		log.Error("работа бота", "err", err)
+	// Параллельно с long-polling'ом поднимаем HTTP-сервер для входящих
+	// вебхуков (YooKassa, CryptoBot, Remnawave) и /healthz. Адрес читаем
+	// из BotConfig.Webhook — если выключено, всё равно стартуем на :8080,
+	// чтобы /healthz отдавал статус (нужно для docker healthcheck).
+	addr, _, _ := a.WebhookConfig()
+	webSrv := web.New(addr, a, log)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var botErr, webErr error
+
+	go func() {
+		defer wg.Done()
+		defer stop()
+		botErr = a.Run(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		webErr = webSrv.Run(ctx)
+	}()
+	wg.Wait()
+
+	if botErr != nil {
+		log.Error("работа бота", "err", botErr)
+		os.Exit(1)
+	}
+	if webErr != nil {
+		log.Error("работа web-сервера", "err", webErr)
 		os.Exit(1)
 	}
 	log.Info("остановлен")

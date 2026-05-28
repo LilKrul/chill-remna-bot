@@ -337,4 +337,12 @@ var ru = map[string]string{
 	"pricing.q_month":            "🪄 <b>Быстрая настройка тарифа · шаг 1/3</b>\n\nКакой срок настраиваем?",
 	"pricing.q_price":            "🪄 <b>Шаг 2/3</b> — базовая цена для %d мес. Введите число (валюту берём из настроек). Например: <code>199</code>.",
 	"pricing.q_traffic":          "🪄 <b>Шаг 3/3</b> — лимит трафика для %d мес в GB. 0 = безлимит. После ответа тариф сохраним.",
+	"btn.webhooks":               "🔗 Вебхуки",
+	"admin.webhooks_title":       "🔗 *Вебхуки и health-check*\n\nHTTP-сервер: %s\nСлушает: %s\nПубличный URL: %s\nСекрет панели задан: %s\n\nСкопируй URL в настройки YooKassa / CryptoBot / панели:",
+	"admin.wh_btn_addr":          "🖧 Адрес",
+	"admin.wh_btn_base":          "🌐 Публичный URL",
+	"admin.wh_btn_secret":        "🔑 Секрет панели",
+	"admin.wh_ask_addr":          "Введите host:port для прослушивания (например `:8080` или `0.0.0.0:8080`):",
+	"admin.wh_ask_base":          "Введите ПУБЛИЧНЫЙ базовый URL без хвостового `/` (например `https://bot.example.com`):",
+	"admin.wh_ask_secret":        "Введите WEBHOOK_SECRET_HEADER из настроек панели Remnawave (нужен для валидации вебхуков):",
 }

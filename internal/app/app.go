@@ -598,6 +598,8 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 		a.onSubdomain(ctx, chatID, val)
 	case "trial":
 		a.onTrialAdmin(ctx, chatID, val)
+	case "wh":
+		a.onWebhooksAdmin(ctx, chatID, val)
 	default:
 		a.enterHome(ctx, chatID, isAdmin, fname, uname)
 	}

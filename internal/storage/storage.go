@@ -9,11 +9,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"remnabot/internal/crypto"
 	"remnabot/internal/model"
 )
+
+// ErrDuplicateExtID возвращается из AddPayment, когда запись с тем же
+// (method, ext_id) уже существует — нарушение UNIQUE-индекса. Применяется
+// для идемпотентности обработки повторных вебхуков платёжных провайдеров:
+// вызывающий код различает «впервые» и «уже зачтено».
+var ErrDuplicateExtID = errors.New("storage: payment with this ext_id already exists")
 
 // Storage — контракт хранилища. Один и тот же набор тестов гоняется против
 // обеих реализаций (см. storage_contract_test.go), что гарантирует идентичное
@@ -327,7 +334,24 @@ func (b *base) AddPayment(ctx context.Context, p *model.Payment) error {
 		"INSERT INTO payments (id, telegram_id, method, months, amount, status, comment, ext_id, created_at) "+
 			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+", "+b.ph(8)+", "+b.ph(9)+")",
 		p.ID, p.TelegramID, p.Method, p.Months, p.Amount, p.Status, p.Comment, p.ExtID, p.CreatedAt)
+	if err != nil && isUniqueViolation(err) {
+		return ErrDuplicateExtID
+	}
 	return err
+}
+
+// isUniqueViolation распознаёт нарушение UNIQUE-ограничения для обоих
+// драйверов (modernc/sqlite и pgx). Признаков несколько: SQLite пишет
+// «UNIQUE constraint failed», PG — SQLSTATE 23505. Сравнение по тексту
+// ошибки — компромисс ради независимости от драйверного типа.
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "23505") ||
+		strings.Contains(msg, "duplicate key")
 }
 
 func (b *base) ListPayments(ctx context.Context, limit, offset int) ([]model.Payment, int, error) {

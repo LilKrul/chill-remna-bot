@@ -45,15 +45,18 @@ type PanelConfig struct {
 
 // BotConfig — вся конфигурация бота, хранится одной зашифрованной строкой в БД.
 type BotConfig struct {
-	Installed bool           `json:"installed"`
-	Language  string         `json:"language"`
-	DBKind    string         `json:"db_kind"`
-	Panel     PanelConfig    `json:"panel"`
-	P2P       P2PConfig      `json:"p2p"`
-	Stars     StarsConfig    `json:"stars"`
-	YooKassa  YooKassaConfig `json:"yookassa"`
-	Pricing   Pricing        `json:"pricing"`
-	Welcome   WelcomeConfig  `json:"welcome"`
+	Installed bool            `json:"installed"`
+	Language  string          `json:"language"`
+	DBKind    string          `json:"db_kind"`
+	Panel     PanelConfig     `json:"panel"`
+	P2P       P2PConfig       `json:"p2p"`
+	Stars     StarsConfig     `json:"stars"`
+	YooKassa  YooKassaConfig  `json:"yookassa"`
+	CryptoBot CryptoBotConfig `json:"cryptobot"`
+	Webhook   WebhookConfig   `json:"webhook"`
+	Reminders RemindersConfig `json:"reminders"`
+	Pricing   Pricing         `json:"pricing"`
+	Welcome   WelcomeConfig   `json:"welcome"`
 	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id (анимированные premium),
 	// заполняется через /emoji. Дополняет/перекрывает env PREMIUM_EMOJI.
 	PremiumEmoji map[string]string `json:"premium_emoji"`
@@ -207,4 +210,38 @@ type P2PRequest struct {
 	Comment    string // причина отказа (при rejected)
 	CreatedAt  string
 	DecidedAt  string
+}
+
+// WebhookConfig — параметры HTTP-сервера для приёма входящих вебхуков от
+// платёжных провайдеров (YooKassa, CryptoBot) и панели Remnawave
+// (user.expired, user.created, …). Без публичного URL вебхуки не работают —
+// бот будет жить на polling-fallback'е. PublicBaseURL заполняет админ из UI
+// и должен указывать на ВНЕШНИЙ адрес reverse-proxy перед ботом
+// (например https://bot.example.com), без завершающего слэша.
+type WebhookConfig struct {
+	Enabled         bool   `json:"enabled"`          // запускать HTTP-сервер?
+	ListenAddr      string `json:"listen_addr"`      // host:port, по умолчанию ":8080"
+	PublicBaseURL   string `json:"public_base_url"`  // напр. https://bot.example.com
+	RemnawaveSecret string `json:"remnawave_secret"` // WEBHOOK_SECRET_HEADER из панели
+}
+
+// CryptoBotConfig — настройки оплаты через @CryptoBot (Crypto Pay API).
+// Цены задаются в USD (внутренний прайс CryptoPay), он сам конвертирует
+// в TON/BTC/USDT при оплате. WebhookSecret — он же API-токен (CryptoPay
+// подписывает входящие вебхуки HMAC-SHA256 по SHA256(token)).
+type CryptoBotConfig struct {
+	Enabled  bool           `json:"enabled"`
+	Token    string         `json:"token"`    // X-Crypto-Pay-API-Token
+	Currency string         `json:"currency"` // обычно USD
+	Asset    string         `json:"asset"`    // конкретный актив для инвойсов: USDT|TON|BTC|...
+	Prices   map[int]string `json:"prices"`   // месяцы -> цена в Currency, напр. "1.99"
+}
+
+// RemindersConfig — авто-напоминания об истечении подписки. Тикер бота
+// раз в час проверяет панель и пушит юзеру кнопку «Продлить» за N дней до
+// expireAt. Дни хранятся как отсортированный список (3,1,0 — значит за
+// 3 дня, за 1 день, в день истечения).
+type RemindersConfig struct {
+	Enabled  bool  `json:"enabled"`
+	DaysList []int `json:"days_list"` // напр. [3,1,0]
 }

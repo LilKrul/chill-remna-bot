@@ -336,4 +336,12 @@ var en = map[string]string{
 	"pricing.q_month":            "🪄 <b>Quick plan setup · step 1/3</b>\n\nWhich plan period?",
 	"pricing.q_price":            "🪄 <b>Step 2/3</b> — base price for %d mo. Enter a number (currency is taken from settings). Example: <code>199</code>.",
 	"pricing.q_traffic":          "🪄 <b>Step 3/3</b> — traffic limit for %d mo in GB. 0 = unlimited. After this answer the plan will be saved.",
+	"btn.webhooks":               "🔗 Webhooks",
+	"admin.webhooks_title":       "🔗 *Webhooks and health-check*\n\nHTTP server: %s\nListening: %s\nPublic URL: %s\nPanel secret set: %s\n\nCopy URLs into YooKassa / CryptoBot / Remnawave panel settings:",
+	"admin.wh_btn_addr":          "🖧 Address",
+	"admin.wh_btn_base":          "🌐 Public URL",
+	"admin.wh_btn_secret":        "🔑 Panel secret",
+	"admin.wh_ask_addr":          "Enter host:port to listen on (e.g. `:8080` or `0.0.0.0:8080`):",
+	"admin.wh_ask_base":          "Enter PUBLIC base URL without trailing `/` (e.g. `https://bot.example.com`):",
+	"admin.wh_ask_secret":        "Enter WEBHOOK_SECRET_HEADER from Remnawave panel settings (used for webhook signature validation):",
 }
