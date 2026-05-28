@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/go-telegram/bot/models"
-
-	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 	"remnabot/internal/storage"
 )
@@ -68,7 +65,7 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 		return true, nil
 	}
 	amount := pay.Amount.Value + " " + pay.Amount.Currency
-	link, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodYooKassa, amount, n.Object.ID)
+	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodYooKassa, amount, n.Object.ID)
 	if err != nil {
 		if errors.Is(err, storage.ErrDuplicateExtID) {
 			a.log.Info("yookassa webhook: race lost (other delivery won)", "id", n.Object.ID)
@@ -76,10 +73,7 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 		}
 		return false, fmt.Errorf("finalize yookassa %s: %w", n.Object.ID, err)
 	}
-	lang := a.lang(chatID)
-	a.notifyKB(ctx, chatID, i18n.T(lang, "yk.paid_ok", link), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.mysubs"), "menu:mysubs")},
-	})
+	a.sendSubActive(ctx, chatID, link, expireAt)
 	a.log.Info("yookassa webhook: payment finalized", "id", n.Object.ID, "chat_id", chatID, "months", months)
 	return true, nil
 }

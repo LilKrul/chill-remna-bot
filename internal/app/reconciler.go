@@ -7,9 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-telegram/bot/models"
-
-	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 	"remnabot/internal/storage"
 )
@@ -122,7 +119,7 @@ func (a *App) reconcileCryptoBot(ctx context.Context, st storage.Storage, pi *mo
 }
 
 func (a *App) reconcileFinalize(ctx context.Context, st storage.Storage, pi *model.PendingInvoice, amount string) {
-	link, err := a.finalizePurchase(ctx, pi.TelegramID, pi.Months, pi.Method, amount, pi.ExtID)
+	link, expireAt, err := a.finalizePurchase(ctx, pi.TelegramID, pi.Months, pi.Method, amount, pi.ExtID)
 	if err != nil {
 		// Уже зачтено параллельно — закрываем; иначе оставляем на следующий проход.
 		if errors.Is(err, storage.ErrDuplicateExtID) {
@@ -133,9 +130,6 @@ func (a *App) reconcileFinalize(ctx context.Context, st storage.Storage, pi *mod
 		return
 	}
 	_ = st.ResolvePending(ctx, pi.ID)
-	lang := a.lang(pi.TelegramID)
-	a.notifyKB(ctx, pi.TelegramID, i18n.T(lang, "reconcile.paid_ok", link), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.mysubs"), "menu:mysubs")},
-	})
+	a.sendSubActive(ctx, pi.TelegramID, link, expireAt)
 	a.log.Info("reconciler: finalized late payment", "method", pi.Method, "ext_id", pi.ExtID, "chat_id", pi.TelegramID)
 }

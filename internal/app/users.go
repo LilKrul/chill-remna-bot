@@ -334,10 +334,10 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	panel := a.panel
 	a.mu.Unlock()
 	home := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
-	var url string
+	var url, expireAt string
 	ok := false
 	if panel != nil {
-		url, ok = panel.Subscription(ctx, chatID)
+		url, expireAt, ok = panel.Subscription(ctx, chatID)
 		if ok {
 			url = a.rewriteSub(url)
 		}
@@ -348,7 +348,12 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 		})
 		return
 	}
-	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, i18n.T(lang, "subs.show", url), [][]models.InlineKeyboardButton{home})
+	rows := [][]models.InlineKeyboardButton{}
+	if sup := a.supportURL(); sup != "" {
+		rows = append(rows, []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.support"), URL: sup}})
+	}
+	rows = append(rows, home)
+	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, a.subActiveText(ctx, chatID, url, expireAt), rows)
 }
 
 // --- админ: выбор сквада из панели ---

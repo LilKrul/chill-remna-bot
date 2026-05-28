@@ -125,7 +125,7 @@ func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
 	if panel == nil {
 		return false
 	}
-	_, has := panel.Subscription(ctx, chatID)
+	_, _, has := panel.Subscription(ctx, chatID)
 
 	// 3) Кладём в кэш на 30 секунд.
 	a.subMu.Lock()

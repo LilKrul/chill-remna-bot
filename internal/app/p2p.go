@@ -385,7 +385,7 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 		return
 	}
 	amount := req.Price + curSuffix(a.pricing().Currency)
-	link, err := a.finalizePurchase(ctx, req.TelegramID, req.Months, model.PayMethodP2P, amount, "")
+	link, expireAt, err := a.finalizePurchase(ctx, req.TelegramID, req.Months, model.PayMethodP2P, amount, "")
 	if err != nil {
 		a.send(ctx, adminChat, i18n.T(alang, "admin.provision_fail", err.Error()))
 		return
@@ -394,14 +394,14 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 	req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
 	_ = a.store.UpdateP2PRequest(ctx, req)
 	a.cleanupP2PUser(ctx, req.TelegramID)
-	a.notify(ctx, req.TelegramID, i18n.T(a.lang(req.TelegramID), "p2p.user_paid_ok", link))
+	a.sendSubActive(ctx, req.TelegramID, link, expireAt)
 	a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
 }
 
 // finalizePurchase — единый финализатор: создаёт/продлевает аккаунт в панели,
 // пишет запись в лог оплат и возвращает ссылку на подписку. Используется и для
 // P2P (после ручного подтверждения), и для Telegram Stars (после оплаты).
-func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int, method, amount, extID string) (string, error) {
+func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int, method, amount, extID string) (string, string, error) {
 	a.mu.Lock()
 	panel := a.panel
 	limits := remnawave.UserLimits{}
@@ -420,11 +420,11 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	}
 	a.mu.Unlock()
 	if panel == nil {
-		return "", fmt.Errorf("панель не подключена")
+		return "", "", fmt.Errorf("панель не подключена")
 	}
-	link, err := panel.CreateOrUpdateUser(ctx, telegramID, months, limits)
+	link, expireAt, err := panel.CreateOrUpdateUser(ctx, telegramID, months, limits)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	link = a.rewriteSub(link)
 	a.invalidateSubCache(telegramID)
@@ -433,7 +433,7 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 			TelegramID: telegramID, Method: method, Months: months, Amount: amount, Status: model.PaymentPaid, ExtID: extID,
 		})
 	}
-	return link, nil
+	return link, expireAt, nil
 }
 
 // handleAdminText обрабатывает текстовый ввод админа вне мастера установки

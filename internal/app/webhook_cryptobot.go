@@ -11,9 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-telegram/bot/models"
-
-	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 	"remnabot/internal/storage"
 )
@@ -104,7 +101,7 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 	}
 
 	amount := up.Payload.Amount + " " + up.Payload.Asset
-	link, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
+	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
 	if err != nil {
 		if errors.Is(err, storage.ErrDuplicateExtID) {
 			a.log.Info("cryptobot webhook: race lost", "id", up.Payload.InvoiceID)
@@ -113,10 +110,7 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 		return false, fmt.Errorf("finalize cryptobot %d: %w", up.Payload.InvoiceID, err)
 	}
 
-	lang := a.lang(chatID)
-	a.notifyKB(ctx, chatID, i18n.T(lang, "cb.paid_ok", link), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.mysubs"), "menu:mysubs")},
-	})
+	a.sendSubActive(ctx, chatID, link, expireAt)
 	a.log.Info("cryptobot webhook: payment finalized", "id", up.Payload.InvoiceID, "chat_id", chatID, "months", months)
 	return true, nil
 }

@@ -116,14 +116,16 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 		return
 	}
 	amount := inv.Amount + " " + inv.Asset
-	link, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
-	if err != nil && err != storage.ErrDuplicateExtID {
+	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
+	if err != nil {
+		if err == storage.ErrDuplicateExtID {
+			a.showMySubs(ctx, chatID)
+			return
+		}
 		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "cb.paid_ok", link), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.home"), "menu:home")},
-	})
+	a.sendSubActive(ctx, chatID, link, expireAt)
 }
 
 // --- админ: настройки CryptoBot ---

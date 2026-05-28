@@ -202,16 +202,16 @@ type UserLimits struct {
 // (поиск по telegramId) на months месяцев и возвращает ссылку на подписку.
 // При продлении лимиты ТОЖЕ применяются (например, апгрейд тарифа на 12 мес
 // с большим объёмом должен сразу поднять лимит трафика).
-func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, months int, limits UserLimits) (string, error) {
+func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, months int, limits UserLimits) (string, string, error) {
 	existing, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	expire := nextExpire(existing, months)
 
 	if existing != nil && existing.Uuid != "" {
 		if !ownedByBot(existing, telegramID) {
-			return "", fmt.Errorf("аккаунт этого пользователя создан НЕ через бота — изменять его запрещено")
+			return "", "", fmt.Errorf("аккаунт этого пользователя создан НЕ через бота — изменять его запрещено")
 		}
 		patch := map[string]any{
 			"uuid":     existing.Uuid,
@@ -233,10 +233,10 @@ func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, month
 
 // CreateOrUpdateUserDays — то же что CreateOrUpdateUser, но срок задаётся
 // в днях, а не месяцах (для триала с произвольной длительностью).
-func (c *Client) CreateOrUpdateUserDays(ctx context.Context, telegramID int64, days int, limits UserLimits) (string, error) {
+func (c *Client) CreateOrUpdateUserDays(ctx context.Context, telegramID int64, days int, limits UserLimits) (string, string, error) {
 	existing, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	base := time.Now().UTC()
 	if existing != nil && existing.ExpireAt != "" {
@@ -248,7 +248,7 @@ func (c *Client) CreateOrUpdateUserDays(ctx context.Context, telegramID int64, d
 
 	if existing != nil && existing.Uuid != "" {
 		if !ownedByBot(existing, telegramID) {
-			return "", fmt.Errorf("аккаунт этого пользователя создан НЕ через бота — изменять его запрещено")
+			return "", "", fmt.Errorf("аккаунт этого пользователя создан НЕ через бота — изменять его запрещено")
 		}
 		patch := map[string]any{"uuid": existing.Uuid, "expireAt": expire}
 		applyLimits(patch, limits)
@@ -379,12 +379,12 @@ func (c *Client) DisableByTelegramID(ctx context.Context, telegramID int64) (boo
 }
 
 // Subscription возвращает ссылку на подписку пользователя (по telegramId), если он есть в панели.
-func (c *Client) Subscription(ctx context.Context, telegramID int64) (string, bool) {
+func (c *Client) Subscription(ctx context.Context, telegramID int64) (string, string, bool) {
 	u, err := c.findByTelegram(ctx, telegramID)
 	if err != nil || u == nil || u.SubscriptionURL == "" {
-		return "", false
+		return "", "", false
 	}
-	return u.SubscriptionURL, true
+	return u.SubscriptionURL, u.ExpireAt, true
 }
 
 func (c *Client) findByTelegram(ctx context.Context, telegramID int64) (*panelUser, error) {
@@ -416,22 +416,22 @@ func (c *Client) findByTelegram(ctx context.Context, telegramID int64) (*panelUs
 	return nil, nil
 }
 
-func (c *Client) upsertCall(ctx context.Context, method, path string, body any) (string, error) {
+func (c *Client) upsertCall(ctx context.Context, method, path string, body any) (string, string, error) {
 	resp, err := c.do(ctx, method, path, body)
 	if err != nil {
-		return "", fmt.Errorf("нет связи с панелью: %w", err)
+		return "", "", fmt.Errorf("нет связи с панелью: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return "", classifyHTTP(resp)
+		return "", "", classifyHTTP(resp)
 	}
 	var env struct {
 		Response panelUser `json:"response"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return env.Response.SubscriptionURL, nil
+	return env.Response.SubscriptionURL, env.Response.ExpireAt, nil
 }
 
 // nextExpire — новая дата окончания: продлеваем от max(now, текущая) на months.

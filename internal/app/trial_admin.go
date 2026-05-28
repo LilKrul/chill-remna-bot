@@ -271,7 +271,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		a.send(ctx, chatID, i18n.T(lang, "trial.fail", "panel offline"))
 		return
 	}
-	link, err := panel.CreateOrUpdateUserDays(ctx, chatID, tr.Days, remnawave.UserLimits{
+	link, _, err := panel.CreateOrUpdateUserDays(ctx, chatID, tr.Days, remnawave.UserLimits{
 		TrafficBytes:   int64(tr.TrafficGB) * 1024 * 1024 * 1024,
 		DeviceLimit:    tr.DeviceLimit,
 		InternalSquads: tr.InternalSquads,

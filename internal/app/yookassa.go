@@ -109,14 +109,12 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 		months = model.PlanMonths[0]
 	}
 	amount := pay.Amount.Value + " " + pay.Amount.Currency
-	link, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodYooKassa, amount, payID)
+	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodYooKassa, amount, payID)
 	if err != nil {
 		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "yk.paid_ok", link), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.home"), "menu:home")},
-	})
+	a.sendSubActive(ctx, chatID, link, expireAt)
 }
 
 // --- админ: настройки ЮKassa ---

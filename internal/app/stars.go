@@ -58,12 +58,12 @@ func (a *App) handleSuccessfulPayment(ctx context.Context, m *models.Message) {
 		months = model.PlanMonths[0]
 	}
 	amount := strconv.Itoa(sp.TotalAmount) + " ⭐"
-	link, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodStars, amount, sp.TelegramPaymentChargeID)
+	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodStars, amount, sp.TelegramPaymentChargeID)
 	if err != nil {
 		a.notify(ctx, chatID, i18n.T(a.lang(chatID), "stars.fail", err.Error()))
 		return
 	}
-	a.notify(ctx, chatID, i18n.T(a.lang(chatID), "stars.paid_ok", link))
+	a.sendSubActive(ctx, chatID, link, expireAt)
 }
 
 // --- админ: настройки Stars ---
