@@ -289,5 +289,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		_ = a.store.SetSubExpiry(ctx, chatID, expireAt, "trial")
 	}
 	a.invalidateSubCache(chatID)
-	a.notify(ctx, chatID, i18n.T(lang, "trial.activated", tr.Days, link))
+	// Сообщение об активной подписке — единое, как при покупке (имя, срок,
+	// копируемая ссылка, ссылка для браузера, кнопка поддержки).
+	a.sendSubActive(ctx, chatID, link, expireAt)
 }
