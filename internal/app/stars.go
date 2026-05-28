@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 
@@ -92,18 +93,40 @@ func (a *App) onStars(ctx context.Context, chatID int64, val string) {
 		_ = a.saveBotConfig(ctx)
 		a.showStarsAdmin(ctx, chatID)
 	case "prices":
+		lang := a.lang(chatID)
 		var row []models.InlineKeyboardButton
 		for _, mo := range model.PlanMonths {
 			row = append(row, btn(strconv.Itoa(mo)+"м", "star:price:"+strconv.Itoa(mo)))
 		}
-		a.sendKB(ctx, chatID, i18n.T(a.lang(chatID), "admin.ask_price_month"), [][]models.InlineKeyboardButton{row})
+		a.sendKB(ctx, chatID, i18n.T(lang, "admin.ask_price_month"), [][]models.InlineKeyboardButton{row, navBack(lang, "menu:stars")})
 	case "price":
 		mo, _ := strconv.Atoi(arg)
+		lang := a.lang(chatID)
 		ui := a.getUI(chatID)
 		ui.adminInput = "starprice"
 		ui.priceMonths = mo
-		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "admin.stars_ask_price", mo), "menu:stars")
+		prompt := i18n.T(lang, "admin.stars_ask_price", mo)
+		if s := a.starsSuggestion(lang, mo); s != "" {
+			prompt += "\n\n" + s
+		}
+		a.askInput(ctx, chatID, prompt, "menu:stars")
 	}
+}
+
+// approxRubPerStar — ОРИЕНТИРОВОЧНАЯ цена одной звезды в рублях (курс плавает).
+const approxRubPerStar = 1.5
+
+// starsSuggestion — примерный пересчёт рублёвой цены тарифа в звёзды + запас на
+// комиссию. Сознательно грубый: курс звёзд меняется, точную цифру админ задаёт сам.
+func (a *App) starsSuggestion(lang string, months int) string {
+	base := a.pricing().Base[months]
+	k, ok := rubToKopecks(base)
+	if !ok || k <= 0 {
+		return ""
+	}
+	rub := float64(k) / 100.0
+	stars := int(math.Ceil(rub / approxRubPerStar * 1.05)) // +5% запас на комиссию/курс
+	return i18n.T(lang, "stars.suggest", base, stars)
 }
 
 func (a *App) formatStarPrices() string {
