@@ -61,6 +61,21 @@ type BotConfig struct {
 	// подписки на этот домен, сохраняя путь/short-id панели. Удобно
 	// раздавать единый внешний домен, скрывая адрес панели.
 	SubscriptionDomain string `json:"subscription_domain"`
+	// Contact — пользовательские контакты бота (группа / поддержка / соглашение).
+	// Все поля задаются админом. Дефолтов нет: пустое = блок скрыт.
+	Contact ContactConfig `json:"contact"`
+}
+
+// ContactConfig — то, что показывается пользователю «о боте»:
+//   - GroupURL: ссылка на канал/чат (кнопка «👥 Группа» на главной).
+//   - SupportURL: ссылка на чат поддержки или t.me/<админа>.
+//   - TermsText: пользовательское соглашение (HTML); показывается ОДИН раз
+//     перед первой покупкой, после нажатия «✅ Принимаю» больше не выводится.
+//     Если TermsText пустой — соглашение не запрашивается.
+type ContactConfig struct {
+	GroupURL   string `json:"group_url"`
+	SupportURL string `json:"support_url"`
+	TermsText  string `json:"terms_text"`
 }
 
 // WelcomeConfig — стартовый баннер: картинка (file_id или URL) + текст с
@@ -139,12 +154,13 @@ type P2PConfig struct {
 
 // User — запись пользователя бота (гейт доступа к P2P и т.п.).
 type User struct {
-	TelegramID  int64
-	Username    string // @username из Telegram (без @), может быть пустым
-	FirstName   string // имя из Telegram, может быть пустым
-	P2PApproved bool
-	Blocked     bool
-	CreatedAt   string
+	TelegramID      int64
+	Username        string // @username из Telegram (без @), может быть пустым
+	FirstName       string // имя из Telegram, может быть пустым
+	P2PApproved     bool
+	Blocked         bool
+	CreatedAt       string
+	TermsAcceptedAt string // ISO-время принятия пользовательского соглашения; пусто = не принимал
 }
 
 // P2PRequest — заявка на оплату через P2P (ручная модерация).

@@ -265,6 +265,13 @@ func (s *fakeStore) DeleteP2PRequestsByUser(_ context.Context, id int64) error {
 	}
 	return nil
 }
+
+func (s *fakeStore) SetTermsAccepted(_ context.Context, telegramID int64, ts string) error {
+	if u, ok := s.users[telegramID]; ok {
+		u.TermsAcceptedAt = ts
+	}
+	return nil
+}
 func (s *fakeStore) CreateP2PRequest(_ context.Context, r *model.P2PRequest) error {
 	if s.reqs == nil {
 		s.reqs = map[int64]*model.P2PRequest{}
@@ -792,8 +799,8 @@ func TestUserCard_AllowP2P(t *testing.T) {
 	if u, _ := fs.GetUser(ctx, user); u == nil || !u.P2PApproved {
 		t.Fatalf("P2P-доступ должен быть выдан: %+v", u)
 	}
-	if !strings.Contains(fm.joined(), "одобрена оплата переводом") {
-		t.Fatalf("пользователь должен получить уведомление:\n%s", fm.joined())
+	if !strings.Contains(fm.joined(), "оплат") || !strings.Contains(fm.joined(), "перевод") {
+		t.Fatalf("пользователь должен получить уведомление об открытом P2P:\n%s", fm.joined())
 	}
 	// запрет обратно
 	a.handleCallback(ctx, cb(100, "usr:p2poff:555"))

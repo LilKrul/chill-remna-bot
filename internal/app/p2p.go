@@ -15,36 +15,6 @@ import (
 	"remnabot/internal/model"
 )
 
-// uiState — рантайм-состояние меню/покупки/админки по chatID (вне мастера установки).
-type uiState struct {
-	buyMonths          int    // выбранный срок плана
-	awaitShotReq       int64  // id заявки P2P, по которой ждём скриншот
-	rejectReq          int64  // id заявки, для которой админ вводит причину отказа
-	adminInput         string // ожидаемый ввод админа: "cards"|"price"|"squad"
-	priceMonths        int    // при adminInput=="price" — для какого срока
-	welcomeAwait       string // ожидаем для баннера: "img"|"txt"
-	awaitSectionBanner string // ждём фото для раздела (ключ assets.Section*); пусто — не ждём
-	// p2pSubmitMsgID/p2pShotMsgID — id сообщения «Скриншот получен…» и самого
-	// скриншота, чтобы удалить их у юзера после решения админа (чтобы не висели).
-	p2pSubmitMsgID int
-	p2pShotMsgID   int
-	awaitEmojiFor  string // ожидаем аним-эмодзи для этой стандартной эмодзи
-}
-
-func (a *App) getUI(chatID int64) *uiState {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.ui == nil {
-		a.ui = map[int64]*uiState{}
-	}
-	st := a.ui[chatID]
-	if st == nil {
-		st = &uiState{}
-		a.ui[chatID] = st
-	}
-	return st
-}
-
 func (a *App) saveBotConfig(ctx context.Context) error {
 	a.mu.Lock()
 	cfg, st := a.botCfg, a.store
@@ -68,6 +38,11 @@ func (a *App) p2pConfig() model.P2PConfig {
 
 func (a *App) showPlans(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
+	// Перед первой покупкой — пользовательское соглашение (если настроено).
+	if text, need := a.termsRequired(ctx, chatID); need {
+		a.askTerms(ctx, chatID, text)
+		return
+	}
 	pr := a.pricing()
 	var rows [][]models.InlineKeyboardButton
 	for _, mo := range model.PlanMonths {
@@ -555,6 +530,12 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.showYooKassaAdmin(ctx, chatID)
 	case "subdomain":
 		a.setSubdomain(ctx, chatID, text)
+	case "ctc_group":
+		a.setContact(ctx, chatID, "group", text)
+	case "ctc_support":
+		a.setContact(ctx, chatID, "support", text)
+	case "ctc_terms":
+		a.setContact(ctx, chatID, "terms", text)
 	}
 }
 

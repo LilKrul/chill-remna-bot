@@ -40,6 +40,9 @@ type Storage interface {
 	// бот не выводил «Мои подписки» по старым записям).
 	DeletePaymentsByUser(ctx context.Context, telegramID int64) error
 	DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) error
+	// SetTermsAccepted сохраняет факт принятия пользовательского соглашения
+	// (ts — ISO-время; пустая строка очищает флаг, если нужно перепринять).
+	SetTermsAccepted(ctx context.Context, telegramID int64, ts string) error
 
 	CreateP2PRequest(ctx context.Context, r *model.P2PRequest) error
 	GetP2PRequest(ctx context.Context, id int64) (*model.P2PRequest, error)
@@ -177,17 +180,17 @@ func (b *base) HasApprovedPurchase(ctx context.Context, telegramID int64) (bool,
 
 func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, error) {
 	var approved, blocked int
-	var created, username, firstName string
+	var created, username, firstName, terms string
 	err := b.db.QueryRowContext(ctx,
-		"SELECT username, first_name, p2p_approved, blocked, created_at FROM users WHERE telegram_id = "+b.ph(1), telegramID).
-		Scan(&username, &firstName, &approved, &blocked, &created)
+		"SELECT username, first_name, p2p_approved, blocked, created_at, COALESCE(terms_accepted_at, '') FROM users WHERE telegram_id = "+b.ph(1), telegramID).
+		Scan(&username, &firstName, &approved, &blocked, &created, &terms)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created}, nil
+	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms}, nil
 }
 
 func (b *base) SetP2PApproved(ctx context.Context, telegramID int64, approved bool) error {
@@ -245,6 +248,13 @@ func (b *base) DeletePaymentsByUser(ctx context.Context, telegramID int64) error
 
 func (b *base) DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) error {
 	_, err := b.db.ExecContext(ctx, "DELETE FROM p2p_requests WHERE telegram_id = "+b.ph(1), telegramID)
+	return err
+}
+
+func (b *base) SetTermsAccepted(ctx context.Context, telegramID int64, ts string) error {
+	_, err := b.db.ExecContext(ctx,
+		"UPDATE users SET terms_accepted_at = "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
+		ts, telegramID)
 	return err
 }
 

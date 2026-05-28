@@ -18,13 +18,29 @@ import (
 //go:embed banner_default.jpg
 var defaultBanner []byte
 
-// botEmojis — эмодзи в сообщениях бота и где применяются (для /emoji).
+// botEmojis — эмодзи, которые встречает ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ в сообщениях
+// бота, и где они применяются. Цель раздела /emoji — позволить владельцу
+// бота заменить эти эмодзи на свои premium-аналоги (анимированные
+// custom_emoji), чтобы магазин выглядел премиально для покупателей.
+//
+// Админ-специфичные эмодзи (🔑 токен, 🍪 кука, 🌐/🏠 режимы, 📊 статус,
+// ⚠️ предупреждение и т.п.) ИЗ ЭТОГО СПИСКА ИСКЛЮЧЕНЫ — они никогда не
+// видны клиенту и редактировать их незачем.
 var botEmojis = []struct{ E, Use string }{
-	{"👋", "приветствие"}, {"✅", "успех / подтверждение"}, {"❌", "ошибка / отказ"},
-	{"⚠️", "предупреждение"}, {"⏳", "ожидание"}, {"🕒", "на проверке"},
-	{"💳", "оплата"}, {"📦", "тариф"}, {"💸", "платёж"}, {"🔒", "доступ"},
-	{"🔔", "уведомление"}, {"📸", "скриншот"}, {"📊", "статус"}, {"🌐", "удалённо"},
-	{"🏠", "локально"}, {"🔑", "токен"}, {"🍪", "кука"},
+	{"👋", "приветствие"},
+	{"✅", "успех / подтверждение оплаты"},
+	{"❌", "ошибка / отказ"},
+	{"⏳", "ожидание / в процессе"},
+	{"🕒", "на проверке"},
+	{"💳", "оплата"},
+	{"📦", "тариф / подписка"},
+	{"💸", "сумма / платёж"},
+	{"🔒", "защита / приватность"},
+	{"🔔", "уведомление о статусе"},
+	{"📸", "скриншот оплаты"},
+	{"🎁", "бонус / триал"},
+	{"🔥", "популярный тариф"},
+	{"⭐", "Telegram Stars"},
 }
 
 func (a *App) botLang() string {
@@ -90,6 +106,33 @@ func (a *App) navRow(ctx context.Context, chatID int64, isAdmin bool) []models.I
 	return row
 }
 
+// contactRows возвращает дополнительный ряд для пользователя со ссылками
+// «👥 Группа» / «🛟 Поддержка». URL-кнопки открывают ссылки напрямую.
+// Если оба URL пусты — возвращает nil (ряд не добавляется).
+func (a *App) contactRows() [][]models.InlineKeyboardButton {
+	a.mu.Lock()
+	g, sup := "", ""
+	if a.botCfg != nil {
+		g, sup = a.botCfg.Contact.GroupURL, a.botCfg.Contact.SupportURL
+	}
+	lang := i18n.Fallback
+	if a.botCfg != nil && a.botCfg.Language != "" {
+		lang = a.botCfg.Language
+	}
+	a.mu.Unlock()
+	var row []models.InlineKeyboardButton
+	if g != "" {
+		row = append(row, models.InlineKeyboardButton{Text: i18n.T(lang, "btn.group"), URL: g})
+	}
+	if sup != "" {
+		row = append(row, models.InlineKeyboardButton{Text: i18n.T(lang, "btn.support"), URL: sup})
+	}
+	if len(row) == 0 {
+		return nil
+	}
+	return [][]models.InlineKeyboardButton{row}
+}
+
 func homeRow(lang string) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
 }
@@ -108,6 +151,7 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 	a.sendKBSection(ctx, chatID, assets.SectionMainMenu, i18n.T(lang, "menu.iface_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.banner"), "menu:welcome"), btn(i18n.T(lang, "btn.emoji"), "menu:emoji")},
 		{btn(i18n.T(lang, "btn.section_banners"), "menu:welcome_sections")},
+		{btn(i18n.T(lang, "btn.contacts"), "menu:contacts")},
 		homeRow(lang),
 	})
 }
@@ -190,7 +234,8 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 		ents = nil
 		rows = a.adminMenuRows(lang)
 	} else {
-		rows = [][]models.InlineKeyboardButton{a.navRow(ctx, chatID, false)}
+		rows = a.contactRows()
+		rows = append(rows, a.navRow(ctx, chatID, false))
 	}
 	if len(ents) == 0 {
 		caption = a.applyPremium(caption)
@@ -252,6 +297,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "apilog":
 		if isAdmin {
 			a.showAPILog(ctx, chatID, 0)
+		}
+	case "contacts":
+		if isAdmin {
+			a.showContacts(ctx, chatID)
 		}
 	case "update":
 		if isAdmin {

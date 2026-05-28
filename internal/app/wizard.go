@@ -123,6 +123,13 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onAPILog(ctx, chatID, val)
 		}
+	case "ctc":
+		if isAdmin {
+			a.onContacts(ctx, chatID, val)
+		}
+	case "terms":
+		// «Принимаю/Отказаться» соглашения — может нажать обычный пользователь.
+		a.onTerms(ctx, chatID, val, cq.From.FirstName, cq.From.Username)
 	case "x":
 		// Кнопки управления самим сообщением: «Закрыть» удаляет это уведомление.
 		if val == "close" {
