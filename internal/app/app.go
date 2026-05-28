@@ -233,6 +233,13 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		return
 	}
 
+	// Чистота чата: любая ручная команда пользователя (/start, /buy, …) тут же
+	// удаляется — бот сам покажет нужный экран. Команды-«хвосты» в истории
+	// чата мешают single-message UI.
+	if strings.HasPrefix(text, "/") {
+		a.msg.Delete(ctx, chatID, m.ID)
+	}
+
 	// Нажатие постоянной reply-кнопки «Главная».
 	if a.installed() && isHomeText(text) {
 		a.msg.Delete(ctx, chatID, m.ID)
@@ -480,17 +487,30 @@ func (a *App) sendKBSection(ctx context.Context, chatID int64, section, caption 
 	}
 }
 
-// notify — постоянное сообщение (не трекается, не удаляет экран).
+// notify — постоянное сообщение (вне single-message UI). Чтобы не «висело»
+// в чате, бот всегда добавляет в конец кнопку «✕ Закрыть» (callback x:close),
+// которая удаляет это сообщение.
 func (a *App) notify(ctx context.Context, chatID int64, text string) {
-	a.msg.Send(ctx, chatID, a.applyPremium(text))
+	a.msg.SendKB(ctx, chatID, a.applyPremium(text), [][]models.InlineKeyboardButton{closeRow(a.lang(chatID))})
 }
 
+// notifyKB как notify, но с пользовательскими кнопками выше «✕ Закрыть».
+// Кнопка закрытия добавляется автоматически последним рядом — нажатие удаляет
+// всё уведомление (и саму себя), чтобы ничего не «осиротело» в чате.
 func (a *App) notifyKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
-	a.msg.SendKB(ctx, chatID, a.applyPremium(text), rows)
+	withClose := append(append([][]models.InlineKeyboardButton{}, rows...), closeRow(a.lang(chatID)))
+	a.msg.SendKB(ctx, chatID, a.applyPremium(text), withClose)
 }
 
 func (a *App) notifyPhoto(ctx context.Context, chatID int64, fileID, caption string, rows [][]models.InlineKeyboardButton) {
-	a.msg.SendPhoto(ctx, chatID, fileID, a.applyPremium(caption), rows)
+	withClose := append(append([][]models.InlineKeyboardButton{}, rows...), closeRow(a.lang(chatID)))
+	a.msg.SendPhoto(ctx, chatID, fileID, a.applyPremium(caption), withClose)
+}
+
+// closeRow — ряд с одной кнопкой «✕ Закрыть» (callback x:close). Используется
+// notify*-методами, чтобы у уведомлений всегда был способ убрать их из чата.
+func closeRow(lang string) []models.InlineKeyboardButton {
+	return []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.close"), "x:close")}
 }
 
 func btn(text, data string) models.InlineKeyboardButton {

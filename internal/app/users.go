@@ -200,20 +200,64 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 		return
 	}
 	pages := (total + usersPageSize - 1) / usersPageSize
-	var sb strings.Builder
-	sb.WriteString(i18n.T(lang, "payments.title", total, page+1, pages))
+
+	// Подготавливаем колонки одинаковой ширины: дата (10), метод (8), юзер (12),
+	// срок (3), сумма (10), статус (10). Внутри <pre> моноширинный шрифт
+	// делает столбцы аккуратной таблицей.
+	type row struct{ date, method, user, term, amount, status string }
+	rows := make([]row, 0, len(items))
+	wMethod, wUser, wAmount := len("Method"), len("User"), len("Amount")
 	for _, p := range items {
 		date := p.CreatedAt
 		if len(date) >= 10 {
 			date = date[:10]
 		}
-		status := i18n.T(lang, "payments.st_paid")
+		statusKey := "payments.st_paid"
 		if p.Status == model.PaymentRejected {
-			status = i18n.T(lang, "payments.st_rejected")
+			statusKey = "payments.st_rejected"
 		}
-		sb.WriteString("\n" + i18n.T(lang, "payments.line", date, payMethodLabel(p.Method), p.TelegramID, p.Months, p.Amount, status))
+		user := strconv.FormatInt(p.TelegramID, 10)
+		term := strconv.Itoa(p.Months) + "m"
+		method := payMethodLabel(p.Method)
+		amount := p.Amount
+		rows = append(rows, row{date, method, user, term, amount, i18n.T(lang, statusKey)})
+		if l := visualWidth(method); l > wMethod {
+			wMethod = l
+		}
+		if l := visualWidth(user); l > wUser {
+			wUser = l
+		}
+		if l := visualWidth(amount); l > wAmount {
+			wAmount = l
+		}
 	}
-	var rows [][]models.InlineKeyboardButton
+
+	var sb strings.Builder
+	sb.WriteString(i18n.T(lang, "payments.title", total, page+1, pages))
+	sb.WriteString("\n<pre>")
+	header := padRight("Date", 10) + "  " + padRight("Method", wMethod) + "  " +
+		padRight("User", wUser) + "  " + padRight("Term", 4) + "  " +
+		padRight("Amount", wAmount) + "  " + "Status"
+	sb.WriteString(header)
+	sb.WriteString("\n")
+	sb.WriteString(strings.Repeat("─", visualWidth(header)))
+	for _, r := range rows {
+		sb.WriteString("\n")
+		sb.WriteString(padRight(r.date, 10))
+		sb.WriteString("  ")
+		sb.WriteString(padRight(r.method, wMethod))
+		sb.WriteString("  ")
+		sb.WriteString(padRight(r.user, wUser))
+		sb.WriteString("  ")
+		sb.WriteString(padRight(r.term, 4))
+		sb.WriteString("  ")
+		sb.WriteString(padRight(r.amount, wAmount))
+		sb.WriteString("  ")
+		sb.WriteString(r.status)
+	}
+	sb.WriteString("</pre>")
+
+	var kbRows [][]models.InlineKeyboardButton
 	var nav []models.InlineKeyboardButton
 	if page > 0 {
 		nav = append(nav, btn(i18n.T(lang, "btn.prev"), "pay:page:"+strconv.Itoa(page-1)))
@@ -222,10 +266,31 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 		nav = append(nav, btn(i18n.T(lang, "btn.next"), "pay:page:"+strconv.Itoa(page+1)))
 	}
 	if len(nav) > 0 {
-		rows = append(rows, nav)
+		kbRows = append(kbRows, nav)
 	}
-	rows = append(rows, back)
-	a.sendKBSection(ctx, chatID, assets.SectionPromoCode, sb.String(), rows)
+	kbRows = append(kbRows, back)
+	a.sendKBSection(ctx, chatID, assets.SectionPromoCode, sb.String(), kbRows)
+}
+
+// padRight дополняет строку пробелами справа до ширины w (на основе видимой
+// длины строки, корректно для эмодзи/кириллицы — каждая «руна» = 1 символ).
+func padRight(s string, w int) string {
+	cur := visualWidth(s)
+	if cur >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-cur)
+}
+
+// visualWidth возвращает количество run в строке (моноширинный шрифт в <pre>
+// отдаёт примерно одинаковую ширину для большинства печатных run, включая
+// латиницу/кириллицу/цифры/эмодзи — достаточно для выравнивания таблицы).
+func visualWidth(s string) int {
+	n := 0
+	for range s {
+		n++
+	}
+	return n
 }
 
 func (a *App) onPayments(ctx context.Context, chatID int64, val string) {
@@ -248,6 +313,9 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	ok := false
 	if panel != nil {
 		url, ok = panel.Subscription(ctx, chatID)
+		if ok {
+			url = a.rewriteSub(url)
+		}
 	}
 	if !ok {
 		a.sendKB(ctx, chatID, i18n.T(lang, "subs.none"), [][]models.InlineKeyboardButton{

@@ -24,7 +24,11 @@ type uiState struct {
 	priceMonths        int    // при adminInput=="price" — для какого срока
 	welcomeAwait       string // ожидаем для баннера: "img"|"txt"
 	awaitSectionBanner string // ждём фото для раздела (ключ assets.Section*); пусто — не ждём
-	awaitEmojiFor      string // ожидаем аним-эмодзи для этой стандартной эмодзи
+	// p2pSubmitMsgID/p2pShotMsgID — id сообщения «Скриншот получен…» и самого
+	// скриншота, чтобы удалить их у юзера после решения админа (чтобы не висели).
+	p2pSubmitMsgID int
+	p2pShotMsgID   int
+	awaitEmojiFor  string // ожидаем аним-эмодзи для этой стандартной эмодзи
 }
 
 func (a *App) getUI(chatID int64) *uiState {
@@ -245,7 +249,13 @@ func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 		return
 	}
 	ui.awaitShotReq = 0
-	a.send(ctx, chatID, i18n.T(a.lang(chatID), "p2p.submitted"))
+	// id скриншота пользователя — удалим его после решения админа.
+	ui.p2pShotMsgID = m.ID
+	// «Скриншот получен…» шлём напрямую, чтобы получить id и потом удалить.
+	lang := a.lang(chatID)
+	ui.p2pSubmitMsgID = a.msg.SendKB(ctx, chatID,
+		a.applyPremium(i18n.T(lang, "p2p.submitted")),
+		[][]models.InlineKeyboardButton{closeRow(lang)})
 	a.notifyAdminPayment(ctx, req, fileID)
 }
 
@@ -384,6 +394,7 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 	req.Status = model.P2PApproved
 	req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
 	_ = a.store.UpdateP2PRequest(ctx, req)
+	a.cleanupP2PUser(ctx, req.TelegramID)
 	a.notify(ctx, req.TelegramID, i18n.T(a.lang(req.TelegramID), "p2p.user_paid_ok", link))
 	a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
 }
@@ -406,6 +417,7 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	if err != nil {
 		return "", err
 	}
+	link = a.rewriteSub(link)
 	if a.store != nil {
 		_ = a.store.AddPayment(ctx, &model.Payment{
 			TelegramID: telegramID, Method: method, Months: months, Amount: amount, Status: model.PaymentPaid, ExtID: extID,
@@ -436,6 +448,7 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 			TelegramID: req.TelegramID, Method: model.PayMethodP2P, Months: req.Months,
 			Amount: req.Price + curSuffix(a.pricing().Currency), Status: model.PaymentRejected, Comment: text,
 		})
+		a.cleanupP2PUser(ctx, req.TelegramID)
 		a.notify(ctx, req.TelegramID, i18n.T(a.lang(req.TelegramID), "p2p.user_paid_rejected", text))
 		a.send(ctx, chatID, i18n.T(lang, "admin.done"))
 		return
@@ -526,6 +539,8 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
 		a.showYooKassaAdmin(ctx, chatID)
+	case "subdomain":
+		a.setSubdomain(ctx, chatID, text)
 	}
 }
 
@@ -639,4 +654,25 @@ func (a *App) collectEmoji(ctx context.Context, chatID int64, m *models.Message)
 		_ = a.saveBotConfig(ctx)
 	}
 	a.send(ctx, chatID, i18n.T(a.lang(chatID), "admin.emoji_saved", added))
+}
+
+// cleanupP2PUser удаляет у пользователя «хвосты» процесса P2P-оплаты:
+// само фото-скриншот и сообщение «Скриншот получен…». Вызывается после
+// approve/reject — заявка закрыта, эти сообщения больше не нужны и не
+// должны висеть в чате.
+func (a *App) cleanupP2PUser(ctx context.Context, userChatID int64) {
+	a.mu.Lock()
+	ui, ok := a.ui[userChatID]
+	a.mu.Unlock()
+	if !ok || ui == nil {
+		return
+	}
+	if ui.p2pShotMsgID != 0 {
+		a.msg.Delete(ctx, userChatID, ui.p2pShotMsgID)
+		ui.p2pShotMsgID = 0
+	}
+	if ui.p2pSubmitMsgID != 0 {
+		a.msg.Delete(ctx, userChatID, ui.p2pSubmitMsgID)
+		ui.p2pSubmitMsgID = 0
+	}
 }

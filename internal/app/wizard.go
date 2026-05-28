@@ -115,6 +115,15 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onSectionBanner(ctx, chatID, val)
 		}
+	case "subd":
+		if isAdmin {
+			a.onSubdomain(ctx, chatID, val)
+		}
+	case "x":
+		// Кнопки управления самим сообщением: «Закрыть» удаляет это уведомление.
+		if val == "close" {
+			a.msg.Delete(ctx, chatID, cqMsgID(cq))
+		}
 	}
 }
 

@@ -57,6 +57,10 @@ type BotConfig struct {
 	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id (анимированные premium),
 	// заполняется через /emoji. Дополняет/перекрывает env PREMIUM_EMOJI.
 	PremiumEmoji map[string]string `json:"premium_emoji"`
+	// SubscriptionDomain — если непусто, бот подменяет хост в ссылке
+	// подписки на этот домен, сохраняя путь/short-id панели. Удобно
+	// раздавать единый внешний домен, скрывая адрес панели.
+	SubscriptionDomain string `json:"subscription_domain"`
 }
 
 // WelcomeConfig — стартовый баннер: картинка (file_id или URL) + текст с

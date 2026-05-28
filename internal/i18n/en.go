@@ -253,4 +253,12 @@ var en = map[string]string{
 	"banners.ask_upload":      "📤 Send a photo to be used as the banner for «%s».\n\nLandscape works best (e.g. 1280×640). Telegram will compress automatically.",
 	"banners.btn_upload":      "📤 Upload new",
 	"banners.btn_reset":       "↩️ Reset to default",
+	"btn.subdomain":           "🌐 Subscription domain",
+	"subdomain.title":         "🌐 <b>Subscription domain override</b>\n\nStatus: %s\nCurrent domain: <code>%s</code>\n\nWhen enabled, the bot rewrites the host in the subscription link, keeping the path and shortId. Useful if you want to expose subscriptions via a single brand domain, hiding the panel host.",
+	"subdomain.on":            "on ✅",
+	"subdomain.off":           "off ❌",
+	"subdomain.btn_change":    "✏️ Change domain",
+	"subdomain.btn_clear":     "↩️ Clear (use panel host)",
+	"subdomain.ask":           "✏️ Send the subscription domain (e.g. <code>vpn.mybrand.io</code>), or «-» to disable rewriting.",
+	"btn.close":               "❌ Close",
 }
