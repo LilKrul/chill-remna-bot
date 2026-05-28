@@ -149,7 +149,7 @@ var en = map[string]string{
 	"welcome.ask_image":      "Send a photo (upload) or an image URL. It will become the start banner.",
 	"welcome.ask_text":       "Send a message with exactly the formatting and line breaks you want — I'll keep it 1:1.",
 	"welcome.saved":          "✅ Saved.",
-	"emoji.title":            "🎨 <b>Bot emoji</b>\n\nReplace the bot's standard emoji with your animated (premium) ones. Works because the bot owner has Telegram Premium.\n\nTap an emoji and send its animated version. A check mark means it's set.\n\nWhere used:",
+	"emoji.title":            "🎨 <b>Premium emoji</b>\n\nReplace plain bot emoji with your premium animated ones (custom_emoji). Works if your or the bot account has Telegram Premium.\n\n<b>How to use:</b> tap an emoji below — the bot will ask you to send your premium version of the same emoji (one message). ✅ means already set.\n\nHere is where each emoji appears for the user:",
 	"emoji.btn_done":         "Done",
 	"emoji.ask_one":          "Send the animated version for %s as a single emoji.",
 	"emoji.set_ok":           "✅ Set for %s.",
