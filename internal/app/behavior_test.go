@@ -270,6 +270,13 @@ func (s *fakeStore) SaveMediaFileID(_ context.Context, section, fileID string) e
 	return nil
 }
 
+func (s *fakeStore) DeleteMediaFileID(_ context.Context, section string) error {
+	if s.media != nil {
+		delete(s.media, section)
+	}
+	return nil
+}
+
 func (s *fakeStore) Kind() string { return "fake" }
 func (s *fakeStore) Close() error { return nil }
 

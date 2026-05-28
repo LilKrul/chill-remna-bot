@@ -111,6 +111,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onSquad(ctx, chatID, val)
 		}
+	case "sec":
+		if isAdmin {
+			a.onSectionBanner(ctx, chatID, val)
+		}
 	}
 }
 

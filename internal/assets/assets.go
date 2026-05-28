@@ -61,6 +61,49 @@ var SectionImages = map[string]string{
 	SectionAdminStats:      "https://images.unsplash.com/photo-1745270917233-65e776a47547?w=1280&h=640&fit=crop&auto=format&q=80",       // растущий график
 }
 
+// Section — описание раздела для админ-редактора баннеров.
+type Section struct {
+	Key     string // assets.Section* константа (PK в media_cache)
+	LabelRU string // подпись на кнопке (RU)
+	LabelEN string // подпись на кнопке (EN)
+}
+
+// AllSections — порядок отображения в админ-разделе «Баннеры разделов».
+// Сначала мастер установки, потом экраны магазина/админки.
+var AllSections = []Section{
+	// Мастер установки.
+	{SectionWizardWelcome, "👋 Приветствие мастера", "👋 Wizard welcome"},
+	{SectionWizardDBChoose, "🗄 Шаг: выбор БД", "🗄 Step: DB choice"},
+	{SectionWizardDBPostgresUp, "🐘 Шаг: PostgreSQL up", "🐘 Step: PostgreSQL up"},
+	{SectionWizardLocation, "📍 Шаг: локально/удалённо", "📍 Step: local/remote"},
+	{SectionWizardInstallChoice, "🧩 Шаг: способ установки", "🧩 Step: install type"},
+	{SectionWizardToken, "🔑 Шаг: API-токен", "🔑 Step: API token"},
+	{SectionWizardCookie, "🍪 Шаг: nginx-кука", "🍪 Step: nginx cookie"},
+	{SectionWizardVerifyOK, "✅ Шаг: проверка успешна", "✅ Step: verify OK"},
+	// Экраны магазина и админки.
+	{SectionMainMenu, "🏠 Меню «Интерфейс»", "🏠 Menu «Interface»"},
+	{SectionBuySubscription, "🛒 Купить / Оплата", "🛒 Buy / Payments menu"},
+	{SectionMySubscription, "📦 Мои подписки", "📦 My subscriptions"},
+	{SectionTrial, "🎁 Триал", "🎁 Trial"},
+	{SectionReferral, "👥 Пользователи / реферал", "👥 Users / referral"},
+	{SectionPromoCode, "💸 Платежи / промокод", "💸 Payments / promo"},
+	{SectionAdminStats, "⚙️ Управление", "⚙️ Manage"},
+}
+
+// LabelByKey ищет человеческую подпись раздела по ключу. Если ключ
+// не зарегистрирован — возвращает сам ключ (заметно в UI = надо добавить).
+func LabelByKey(key, lang string) string {
+	for _, sec := range AllSections {
+		if sec.Key == key {
+			if lang == "en" {
+				return sec.LabelEN
+			}
+			return sec.LabelRU
+		}
+	}
+	return key
+}
+
 // URL возвращает исходную ссылку для раздела. Если раздел не зарегистрирован
 // — пустая строка; вызывающий код решает, что показать (например, дефолтный
 // баннер или текстовое сообщение без картинки).

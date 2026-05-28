@@ -50,6 +50,9 @@ type Storage interface {
 	// ok=false означает «надо отправить по URL и закэшировать новый id».
 	LoadMediaFileID(ctx context.Context, section string) (id string, ok bool, err error)
 	SaveMediaFileID(ctx context.Context, section, fileID string) error
+	// DeleteMediaFileID удаляет кэш для раздела — следующий sendKBSection
+	// пойдёт по дефолтному URL из assets (используется кнопкой «Сбросить»).
+	DeleteMediaFileID(ctx context.Context, section string) error
 
 	Kind() string
 	Close() error
@@ -342,5 +345,12 @@ func (b *base) SaveMediaFileID(ctx context.Context, section, fileID string) erro
 			b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+") "+
 			"ON CONFLICT (section) DO UPDATE SET file_id = excluded.file_id, updated_at = excluded.updated_at",
 		section, fileID, nowStr())
+	return err
+}
+
+// DeleteMediaFileID — used by admin «reset banner to default».
+func (b *base) DeleteMediaFileID(ctx context.Context, section string) error {
+	_, err := b.db.ExecContext(ctx,
+		"DELETE FROM media_cache WHERE section = "+b.ph(1), section)
 	return err
 }

@@ -107,6 +107,7 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.sendKBSection(ctx, chatID, assets.SectionMainMenu, i18n.T(lang, "menu.iface_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.banner"), "menu:welcome"), btn(i18n.T(lang, "btn.emoji"), "menu:emoji")},
+		{btn(i18n.T(lang, "btn.section_banners"), "menu:welcome_sections")},
 		homeRow(lang),
 	})
 }
@@ -238,6 +239,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "welcome":
 		if isAdmin {
 			a.showWelcomeAdmin(ctx, chatID)
+		}
+	case "welcome_sections":
+		if isAdmin {
+			a.showSectionBanners(ctx, chatID)
 		}
 	case "update":
 		if isAdmin {

@@ -17,13 +17,14 @@ import (
 
 // uiState — рантайм-состояние меню/покупки/админки по chatID (вне мастера установки).
 type uiState struct {
-	buyMonths     int    // выбранный срок плана
-	awaitShotReq  int64  // id заявки P2P, по которой ждём скриншот
-	rejectReq     int64  // id заявки, для которой админ вводит причину отказа
-	adminInput    string // ожидаемый ввод админа: "cards"|"price"|"squad"
-	priceMonths   int    // при adminInput=="price" — для какого срока
-	welcomeAwait  string // ожидаем для баннера: "img"|"txt"
-	awaitEmojiFor string // ожидаем аним-эмодзи для этой стандартной эмодзи
+	buyMonths          int    // выбранный срок плана
+	awaitShotReq       int64  // id заявки P2P, по которой ждём скриншот
+	rejectReq          int64  // id заявки, для которой админ вводит причину отказа
+	adminInput         string // ожидаемый ввод админа: "cards"|"price"|"squad"
+	priceMonths        int    // при adminInput=="price" — для какого срока
+	welcomeAwait       string // ожидаем для баннера: "img"|"txt"
+	awaitSectionBanner string // ждём фото для раздела (ключ assets.Section*); пусто — не ждём
+	awaitEmojiFor      string // ожидаем аним-эмодзи для этой стандартной эмодзи
 }
 
 func (a *App) getUI(chatID int64) *uiState {
@@ -218,6 +219,12 @@ func (a *App) onP2PUser(ctx context.Context, chatID int64, val string) {
 func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 	chatID := m.Chat.ID
 	ui := a.getUI(chatID)
+	if ui.awaitSectionBanner != "" {
+		section := ui.awaitSectionBanner
+		ui.awaitSectionBanner = ""
+		a.setSectionBannerFile(ctx, chatID, section, m.Photo[len(m.Photo)-1].FileID)
+		return
+	}
 	if ui.welcomeAwait == "img" {
 		a.setWelcomeImageFile(ctx, chatID, m.Photo[len(m.Photo)-1].FileID)
 		return
