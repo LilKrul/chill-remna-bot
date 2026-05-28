@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -383,15 +384,20 @@ func enabledMethods(cfg *model.BotConfig) string {
 }
 
 // handleUpdate запускает самообновление образа через одноразовый контейнер.
+// «Запускаю обновление…» шлём напрямую через messenger (а не через emit/send),
+// чтобы получить msgID и сохранить его в marker'е — после рестарта бот его
+// удалит и пришлёт «update.done» одним свежим сообщением.
 func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	if a.ctl == nil || !a.ctl.Available() {
 		a.send(ctx, chatID, i18n.T(lang, "update.not_available"))
 		return
 	}
-	a.send(ctx, chatID, i18n.T(lang, "update.starting"))
+	startMsgID := a.msg.SendKB(ctx, chatID,
+		a.applyPremium(i18n.T(lang, "update.starting")),
+		[][]models.InlineKeyboardButton{closeRow(lang)})
 	marker := filepath.Join(a.cfg.DataDir, "update.pending")
-	_ = os.WriteFile(marker, []byte("1"), 0o600)
+	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(startMsgID)), 0o600)
 	if err := a.ctl.SelfUpdate(ctx); err != nil {
 		_ = os.Remove(marker)
 		a.send(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
@@ -399,12 +405,30 @@ func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 }
 
 // notifyUpdated при старте сообщает админу, что бот обновлён (если был /update).
+// Если в marker'е записан id «Запускаю обновление…» — удаляем его, чтобы это
+// сообщение не висело в чате (его никто не закроет, пока бот был офлайн).
 func (a *App) notifyUpdated(ctx context.Context) {
 	marker := filepath.Join(a.cfg.DataDir, "update.pending")
-	if _, err := os.Stat(marker); err == nil {
-		_ = os.Remove(marker)
-		a.notify(ctx, a.cfg.AdminID, i18n.T(a.botLang(), "update.done"))
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return
 	}
+	_ = os.Remove(marker)
+	// Формат marker'а: "<chatID>:<msgID>" (msgID может быть 0).
+	parts := strings.SplitN(strings.TrimSpace(string(data)), ":", 2)
+	var chatID int64
+	var msgID int
+	if len(parts) == 2 {
+		chatID, _ = strconv.ParseInt(parts[0], 10, 64)
+		msgID, _ = strconv.Atoi(parts[1])
+	}
+	if chatID == 0 {
+		chatID = a.cfg.AdminID
+	}
+	if msgID != 0 && a.msg != nil {
+		a.msg.Delete(ctx, chatID, msgID)
+	}
+	a.notify(ctx, chatID, i18n.T(a.botLang(), "update.done"))
 }
 
 // --- single-message UI: «экран» = последние сообщения бота для chatID ---
