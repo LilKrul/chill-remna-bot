@@ -364,6 +364,39 @@ func TestUserInfoAndPurchase(t *testing.T) {
 	})
 }
 
+func TestPendingInvoices(t *testing.T) {
+	eachStore(t, func(t *testing.T, st Storage) {
+		ctx := context.Background()
+		// Свежий и старый pending.
+		old := &model.PendingInvoice{Method: model.PayMethodYooKassa, ExtID: "yk_1", TelegramID: 555, Months: 1, CreatedAt: "2020-01-01T00:00:00Z"}
+		fresh := &model.PendingInvoice{Method: model.PayMethodCryptoBot, ExtID: "cb:9", TelegramID: 555, Months: 3, CreatedAt: "2099-01-01T00:00:00Z"}
+		if err := st.AddPendingInvoice(ctx, old); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.AddPendingInvoice(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		// createdBefore = 2050 → видим только старый (fresh из 2099 отфильтрован).
+		list, err := st.ListUnresolvedPending(ctx, "2050-01-01T00:00:00Z", 10)
+		if err != nil || len(list) != 1 || list[0].ExtID != "yk_1" {
+			t.Fatalf("ListUnresolvedPending фильтр по времени неверен: %+v err=%v", list, err)
+		}
+		// Резолв снимает с учёта.
+		if err := st.ResolvePending(ctx, old.ID); err != nil {
+			t.Fatal(err)
+		}
+		list, _ = st.ListUnresolvedPending(ctx, "2050-01-01T00:00:00Z", 10)
+		if len(list) != 0 {
+			t.Fatalf("после ResolvePending старый инвойс не должен возвращаться: %+v", list)
+		}
+		// limit соблюдается.
+		list, _ = st.ListUnresolvedPending(ctx, "2099-12-31T00:00:00Z", 1)
+		if len(list) != 1 {
+			t.Fatalf("limit не соблюдён: %d", len(list))
+		}
+	})
+}
+
 func TestPaymentsLog(t *testing.T) {
 	eachStore(t, func(t *testing.T, st Storage) {
 		ctx := context.Background()
