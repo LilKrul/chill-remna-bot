@@ -351,7 +351,8 @@ func (a *App) adminAskPriceMonth(ctx context.Context, chatID int64) {
 	for _, mo := range model.PlanMonths {
 		row = append(row, btn(strconv.Itoa(mo)+"м", "adm:price:"+strconv.Itoa(mo)))
 	}
-	a.sendKB(ctx, chatID, i18n.T(a.lang(chatID), "admin.ask_price_month"), [][]models.InlineKeyboardButton{row})
+	lang := a.lang(chatID)
+	a.sendKB(ctx, chatID, i18n.T(lang, "admin.ask_price_month"), [][]models.InlineKeyboardButton{row, navBack(lang, "menu:p2p")})
 }
 
 func (a *App) adminApproveUser(ctx context.Context, adminChat int64, arg string, ok bool) {
@@ -632,6 +633,14 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		ui.priceMonths = 0
 		n, _ := strconv.Atoi(strings.TrimSpace(text))
 		a.setDeviceLimitGlobal(n)
+		_ = a.saveBotConfig(ctx)
+		a.showPricing(ctx, chatID)
+	case "device_per":
+		mo := ui.priceMonths
+		ui.adminInput = ""
+		ui.priceMonths = 0
+		n, _ := strconv.Atoi(strings.TrimSpace(text))
+		a.setDevicesPer(mo, n)
 		_ = a.saveBotConfig(ctx)
 		a.showPricing(ctx, chatID)
 	case "trial_days":

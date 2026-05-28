@@ -13,11 +13,19 @@ import (
 
 // askPriceMonth — выбор срока для задания цены; callback "<prefix>:price:<mo>".
 func (a *App) askPriceMonth(ctx context.Context, chatID int64, prefix string) {
+	lang := a.lang(chatID)
 	var row []models.InlineKeyboardButton
 	for _, mo := range model.PlanMonths {
 		row = append(row, btn(strconv.Itoa(mo)+"м", prefix+":price:"+strconv.Itoa(mo)))
 	}
-	a.sendKB(ctx, chatID, i18n.T(a.lang(chatID), "admin.ask_price_month"), [][]models.InlineKeyboardButton{row})
+	back := "menu:pricing"
+	switch prefix {
+	case "yk":
+		back = "menu:yookassa"
+	case "cb":
+		back = "menu:cryptobot"
+	}
+	a.sendKB(ctx, chatID, i18n.T(lang, "admin.ask_price_month"), [][]models.InlineKeyboardButton{row, navBack(lang, back)})
 }
 
 func (a *App) formatBasePrices() string {
@@ -58,12 +66,8 @@ func (a *App) showPricing(ctx context.Context, chatID int64) {
 	if cur == "" {
 		cur = i18n.T(lang, "admin.none")
 	}
-	hwid := i18n.T(lang, "pricing.hwid_default")
-	if pr.DeviceLimit > 0 {
-		hwid = strconv.Itoa(pr.DeviceLimit)
-	}
 	table := a.formatPlansTable(lang)
-	a.sendKB(ctx, chatID, i18n.T(lang, "pricing.title", cur, hwid, pr.ResetStrategy(), table), [][]models.InlineKeyboardButton{
+	a.sendKB(ctx, chatID, i18n.T(lang, "pricing.title", cur, pr.ResetStrategy(), table), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "pricing.btn_quick"), "prc:quick")},
 		{btn(i18n.T(lang, "pricing.btn_base"), "prc:base"), btn(i18n.T(lang, "pricing.btn_cur"), "prc:cur")},
 		{btn(i18n.T(lang, "pricing.btn_traffic"), "prc:traffic"), btn(i18n.T(lang, "pricing.btn_devices"), "prc:devices")},
@@ -77,8 +81,8 @@ func (a *App) formatPlansTable(lang string) string {
 	pr := a.pricing()
 	var sb strings.Builder
 	sb.WriteString("<pre>")
-	sb.WriteString(padRight("Plan", 6) + "  " + padRight("Price", 12) + "  Traffic\n")
-	sb.WriteString(strings.Repeat("─", 32) + "\n")
+	sb.WriteString(padRight("Plan", 6) + "  " + padRight("Price", 12) + "  " + padRight("Traffic", 10) + "  HWID\n")
+	sb.WriteString(strings.Repeat("─", 40) + "\n")
 	for _, mo := range model.PlanMonths {
 		price := pr.Base[mo]
 		if price == "" {
@@ -90,7 +94,11 @@ func (a *App) formatPlansTable(lang string) string {
 		if gb := pr.Traffic[mo]; gb > 0 {
 			traffic = strconv.Itoa(gb) + " GB"
 		}
-		sb.WriteString(padRight(strconv.Itoa(mo)+"m", 6) + "  " + padRight(price, 12) + "  " + traffic + "\n")
+		hwid := "—"
+		if d := pr.DeviceLimitFor(mo); d > 0 {
+			hwid = strconv.Itoa(d)
+		}
+		sb.WriteString(padRight(strconv.Itoa(mo)+"m", 6) + "  " + padRight(price, 12) + "  " + padRight(traffic, 10) + "  " + hwid + "\n")
 	}
 	sb.WriteString("</pre>")
 	return sb.String()
@@ -125,7 +133,7 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 		for _, mo := range model.PlanMonths {
 			row = append(row, btn(strconv.Itoa(mo)+"м", "prc:trafmo:"+strconv.Itoa(mo)))
 		}
-		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_traffic_month"), [][]models.InlineKeyboardButton{row})
+		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_traffic_month"), [][]models.InlineKeyboardButton{row, navBack(lang, "menu:pricing")})
 	case "trafmo":
 		mo, _ := strconv.Atoi(arg)
 		ui := a.getUI(chatID)
@@ -133,30 +141,25 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 		ui.priceMonths = mo
 		a.askInput(ctx, chatID, i18n.T(lang, "pricing.ask_traffic_gb", mo), "menu:pricing")
 	case "devices":
-		// 3 кнопки: 1 / 3 устройства / свой лимит. Применяется override per-user
-		// в Remnawave (hwidDeviceLimit) для всех создаваемых ботом подписок.
-		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_devices_preset"), [][]models.InlineKeyboardButton{
-			{btn(i18n.T(lang, "pricing.dev_1"), "prc:devset:1"),
-				btn(i18n.T(lang, "pricing.dev_3"), "prc:devset:3"),
-				btn(i18n.T(lang, "pricing.dev_custom"), "prc:devset:custom")},
-			{btn(i18n.T(lang, "pricing.dev_default"), "prc:devset:0")},
-		})
-	case "devset":
-		if arg == "custom" {
-			ui := a.getUI(chatID)
-			ui.adminInput = "device_limit"
-			ui.priceMonths = 0
-			a.askInput(ctx, chatID, i18n.T(lang, "pricing.ask_devices_custom"), "menu:pricing")
-			return
+		// Лимит устройств (HWID) — ПО ТАРИФАМ (как трафик): выбор срока → число.
+		// Можно дать, например, на годовой тариф больше устройств.
+		var row []models.InlineKeyboardButton
+		for _, mo := range model.PlanMonths {
+			row = append(row, btn(strconv.Itoa(mo)+"м", "prc:devmo:"+strconv.Itoa(mo)))
 		}
-		n, _ := strconv.Atoi(arg)
-		a.setDeviceLimitGlobal(n)
-		_ = a.saveBotConfig(ctx)
-		a.showPricing(ctx, chatID)
+		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_devices_month"), [][]models.InlineKeyboardButton{row, navBack(lang, "menu:pricing")})
+	case "devmo":
+		mo, _ := strconv.Atoi(arg)
+		ui := a.getUI(chatID)
+		ui.adminInput = "device_per"
+		ui.priceMonths = mo
+		a.askInput(ctx, chatID, i18n.T(lang, "pricing.ask_devices", mo), "menu:pricing")
 	case "strategy":
 		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_strategy"), [][]models.InlineKeyboardButton{
-			{btn("MONTH", "prc:setstrat:MONTH"), btn("WEEK", "prc:setstrat:WEEK")},
-			{btn("DAY", "prc:setstrat:DAY"), btn("NO_RESET", "prc:setstrat:NO_RESET")},
+			{btn("MONTH", "prc:setstrat:MONTH"), btn("MONTH_ROLLING", "prc:setstrat:MONTH_ROLLING")},
+			{btn("WEEK", "prc:setstrat:WEEK"), btn("DAY", "prc:setstrat:DAY")},
+			{btn("NO_RESET", "prc:setstrat:NO_RESET")},
+			navBack(lang, "menu:pricing"),
 		})
 	case "setstrat":
 		a.mu.Lock()
@@ -198,6 +201,23 @@ func (a *App) setDeviceLimitGlobal(n int) {
 		n = 0
 	}
 	a.botCfg.Pricing.DeviceLimit = n
+}
+
+// setDevicesPer задаёт лимит устройств (HWID) для конкретного срока.
+func (a *App) setDevicesPer(months, n int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.botCfg == nil {
+		return
+	}
+	a.botCfg.NormalizePricing()
+	if a.botCfg.Pricing.Devices == nil {
+		a.botCfg.Pricing.Devices = map[int]int{}
+	}
+	if n < 0 {
+		n = 0
+	}
+	a.botCfg.Pricing.Devices[months] = n
 }
 
 // startPlanQuick — быстрая настройка одного тарифа (последовательно

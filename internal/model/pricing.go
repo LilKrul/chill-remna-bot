@@ -14,8 +14,13 @@ type Pricing struct {
 	// 0 = безлимит. RW Shop держит один общий лимит на всех, у нас на тариф.
 	Traffic map[int]int `json:"traffic"` // месяцы -> GB трафика (0 = безлимит)
 
-	// DeviceLimit (HWID) — ОДИН общий override для всех подписок бота.
-	// 0 = «не передавать» (использовать HWID_FALLBACK_DEVICE_LIMIT панели).
+	// Devices (HWID) — лимит устройств ПО ТАРИФАМ (как Traffic): месяцы -> кол-во.
+	// 0/нет записи = откат на общий DeviceLimit, затем на дефолт панели.
+	// Позволяет, например, дать на годовой тариф больше устройств.
+	Devices map[int]int `json:"devices"`
+
+	// DeviceLimit (HWID) — общий override-фолбэк для тарифов без своего значения
+	// в Devices. 0 = «не передавать» (использовать HWID_FALLBACK_DEVICE_LIMIT панели).
 	DeviceLimit int `json:"device_limit"`
 
 	// TrafficStrategy — стратегия сброса трафика, общая для всех тарифов.
@@ -32,14 +37,19 @@ func (p Pricing) TrafficBytes(months int) int64 {
 	return gb * 1024 * 1024 * 1024
 }
 
-// DeviceLimitFor — общий лимит устройств; months оставлен в сигнатуре для
-// единого стиля (Traffic зависит от months, Device — нет).
-func (p Pricing) DeviceLimitFor(_ int) int { return p.DeviceLimit }
+// DeviceLimitFor — лимит устройств (HWID) для тарифа: сначала per-tariff
+// значение из Devices, иначе общий DeviceLimit (0 = дефолт панели).
+func (p Pricing) DeviceLimitFor(months int) int {
+	if d := p.Devices[months]; d > 0 {
+		return d
+	}
+	return p.DeviceLimit
+}
 
 // ResetStrategy возвращает безопасное значение для API (MONTH по умолчанию).
 func (p Pricing) ResetStrategy() string {
 	switch p.TrafficStrategy {
-	case "NO_RESET", "DAY", "WEEK", "MONTH":
+	case "NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING":
 		return p.TrafficStrategy
 	}
 	return "MONTH"
@@ -100,6 +110,9 @@ func (c *BotConfig) NormalizePricing() {
 	}
 	if p.Traffic == nil {
 		p.Traffic = map[int]int{}
+	}
+	if p.Devices == nil {
+		p.Devices = map[int]int{}
 	}
 	if p.TrafficStrategy == "" {
 		p.TrafficStrategy = "MONTH"

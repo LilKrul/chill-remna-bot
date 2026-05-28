@@ -94,8 +94,8 @@ func TestAdminButtonWalk(t *testing.T) {
 		// Подписка/оплата — тарифы (быстрая/ручная)
 		"menu:pay", "prc:quick",
 		"menu:pricing", "prc:base", "prc:price:1", "prc:cur",
-		"prc:traffic", "prc:trafmo:1", "prc:devices", "prc:devset:1", "prc:devset:custom",
-		"prc:strategy", "prc:setstrat:MONTH", "prc:qmo:1",
+		"prc:traffic", "prc:trafmo:1", "prc:devices", "prc:devmo:1",
+		"prc:strategy", "prc:setstrat:MONTH", "prc:setstrat:MONTH_ROLLING", "prc:qmo:1",
 		// Триал
 		"menu:trial", "trial:toggle", "trial:days", "trial:gb",
 		"trial:hwid", "trial:hwidset:1", "trial:hwidset:custom", "trial:squads", "trial:quick",

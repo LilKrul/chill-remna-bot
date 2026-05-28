@@ -186,6 +186,16 @@ func homeRow(lang string) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
 }
 
+// navBack — ряд «◀️ Назад» (в backCB) + «🏠 Главная». Ставится на экранах-вопросах
+// (выбор месяца/стратегии и т.п.), чтобы из ЛЮБОГО шага можно было вернуться,
+// ничего не задавая.
+func navBack(lang, backCB string) []models.InlineKeyboardButton {
+	return []models.InlineKeyboardButton{
+		btn(i18n.T(lang, "btn.back"), backCB),
+		btn(i18n.T(lang, "btn.home"), "menu:home"),
+	}
+}
+
 func (a *App) adminMenuRows(lang string) [][]models.InlineKeyboardButton {
 	return [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.buy"), "menu:buy")},
