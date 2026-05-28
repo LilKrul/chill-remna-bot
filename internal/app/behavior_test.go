@@ -482,10 +482,20 @@ func photoMsg(uid int64, fileID string) *models.Message {
 }
 
 func TestP2P_FullFlow(t *testing.T) {
+	// Stateful: до создания (POST/PATCH) by-telegram-id возвращает 404, после —
+	// аккаунт с subscriptionUrl (как реальная панель).
+	created := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
+			if created {
+				_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
+				return
+			}
 			w.WriteHeader(http.StatusNotFound)
 			return
+		}
+		if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+			created = true
 		}
 		_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
 	}))
@@ -771,6 +781,23 @@ func TestNavRow(t *testing.T) {
 	ctx := context.Background()
 	const user int64 = 555
 
+	// Stateful panel stub: до «покупки» возвращает 404, после флага hasSub —
+	// аккаунт с subscriptionUrl. Имитирует реальный источник правды (панель).
+	hasSub := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
+			if hasSub {
+				_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	a.panel = remnawave.New(model.PanelConfig{Mode: model.ModeRemote, BaseURL: srv.URL, APIToken: "t"})
+
 	// админ -> только Главная
 	if row := a.navRow(ctx, 100, true); len(row) != 1 || row[0].CallbackData != "menu:home" {
 		t.Fatalf("админ должен иметь только Главную: %s", btnData(row))
@@ -779,8 +806,8 @@ func TestNavRow(t *testing.T) {
 	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:buy|" {
 		t.Fatalf("юзер без подписки: %s", btnData(row))
 	}
-	// после одобренной покупки -> Главная + Мои подписки
-	_ = fs.CreateP2PRequest(ctx, &model.P2PRequest{TelegramID: user, Status: model.P2PApproved})
+	// после «покупки» (в панели появилась подписка) -> Главная + Мои подписки
+	hasSub = true
 	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|" {
 		t.Fatalf("юзер с подпиской: %s", btnData(row))
 	}
@@ -822,10 +849,20 @@ func cbMsg(uid int64, data string, msgID int) *models.CallbackQuery {
 
 // Полный флоу Telegram Stars: выбор метода -> инвойс -> precheckout -> оплата -> провижн + лог + ссылка.
 func TestStarsFlow(t *testing.T) {
+	// Stateful: до создания (POST/PATCH) by-telegram-id возвращает 404, после —
+	// аккаунт с subscriptionUrl (как реальная панель).
+	created := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
+			if created {
+				_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
+				return
+			}
 			w.WriteHeader(http.StatusNotFound)
 			return
+		}
+		if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+			created = true
 		}
 		_, _ = w.Write([]byte(`{"response":{"uuid":"u1","subscriptionUrl":"https://sub/abc"}}`))
 	}))

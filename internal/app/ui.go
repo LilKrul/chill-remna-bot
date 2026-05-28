@@ -78,15 +78,21 @@ func userLabel(u *model.User) string {
 	return nick + " (" + id + ")"
 }
 
-// userHasSub — есть ли у пользователя одобренная покупка (для выбора кнопки нав-ряда).
+// userHasSub — есть ли у пользователя АКТИВНАЯ подписка в Remnawave (а не
+// просто запись «paid» в локальном логе). Локальные таблицы ничего не
+// говорят о реальном состоянии аккаунта в панели: запись могла остаться
+// после истечения / удаления / disable. Источник правды — панель.
+//
+// Если панель недоступна (a.panel == nil), для надёжности возвращаем false
+// — пусть пользователь увидит «Купить», а не «Мои подписки», ведущие в никуда.
 func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
-	if a.store == nil {
+	a.mu.Lock()
+	panel := a.panel
+	a.mu.Unlock()
+	if panel == nil {
 		return false
 	}
-	if ok, _ := a.store.HasPaidPayment(ctx, chatID); ok {
-		return true
-	}
-	ok, _ := a.store.HasApprovedPurchase(ctx, chatID)
+	_, ok := panel.Subscription(ctx, chatID)
 	return ok
 }
 
