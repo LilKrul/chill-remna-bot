@@ -397,9 +397,16 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	panel := a.panel
 	limits := remnawave.UserLimits{}
 	if a.botCfg != nil {
-		limits.Squad = a.botCfg.P2P.SquadUUID
+		// Сквады — общие настройки (Plan), не per-tariff.
+		limits.InternalSquads = a.botCfg.Plan.ActiveInternalSquads
+		limits.ExternalSquad = a.botCfg.Plan.ExternalSquadUUID
+		// Backward-compat: если новые сквады не выбраны, но в P2P.SquadUUID
+		// остался legacy-сквад — используем его как single internal.
+		if len(limits.InternalSquads) == 0 && a.botCfg.P2P.SquadUUID != "" {
+			limits.InternalSquads = []string{a.botCfg.P2P.SquadUUID}
+		}
 		limits.TrafficBytes = a.botCfg.Pricing.TrafficBytes(months)
-		limits.DeviceLimit = a.botCfg.Pricing.DeviceLimit(months)
+		limits.DeviceLimit = a.botCfg.Pricing.DeviceLimitFor(months)
 		limits.Strategy = a.botCfg.Pricing.ResetStrategy()
 	}
 	a.mu.Unlock()
@@ -550,11 +557,10 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		_ = a.saveBotConfig(ctx)
 		a.showPricing(ctx, chatID)
 	case "device_limit":
-		mo := ui.priceMonths
 		ui.adminInput = ""
 		ui.priceMonths = 0
 		n, _ := strconv.Atoi(strings.TrimSpace(text))
-		a.setDeviceLimit(mo, n)
+		a.setDeviceLimitGlobal(n)
 		_ = a.saveBotConfig(ctx)
 		a.showPricing(ctx, chatID)
 	}

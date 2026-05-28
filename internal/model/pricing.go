@@ -10,11 +10,13 @@ type Pricing struct {
 	YooKassa map[int]string `json:"yookassa"` // переопределение для ЮKassa
 	Stars    map[int]int    `json:"stars"`    // цены в звёздах
 
-	// Per-tariff лимиты, передаются в Remnawave при создании/продлении юзера.
-	// 0 = безлимит / использовать дефолт панели. RW Shop этого не делает —
-	// у нас каждый тариф может иметь свой объём трафика и свой лимит устройств.
+	// Per-tariff лимиты трафика — передаются в Remnawave при создании/продлении.
+	// 0 = безлимит. RW Shop держит один общий лимит на всех, у нас на тариф.
 	Traffic map[int]int `json:"traffic"` // месяцы -> GB трафика (0 = безлимит)
-	Devices map[int]int `json:"devices"` // месяцы -> макс. число HWID-устройств (0 = дефолт панели)
+
+	// DeviceLimit (HWID) — ОДИН общий override для всех подписок бота.
+	// 0 = «не передавать» (использовать HWID_FALLBACK_DEVICE_LIMIT панели).
+	DeviceLimit int `json:"device_limit"`
 
 	// TrafficStrategy — стратегия сброса трафика, общая для всех тарифов.
 	// Допустимые значения: "NO_RESET" | "DAY" | "WEEK" | "MONTH". Пусто = MONTH.
@@ -30,8 +32,9 @@ func (p Pricing) TrafficBytes(months int) int64 {
 	return gb * 1024 * 1024 * 1024
 }
 
-// DeviceLimit возвращает лимит устройств для тарифа (0 = не выставлять, дефолт панели).
-func (p Pricing) DeviceLimit(months int) int { return p.Devices[months] }
+// DeviceLimitFor — общий лимит устройств; months оставлен в сигнатуре для
+// единого стиля (Traffic зависит от months, Device — нет).
+func (p Pricing) DeviceLimitFor(_ int) int { return p.DeviceLimit }
 
 // ResetStrategy возвращает безопасное значение для API (MONTH по умолчанию).
 func (p Pricing) ResetStrategy() string {
@@ -97,9 +100,6 @@ func (c *BotConfig) NormalizePricing() {
 	}
 	if p.Traffic == nil {
 		p.Traffic = map[int]int{}
-	}
-	if p.Devices == nil {
-		p.Devices = map[int]int{}
 	}
 	if p.TrafficStrategy == "" {
 		p.TrafficStrategy = "MONTH"

@@ -64,6 +64,19 @@ type BotConfig struct {
 	// Contact — пользовательские контакты бота (группа / поддержка / соглашение).
 	// Все поля задаются админом. Дефолтов нет: пустое = блок скрыт.
 	Contact ContactConfig `json:"contact"`
+	// Plan — общие параметры подписки, применяются ко всем создаваемым ботом
+	// юзерам Remnawave (internal squads — мульти, external — одиночный).
+	Plan SubscriptionPlan `json:"plan"`
+}
+
+// SubscriptionPlan — то, что бот передаёт в панель при создании/продлении.
+//   - ActiveInternalSquads: набор UUID internal-сквадов (юзер пойдёт в эти ноды).
+//   - ExternalSquadUUID: один UUID external-сквада (если задан).
+//
+// Если массив пуст / UUID пуст — соответствующее поле не передаём.
+type SubscriptionPlan struct {
+	ActiveInternalSquads []string `json:"active_internal_squads"`
+	ExternalSquadUUID    string   `json:"external_squad_uuid"`
 }
 
 // ContactConfig — то, что показывается пользователю «о боте»:

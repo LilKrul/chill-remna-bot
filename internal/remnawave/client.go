@@ -187,13 +187,15 @@ func ownedByBot(u *panelUser, telegramID int64) bool {
 // expireAt при создании/продлении. Все поля опциональны:
 //   - TrafficBytes == 0 → лимит трафика не выставляем (или сбрасываем).
 //   - DeviceLimit == 0 → дефолт панели.
-//   - Squad == "" → не привязываем к новому скваду.
+//   - InternalSquads пуст → не привязываем internal-сквады.
+//   - ExternalSquad == "" → не привязываем external-сквад.
 //   - Strategy ∈ {"NO_RESET","DAY","WEEK","MONTH"}; "" не передаём.
 type UserLimits struct {
-	TrafficBytes int64
-	DeviceLimit  int
-	Squad        string
-	Strategy     string
+	TrafficBytes   int64
+	DeviceLimit    int
+	InternalSquads []string
+	ExternalSquad  string
+	Strategy       string
 }
 
 // CreateOrUpdateUser создаёт юзера в панели или продлевает существующего
@@ -241,8 +243,11 @@ func applyLimits(body map[string]any, l UserLimits) {
 	if l.DeviceLimit > 0 {
 		body["hwidDeviceLimit"] = l.DeviceLimit
 	}
-	if l.Squad != "" {
-		body["activeInternalSquads"] = []string{l.Squad}
+	if len(l.InternalSquads) > 0 {
+		body["activeInternalSquads"] = l.InternalSquads
+	}
+	if l.ExternalSquad != "" {
+		body["externalSquadUuid"] = l.ExternalSquad
 	}
 }
 
@@ -282,6 +287,34 @@ func (c *Client) ListSquads(ctx context.Context) ([]Squad, error) {
 		return arr, nil
 	}
 	return nil, nil
+}
+
+// ExternalSquad — внешний сквад панели (используется как «единый» для юзера).
+type ExternalSquad struct {
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+}
+
+// ListExternalSquads возвращает внешние сквады панели.
+// Формат ответа панели: {response:{externalSquads:[...]}} (OpenAPI 2.6.1).
+func (c *Client) ListExternalSquads(ctx context.Context) ([]ExternalSquad, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/external-squads", nil)
+	if err != nil {
+		return nil, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTP(resp)
+	}
+	var env struct {
+		Response struct {
+			ExternalSquads []ExternalSquad `json:"externalSquads"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("разбор ответа панели: %w", err)
+	}
+	return env.Response.ExternalSquads, nil
 }
 
 // DisableByTelegramID отключает аккаунт пользователя в панели (POST /api/users/{uuid}/actions/disable).

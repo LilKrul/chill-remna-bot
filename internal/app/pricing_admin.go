@@ -48,21 +48,7 @@ func (a *App) formatTrafficLimits() string {
 	return strings.Join(parts, " ")
 }
 
-func (a *App) formatDeviceLimits() string {
-	pr := a.pricing()
-	var parts []string
-	for _, mo := range model.PlanMonths {
-		if d := pr.Devices[mo]; d > 0 {
-			parts = append(parts, strconv.Itoa(mo)+"м="+strconv.Itoa(d))
-		}
-	}
-	if len(parts) == 0 {
-		return "—"
-	}
-	return strings.Join(parts, " ")
-}
-
-// showPricing — единый прайс + per-tariff лимиты трафика/устройств + стратегия.
+// showPricing — единый прайс + per-tariff трафик + общий HWID-override + стратегия.
 func (a *App) showPricing(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	pr := a.pricing()
@@ -70,9 +56,13 @@ func (a *App) showPricing(ctx context.Context, chatID int64) {
 	if cur == "" {
 		cur = i18n.T(lang, "admin.none")
 	}
+	hwid := strconv.Itoa(pr.DeviceLimit)
+	if pr.DeviceLimit == 0 {
+		hwid = i18n.T(lang, "pricing.hwid_default")
+	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "pricing.title",
 		a.formatBasePrices(), cur,
-		a.formatTrafficLimits(), a.formatDeviceLimits(), pr.ResetStrategy(),
+		a.formatTrafficLimits(), hwid, pr.ResetStrategy(),
 	), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "pricing.btn_base"), "prc:base"), btn(i18n.T(lang, "pricing.btn_cur"), "prc:cur")},
 		{btn(i18n.T(lang, "pricing.btn_traffic"), "prc:traffic"), btn(i18n.T(lang, "pricing.btn_devices"), "prc:devices")},
@@ -110,17 +100,26 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 		ui.priceMonths = mo
 		a.send(ctx, chatID, i18n.T(lang, "pricing.ask_traffic_gb", mo))
 	case "devices":
-		var row []models.InlineKeyboardButton
-		for _, mo := range model.PlanMonths {
-			row = append(row, btn(strconv.Itoa(mo)+"м", "prc:devmo:"+strconv.Itoa(mo)))
+		// 3 кнопки: 1 / 3 устройства / свой лимит. Применяется override per-user
+		// в Remnawave (hwidDeviceLimit) для всех создаваемых ботом подписок.
+		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_devices_preset"), [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "pricing.dev_1"), "prc:devset:1"),
+				btn(i18n.T(lang, "pricing.dev_3"), "prc:devset:3"),
+				btn(i18n.T(lang, "pricing.dev_custom"), "prc:devset:custom")},
+			{btn(i18n.T(lang, "pricing.dev_default"), "prc:devset:0")},
+		})
+	case "devset":
+		if arg == "custom" {
+			ui := a.getUI(chatID)
+			ui.adminInput = "device_limit"
+			ui.priceMonths = 0
+			a.send(ctx, chatID, i18n.T(lang, "pricing.ask_devices_custom"))
+			return
 		}
-		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_devices_month"), [][]models.InlineKeyboardButton{row})
-	case "devmo":
-		mo, _ := strconv.Atoi(arg)
-		ui := a.getUI(chatID)
-		ui.adminInput = "device_limit"
-		ui.priceMonths = mo
-		a.send(ctx, chatID, i18n.T(lang, "pricing.ask_devices", mo))
+		n, _ := strconv.Atoi(arg)
+		a.setDeviceLimitGlobal(n)
+		_ = a.saveBotConfig(ctx)
+		a.showPricing(ctx, chatID)
 	case "strategy":
 		a.sendKB(ctx, chatID, i18n.T(lang, "pricing.ask_strategy"), [][]models.InlineKeyboardButton{
 			{btn("MONTH", "prc:setstrat:MONTH"), btn("WEEK", "prc:setstrat:WEEK")},
@@ -153,17 +152,17 @@ func (a *App) setTrafficGB(months, gb int) {
 	a.botCfg.Pricing.Traffic[months] = gb
 }
 
-func (a *App) setDeviceLimit(months, n int) {
+// setDeviceLimitGlobal — общий HWID-override (hwidDeviceLimit) для всех
+// подписок, создаваемых ботом. 0 = «не передавать поле», т.е. использовать
+// HWID_FALLBACK_DEVICE_LIMIT панели.
+func (a *App) setDeviceLimitGlobal(n int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.botCfg == nil {
 		return
 	}
-	if a.botCfg.Pricing.Devices == nil {
-		a.botCfg.Pricing.Devices = map[int]int{}
-	}
 	if n < 0 {
 		n = 0
 	}
-	a.botCfg.Pricing.Devices[months] = n
+	a.botCfg.Pricing.DeviceLimit = n
 }

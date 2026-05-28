@@ -127,6 +127,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onContacts(ctx, chatID, val)
 		}
+	case "sqd":
+		if isAdmin {
+			a.onSquads(ctx, chatID, val)
+		}
 	case "terms":
 		// «Принимаю/Отказаться» соглашения — может нажать обычный пользователь.
 		a.onTerms(ctx, chatID, val, cq.From.FirstName, cq.From.Username)
