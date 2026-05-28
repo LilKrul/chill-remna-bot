@@ -87,6 +87,17 @@ func userLabel(u *model.User) string {
 	return nick + " (" + id + ")"
 }
 
+// userLabelByID подгружает пользователя из хранилища и возвращает «Ник (id)»;
+// если записи нет — просто числовой id. Удобно для уведомлений админу.
+func (a *App) userLabelByID(ctx context.Context, id int64) string {
+	if a.store != nil {
+		if u, _ := a.store.GetUser(ctx, id); u != nil {
+			return userLabel(u)
+		}
+	}
+	return strconv.FormatInt(id, 10)
+}
+
 // userHasSub — есть ли у пользователя АКТИВНАЯ подписка в Remnawave (а не
 // просто запись «paid» в локальном логе). Локальные таблицы ничего не
 // говорят о реальном состоянии аккаунта в панели: запись могла остаться

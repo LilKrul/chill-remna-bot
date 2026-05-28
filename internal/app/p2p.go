@@ -163,7 +163,7 @@ func (a *App) startP2P(ctx context.Context, chatID int64) {
 func (a *App) notifyAdminUserRequest(ctx context.Context, userID int64) {
 	lang := a.lang(a.cfg.AdminID)
 	id := strconv.FormatInt(userID, 10)
-	a.notifyKB(ctx, a.cfg.AdminID, i18n.T(lang, "admin.user_request", userID), [][]models.InlineKeyboardButton{{
+	a.notifyKB(ctx, a.cfg.AdminID, i18n.T(lang, "admin.user_request", a.userLabelByID(ctx, userID)), [][]models.InlineKeyboardButton{{
 		btn(i18n.T(lang, "admin.btn_user_ok"), "adm:uok:"+id),
 		btn(i18n.T(lang, "admin.btn_user_no"), "adm:uno:"+id),
 	}})
@@ -259,7 +259,7 @@ func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 
 func (a *App) notifyAdminPayment(ctx context.Context, req *model.P2PRequest, fileID string) {
 	lang := a.lang(a.cfg.AdminID)
-	caption := i18n.T(lang, "admin.payment_caption", req.TelegramID, req.Months, req.Price+curSuffix(a.pricing().Currency), req.ID)
+	caption := i18n.T(lang, "admin.payment_caption", a.userLabelByID(ctx, req.TelegramID), req.Months, req.Price+curSuffix(a.pricing().Currency), req.ID)
 	id := strconv.FormatInt(req.ID, 10)
 	a.notifyPhoto(ctx, a.cfg.AdminID, fileID, caption, [][]models.InlineKeyboardButton{{
 		btn(i18n.T(lang, "admin.btn_pay_ok"), "adm:pok:"+id),
