@@ -180,9 +180,12 @@ func (b *base) HasApprovedPurchase(ctx context.Context, telegramID int64) (bool,
 
 func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, error) {
 	var approved, blocked int
-	var created, username, firstName, terms string
+	var created, username, firstName string
+	// terms_accepted_at: в PG это TIMESTAMPTZ NULL, в SQLite — TEXT с дефолтом
+	// "". Через sql.NullString корректно ловим оба случая (NULL и пусто).
+	var terms sql.NullString
 	err := b.db.QueryRowContext(ctx,
-		"SELECT username, first_name, p2p_approved, blocked, created_at, COALESCE(terms_accepted_at, '') FROM users WHERE telegram_id = "+b.ph(1), telegramID).
+		"SELECT username, first_name, p2p_approved, blocked, created_at, terms_accepted_at FROM users WHERE telegram_id = "+b.ph(1), telegramID).
 		Scan(&username, &firstName, &approved, &blocked, &created, &terms)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -190,7 +193,7 @@ func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, erro
 	if err != nil {
 		return nil, err
 	}
-	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms}, nil
+	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms.String}, nil
 }
 
 func (b *base) SetP2PApproved(ctx context.Context, telegramID int64, approved bool) error {
@@ -252,6 +255,12 @@ func (b *base) DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) er
 }
 
 func (b *base) SetTermsAccepted(ctx context.Context, telegramID int64, ts string) error {
+	// Пустую строку не пишем: PG-колонка — TIMESTAMPTZ NULL (не примет ""),
+	// а в SQLite — TEXT NOT NULL с дефолтом "". В коде сброс соглашения не
+	// используется, операция только set; пустой ts превращаем в no-op.
+	if ts == "" {
+		return nil
+	}
 	_, err := b.db.ExecContext(ctx,
 		"UPDATE users SET terms_accepted_at = "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
 		ts, telegramID)
