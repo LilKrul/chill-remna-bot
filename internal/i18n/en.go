@@ -221,7 +221,7 @@ var en = map[string]string{
 	"yk.not_configured":     "Card payment is not configured by the admin yet.",
 	"yk.invoice_desc":       "VPN subscription for %d mo.",
 	"yk.fail":               "❌ YooKassa payment error: %s",
-	"yk.pay_prompt":         "💳 Payment for %d mo, amount %s.\n\nPress «Pay», complete payment on the YooKassa page, then come back and press «Check payment».",
+	"yk.pay_prompt":         "💳 Payment for %d mo, amount %s.\n\nPress «Pay», complete payment on the YooKassa page. Subscription activates automatically once YooKassa confirms the payment. If nothing comes in 2-3 minutes — press «Check payment».",
 	"yk.btn_pay":            "💳 Pay",
 	"yk.btn_check":          "🔄 Check payment",
 	"yk.pending":            "🕒 Payment not received yet. If you paid — wait a minute and press «Check payment» again.",

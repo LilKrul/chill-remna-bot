@@ -22,12 +22,6 @@ func (a *App) Healthy(_ context.Context) error {
 	return nil
 }
 
-// HandleYooKassaWebhook — обработчик POST /webhook/yookassa (Phase 2).
-func (a *App) HandleYooKassaWebhook(_ context.Context, body []byte) (bool, error) {
-	a.log.Info("yookassa webhook received (phase 1 stub)", "len", len(body))
-	return false, nil
-}
-
 // HandleCryptoBotWebhook — обработчик POST /webhook/cryptobot (Phase 4).
 func (a *App) HandleCryptoBotWebhook(_ context.Context, sig string, body []byte) (bool, error) {
 	a.log.Info("cryptobot webhook received (phase 1 stub)", "sig_len", len(sig), "body_len", len(body))
