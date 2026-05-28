@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
+	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 )
@@ -77,7 +78,7 @@ func (a *App) showPlans(ctx context.Context, chatID int64) {
 		return
 	}
 	rows = append(rows, homeRow(lang))
-	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_plan"), rows)
+	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, i18n.T(lang, "buy.choose_plan"), rows)
 }
 
 func (a *App) onBuyPlan(ctx context.Context, chatID int64, val string) {

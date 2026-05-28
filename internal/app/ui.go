@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
+	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 )
@@ -104,7 +105,7 @@ func (a *App) adminMenuRows(lang string) [][]models.InlineKeyboardButton {
 
 func (a *App) showIface(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	a.sendKB(ctx, chatID, i18n.T(lang, "menu.iface_title"), [][]models.InlineKeyboardButton{
+	a.sendKBSection(ctx, chatID, assets.SectionMainMenu, i18n.T(lang, "menu.iface_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.banner"), "menu:welcome"), btn(i18n.T(lang, "btn.emoji"), "menu:emoji")},
 		homeRow(lang),
 	})
@@ -112,7 +113,7 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 
 func (a *App) showPay(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	a.sendKB(ctx, chatID, i18n.T(lang, "menu.pay_title"), [][]models.InlineKeyboardButton{
+	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, i18n.T(lang, "menu.pay_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
 		{btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa"), btn(i18n.T(lang, "btn.pricing"), "menu:pricing")},
 		homeRow(lang),
@@ -121,7 +122,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 
 func (a *App) showManage(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	a.sendKB(ctx, chatID, i18n.T(lang, "menu.manage_title"), [][]models.InlineKeyboardButton{
+	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, i18n.T(lang, "menu.manage_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.users"), "menu:users"), btn(i18n.T(lang, "btn.payments"), "menu:payments")},
 		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.update"), "menu:update")},
 		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},

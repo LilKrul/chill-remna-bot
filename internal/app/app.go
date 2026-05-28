@@ -13,6 +13,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"remnabot/internal/assets"
 	"remnabot/internal/config"
 	"remnabot/internal/crypto"
 	"remnabot/internal/hostctl"
@@ -29,6 +30,11 @@ type messenger interface {
 	Send(ctx context.Context, chatID int64, text string) int
 	SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) int
 	SendPhoto(ctx context.Context, chatID int64, fileID, caption string, rows [][]models.InlineKeyboardButton) int
+	// SendPhotoCacheable пробует отправить картинку по cachedFileID; при
+	// ошибке (или если cachedFileID пуст) — по urlFallback. Возвращает
+	// (msgID, newFileID) — newFileID непустой, если Telegram вернул новое
+	// фото (нужно перекэшировать); пустой, если переиспользован cachedFileID.
+	SendPhotoCacheable(ctx context.Context, chatID int64, cachedFileID, urlFallback, caption string, rows [][]models.InlineKeyboardButton) (msgID int, newFileID string)
 	SendBanner(ctx context.Context, chatID int64, photo models.InputFile, caption string, entities []models.MessageEntity, rm models.ReplyMarkup) int
 	Delete(ctx context.Context, chatID int64, msgID int)
 	RemoveKeyboard(ctx context.Context, chatID int64)
@@ -436,6 +442,40 @@ func (a *App) sendBanner(ctx context.Context, chatID int64, photo models.InputFi
 	a.emit(ctx, chatID, func() int { return a.msg.SendBanner(ctx, chatID, photo, caption, ents, rm) })
 }
 
+// sendKBSection — экранное сообщение С КАРТИНКОЙ раздела (вместо обычного sendKB).
+//  1. URL раздела берётся из assets.URL(section). Если раздела нет в каталоге —
+//     мягкий фолбэк на sendKB (текст без картинки), чтобы UX не ломался.
+//  2. Сначала пытаемся отдать через закэшированный file_id (если есть в media_cache).
+//  3. Если file_id ещё нет — Telegram скачает по URL, мы получим новый file_id
+//     и сохраним его в media_cache для последующих отправок.
+//
+// Подпись и клавиатура — как у sendKB; премиум-эмодзи применяются.
+func (a *App) sendKBSection(ctx context.Context, chatID int64, section, caption string, rows [][]models.InlineKeyboardButton) {
+	url := assets.URL(section)
+	if url == "" {
+		a.sendKB(ctx, chatID, caption, rows)
+		return
+	}
+	t := a.applyPremium(caption)
+	var cached string
+	if a.store != nil {
+		if id, ok, _ := a.store.LoadMediaFileID(ctx, section); ok {
+			cached = id
+		}
+	}
+	var newFileID string
+	a.emit(ctx, chatID, func() int {
+		id, nf := a.msg.SendPhotoCacheable(ctx, chatID, cached, url, t, rows)
+		newFileID = nf
+		return id
+	})
+	if a.store != nil && newFileID != "" && newFileID != cached {
+		if err := a.store.SaveMediaFileID(ctx, section, newFileID); err != nil {
+			a.log.Warn("media_cache save", "section", section, "err", err)
+		}
+	}
+}
+
 // notify — постоянное сообщение (не трекается, не удаляет экран).
 func (a *App) notify(ctx context.Context, chatID int64, text string) {
 	a.msg.Send(ctx, chatID, a.applyPremium(text))
@@ -615,6 +655,45 @@ func (m botMessenger) SendInvoice(ctx context.Context, chatID int64, title, desc
 	}); err != nil {
 		m.log.Error("send invoice", "err", err)
 	}
+}
+
+// SendPhotoCacheable — отправляет фото (по file_id, либо по URL), возвращает
+// msgID и (если фото пришло из URL) свежий file_id для кэширования.
+// Telegram отдаёт несколько вариантов размера в msg.Photo — берём самый большой.
+func (m botMessenger) SendPhotoCacheable(ctx context.Context, chatID int64, cachedFileID, urlFallback, caption string, rows [][]models.InlineKeyboardButton) (int, string) {
+	data := cachedFileID
+	if data == "" {
+		data = urlFallback
+	}
+	send := func(d string) (*models.Message, error) {
+		p := &bot.SendPhotoParams{
+			ChatID:    chatID,
+			Photo:     &models.InputFileString{Data: d},
+			Caption:   caption,
+			ParseMode: models.ParseModeHTML,
+		}
+		if len(rows) > 0 {
+			p.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: rows}
+		}
+		return m.b.SendPhoto(ctx, p)
+	}
+	msg, err := send(data)
+	if err != nil && data != urlFallback && urlFallback != "" {
+		// Кэшированный file_id перестал работать (например, бот был восстановлен
+		// из бэкапа в другом инстансе) — пробуем URL.
+		msg, err = send(urlFallback)
+		data = urlFallback
+	}
+	if err != nil {
+		m.log.Error("send photo cacheable", "err", err)
+		return 0, ""
+	}
+	// Если ушло по URL — Telegram вернул свежий file_id, его надо закэшировать.
+	var newFileID string
+	if data == urlFallback && len(msg.Photo) > 0 {
+		newFileID = msg.Photo[len(msg.Photo)-1].FileID
+	}
+	return msg.ID, newFileID
 }
 
 func (m botMessenger) AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string) {

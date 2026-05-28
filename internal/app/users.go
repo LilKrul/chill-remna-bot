@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
+	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 )
@@ -74,7 +75,7 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	}
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:manage")}, homeRow(lang))
 
-	a.sendKB(ctx, chatID, i18n.T(lang, "users.title", total, page+1, pages), rows)
+	a.sendKBSection(ctx, chatID, assets.SectionReferral, i18n.T(lang, "users.title", total, page+1, pages), rows)
 }
 
 func (a *App) showUser(ctx context.Context, chatID, uid int64) {
@@ -224,7 +225,7 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 		rows = append(rows, nav)
 	}
 	rows = append(rows, back)
-	a.sendKB(ctx, chatID, sb.String(), rows)
+	a.sendKBSection(ctx, chatID, assets.SectionPromoCode, sb.String(), rows)
 }
 
 func (a *App) onPayments(ctx context.Context, chatID int64, val string) {
@@ -254,7 +255,7 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 		})
 		return
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "subs.show", url), [][]models.InlineKeyboardButton{home})
+	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, i18n.T(lang, "subs.show", url), [][]models.InlineKeyboardButton{home})
 }
 
 // --- админ: выбор сквада из панели ---
