@@ -71,6 +71,8 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		a.onBuyPlan(ctx, chatID, val)
 	case "method":
 		a.onMethod(ctx, chatID, val)
+	case "top":
+		a.onTopUp(ctx, chatID, val)
 	case "p2p":
 		a.onP2PUser(ctx, chatID, val)
 	case "adm":

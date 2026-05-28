@@ -189,6 +189,10 @@ type PendingInvoice struct {
 	Months     int
 	CreatedAt  string
 	Resolved   bool
+	// Purpose: "" (покупка подписки) | "topup" (пополнение баланса).
+	Purpose string
+	// Kopecks: сумма пополнения в копейках (для Purpose=="topup").
+	Kopecks int64
 }
 
 // P2PConfig — настройки P2P-оплаты (перевод на карту с ручной проверкой).
@@ -220,6 +224,9 @@ type User struct {
 	// NotifySent — CSV уже отправленных окон напоминаний для текущего SubExpireAt
 	// (сбрасывается при новой выдаче). Напр. "7,3".
 	NotifySent string
+	// Balance — баланс кошелька в КОПЕЙКАХ (целое, без float-ошибок). Единая
+	// валюта — рубли. Списывается при оплате с баланса, пополняется через топ-ап.
+	Balance int64
 }
 
 // P2PRequest — заявка на оплату через P2P (ручная модерация).

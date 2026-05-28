@@ -312,6 +312,12 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		return
 	}
 
+	// Пользователь вводит свою сумму пополнения баланса.
+	if a.getUI(chatID).awaitTopUp {
+		a.msg.Delete(ctx, chatID, m.ID)
+		a.setTopUpCustom(ctx, chatID, text)
+		return
+	}
 	if !isAdmin {
 		return
 	}

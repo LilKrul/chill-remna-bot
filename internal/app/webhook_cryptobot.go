@@ -92,6 +92,14 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 			a.log.Info("cryptobot webhook: duplicate", "id", up.Payload.InvoiceID)
 			return true, nil
 		}
+		if p, _ := a.store.PendingByExtID(ctx, extID); p != nil && p.Purpose == "topup" {
+			amount := up.Payload.Amount + " " + up.Payload.Asset
+			if err := a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodCryptoBot, amount, extID); err != nil {
+				return false, fmt.Errorf("topup cryptobot %d: %w", up.Payload.InvoiceID, err)
+			}
+			_ = a.store.ResolvePending(ctx, p.ID)
+			return true, nil
+		}
 	}
 
 	chatID, months, err := parseCryptoBotPayload(up.Payload.Payload)

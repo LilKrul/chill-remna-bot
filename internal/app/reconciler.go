@@ -119,6 +119,15 @@ func (a *App) reconcileCryptoBot(ctx context.Context, st storage.Storage, pi *mo
 }
 
 func (a *App) reconcileFinalize(ctx context.Context, st storage.Storage, pi *model.PendingInvoice, amount string) {
+	if pi.Purpose == "topup" {
+		if err := a.finalizeTopUp(ctx, pi.TelegramID, pi.Kopecks, pi.Method, amount, pi.ExtID); err != nil &&
+			!errors.Is(err, storage.ErrDuplicateExtID) {
+			a.log.Warn("reconciler: topup", "ext_id", pi.ExtID, "err", err)
+			return
+		}
+		_ = st.ResolvePending(ctx, pi.ID)
+		return
+	}
 	link, expireAt, err := a.finalizePurchase(ctx, pi.TelegramID, pi.Months, pi.Method, amount, pi.ExtID)
 	if err != nil {
 		// Уже зачтено параллельно — закрываем; иначе оставляем на следующий проход.

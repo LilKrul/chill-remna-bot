@@ -147,6 +147,14 @@ func (s *fakeStore) AddPayment(_ context.Context, p *model.Payment) error {
 	if s.pays == nil {
 		s.pays = map[int64]*model.Payment{}
 	}
+	// Эмуляция partial-UNIQUE (method, ext_id) WHERE ext_id<>'' — как в БД.
+	if p.ExtID != "" {
+		for _, x := range s.pays {
+			if x.Method == p.Method && x.ExtID == p.ExtID {
+				return storage.ErrDuplicateExtID
+			}
+		}
+	}
 	if p.ID == 0 {
 		s.seq++
 		p.ID = s.seq
@@ -317,6 +325,24 @@ func (s *fakeStore) UsersForNotify(_ context.Context) ([]model.User, error) {
 	}
 	return out, nil
 }
+func (s *fakeStore) AddBalance(_ context.Context, id int64, kopecks int64) error {
+	if s.users == nil {
+		s.users = map[int64]*model.User{}
+	}
+	if s.users[id] == nil {
+		s.users[id] = &model.User{TelegramID: id}
+	}
+	s.users[id].Balance += kopecks
+	return nil
+}
+func (s *fakeStore) DeductBalance(_ context.Context, id int64, kopecks int64) (bool, error) {
+	u := s.users[id]
+	if u == nil || u.Balance < kopecks || kopecks <= 0 {
+		return false, nil
+	}
+	u.Balance -= kopecks
+	return true, nil
+}
 func (s *fakeStore) CreateP2PRequest(_ context.Context, r *model.P2PRequest) error {
 	if s.reqs == nil {
 		s.reqs = map[int64]*model.P2PRequest{}
@@ -399,6 +425,18 @@ func (s *fakeStore) ResolvePending(_ context.Context, id int64) error {
 		p.Resolved = true
 	}
 	return nil
+}
+func (s *fakeStore) PendingByExtID(_ context.Context, extID string) (*model.PendingInvoice, error) {
+	if extID == "" {
+		return nil, nil
+	}
+	for _, p := range s.pending {
+		if p.ExtID == extID {
+			cp := *p
+			return &cp, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *fakeStore) Export(context.Context) (*storage.Snapshot, error) {

@@ -467,6 +467,8 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 		a.showPlans(ctx, chatID)
 	case "renew":
 		a.showPlans(ctx, chatID)
+	case "topup":
+		a.showTopUp(ctx, chatID)
 	case "mysubs":
 		a.showMySubs(ctx, chatID)
 	case "home":

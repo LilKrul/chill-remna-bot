@@ -97,8 +97,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 	}
 	idStr, mosStr, _ := strings.Cut(val, ":")
 	invoiceID, _ := strconv.ParseInt(idStr, 10, 64)
-	months, _ := strconv.Atoi(mosStr)
-	if invoiceID == 0 || months == 0 {
+	if invoiceID == 0 {
 		return
 	}
 	extID := "cb:" + strconv.FormatInt(invoiceID, 10)
@@ -107,6 +106,30 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 			a.showMySubs(ctx, chatID)
 			return
 		}
+	}
+	// Пополнение баланса (определяем по pending) — обрабатываем отдельно.
+	if a.store != nil {
+		if p, _ := a.store.PendingByExtID(ctx, extID); p != nil && p.Purpose == "topup" {
+			inv, err := client.GetInvoice(ctx, invoiceID)
+			if err != nil {
+				a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+				return
+			}
+			if inv.Status != "paid" {
+				a.sendKB(ctx, chatID, i18n.T(lang, "cb.pending"), [][]models.InlineKeyboardButton{
+					{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+idStr+":"+mosStr)},
+					{btn(i18n.T(lang, "btn.home"), "menu:home")},
+				})
+				return
+			}
+			_ = a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodCryptoBot, inv.Amount+" "+inv.Asset, extID)
+			_ = a.store.ResolvePending(ctx, p.ID)
+			return
+		}
+	}
+	months, _ := strconv.Atoi(mosStr)
+	if months == 0 {
+		return
 	}
 	inv, err := client.GetInvoice(ctx, invoiceID)
 	if err != nil {

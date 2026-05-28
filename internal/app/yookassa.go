@@ -104,6 +104,14 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 		})
 		return
 	}
+	if a.store != nil {
+		if p, _ := a.store.PendingByExtID(ctx, payID); p != nil && p.Purpose == "topup" {
+			amount := pay.Amount.Value + " " + pay.Amount.Currency
+			_ = a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodYooKassa, amount, payID)
+			_ = a.store.ResolvePending(ctx, p.ID)
+			return
+		}
+	}
 	months, _ := strconv.Atoi(pay.Metadata["months"])
 	if months == 0 {
 		months = model.PlanMonths[0]

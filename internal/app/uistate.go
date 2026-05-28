@@ -12,6 +12,8 @@ package app
 type uiState struct {
 	// --- покупка / P2P пользователя ---
 	buyMonths    int   // выбранный срок плана
+	topUpKopecks int64 // выбранная сумма пополнения (копейки)
+	awaitTopUp   bool  // ждём ввод суммы пополнения от пользователя
 	awaitShotReq int64 // id заявки P2P, по которой ждём скриншот
 	rejectReq    int64 // id заявки, для которой админ вводит причину отказа
 

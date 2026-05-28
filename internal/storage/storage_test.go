@@ -364,6 +364,33 @@ func TestUserInfoAndPurchase(t *testing.T) {
 	})
 }
 
+func TestBalance(t *testing.T) {
+	eachStore(t, func(t *testing.T, st Storage) {
+		ctx := context.Background()
+		_ = st.UpsertUser(ctx, 555)
+		if err := st.AddBalance(ctx, 555, 50000); err != nil {
+			t.Fatal(err)
+		}
+		if u, _ := st.GetUser(ctx, 555); u == nil || u.Balance != 50000 {
+			t.Fatalf("AddBalance: %+v", u)
+		}
+		ok, err := st.DeductBalance(ctx, 555, 15000)
+		if err != nil || !ok {
+			t.Fatalf("DeductBalance ok=%v err=%v", ok, err)
+		}
+		if u, _ := st.GetUser(ctx, 555); u == nil || u.Balance != 35000 {
+			t.Fatalf("после списания баланс должен быть 35000: %+v", u)
+		}
+		// Нехватка: списать больше остатка нельзя.
+		if ok, _ := st.DeductBalance(ctx, 555, 99999); ok {
+			t.Fatal("DeductBalance не должен списывать при нехватке")
+		}
+		if u, _ := st.GetUser(ctx, 555); u == nil || u.Balance != 35000 {
+			t.Fatalf("баланс не должен меняться при нехватке: %+v", u)
+		}
+	})
+}
+
 func TestPendingInvoices(t *testing.T) {
 	eachStore(t, func(t *testing.T, st Storage) {
 		ctx := context.Background()

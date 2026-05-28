@@ -238,6 +238,16 @@ func TestUserButtonWalk(t *testing.T) {
 	a.handleCallback(ctx, cb(u, "buy:1"))
 	a.handleCallback(ctx, cb(u, "method:p2p"))
 
+	// Пополнение баланса: экран → сумма → методы → своя сумма.
+	before = len(fm.texts)
+	a.handleCallback(ctx, cb(u, "menu:topup"))
+	a.handleCallback(ctx, cb(u, "top:amt:100"))
+	a.handleCallback(ctx, cb(u, "top:custom"))
+	a.handleCallback(ctx, cb(u, "top:cancel"))
+	if len(fm.texts) <= before {
+		t.Errorf("экраны пополнения баланса ничего не показали")
+	}
+
 	// Триал → активация и ссылка.
 	a.handleCallback(ctx, cb(u, "menu:trial"))
 	if usr, _ := fs.GetUser(ctx, u); usr == nil || usr.TrialUsedAt == "" {

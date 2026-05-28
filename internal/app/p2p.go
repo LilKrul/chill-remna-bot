@@ -129,16 +129,29 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 		label := i18n.T(lang, "method.cb_btn", pr.Base[months]+curSuffix(curRUB))
 		rows = append(rows, []models.InlineKeyboardButton{btn(label, "method:cb")})
 	}
+
+	// Оплата с баланса — первым пунктом, если средств хватает на базовую цену.
+	bal := a.userBalance(ctx, chatID)
+	if k, ok := rubToKopecks(pr.Base[months]); ok && k > 0 && bal >= k {
+		payBtn := []models.InlineKeyboardButton{btn(i18n.T(lang, "balance.btn_pay", kopecksToRub(k)), "method:bal")}
+		rows = append([][]models.InlineKeyboardButton{payBtn}, rows...)
+	}
 	if len(rows) == 0 {
-		a.sendKB(ctx, chatID, i18n.T(lang, "buy.no_methods"), [][]models.InlineKeyboardButton{homeRow(lang)})
+		a.sendKB(ctx, chatID, i18n.T(lang, "buy.no_methods"), [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup")}, homeRow(lang),
+		})
 		return
 	}
+	// Пополнить баланс + домой.
+	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup")})
 	rows = append(rows, homeRow(lang))
-	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_method"), rows)
+	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_method", kopecksToRub(bal)), rows)
 }
 
 func (a *App) onMethod(ctx context.Context, chatID int64, val string) {
 	switch val {
+	case "bal":
+		a.payFromBalance(ctx, chatID)
 	case "p2p":
 		a.startP2P(ctx, chatID)
 	case "stars":

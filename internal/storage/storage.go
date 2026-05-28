@@ -59,6 +59,10 @@ type Storage interface {
 	MarkNotified(ctx context.Context, telegramID int64, sentCSV string) error
 	// UsersForNotify возвращает пользователей с непустым sub_expire_at (кандидаты на напоминание).
 	UsersForNotify(ctx context.Context) ([]model.User, error)
+	// AddBalance прибавляет копейки к балансу (пополнение).
+	AddBalance(ctx context.Context, telegramID int64, kopecks int64) error
+	// DeductBalance атомарно списывает копейки, если хватает (ok=false при нехватке).
+	DeductBalance(ctx context.Context, telegramID int64, kopecks int64) (bool, error)
 
 	CreateP2PRequest(ctx context.Context, r *model.P2PRequest) error
 	GetP2PRequest(ctx context.Context, id int64) (*model.P2PRequest, error)
@@ -94,6 +98,8 @@ type Storage interface {
 	// createdBefore (RFC3339 UTC), не более limit штук.
 	ListUnresolvedPending(ctx context.Context, createdBefore string, limit int) ([]model.PendingInvoice, error)
 	ResolvePending(ctx context.Context, id int64) error
+	// PendingByExtID — pending-инвойс по ext_id (для определения назначения платежа).
+	PendingByExtID(ctx context.Context, extID string) (*model.PendingInvoice, error)
 
 	Kind() string
 	Close() error
@@ -213,16 +219,17 @@ func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, erro
 	// "". Через sql.NullString корректно ловим оба случая (NULL и пусто).
 	var terms, trial sql.NullString
 	var subExp, notifyKind, notifySent string
+	var balance int64
 	err := b.db.QueryRowContext(ctx,
-		"SELECT username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent FROM users WHERE telegram_id = "+b.ph(1), telegramID).
-		Scan(&username, &firstName, &approved, &blocked, &created, &terms, &trial, &subExp, &notifyKind, &notifySent)
+		"SELECT username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent, balance FROM users WHERE telegram_id = "+b.ph(1), telegramID).
+		Scan(&username, &firstName, &approved, &blocked, &created, &terms, &trial, &subExp, &notifyKind, &notifySent, &balance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms.String, TrialUsedAt: trial.String, SubExpireAt: subExp, NotifyKind: notifyKind, NotifySent: notifySent}, nil
+	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms.String, TrialUsedAt: trial.String, SubExpireAt: subExp, NotifyKind: notifyKind, NotifySent: notifySent, Balance: balance}, nil
 }
 
 func (b *base) SetP2PApproved(ctx context.Context, telegramID int64, approved bool) error {
@@ -318,6 +325,38 @@ func (b *base) MarkNotified(ctx context.Context, telegramID int64, sentCSV strin
 		"UPDATE users SET notify_sent = "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
 		sentCSV, telegramID)
 	return err
+}
+
+func (b *base) AddBalance(ctx context.Context, telegramID int64, kopecks int64) error {
+	if kopecks == 0 {
+		return nil
+	}
+	// Гарантируем существование строки (топ-ап мог прийти до /start).
+	if _, err := b.db.ExecContext(ctx,
+		"INSERT INTO users (telegram_id, p2p_approved, created_at) VALUES ("+b.ph(1)+", 0, "+b.ph(2)+") ON CONFLICT (telegram_id) DO NOTHING",
+		telegramID, nowStr()); err != nil {
+		return err
+	}
+	_, err := b.db.ExecContext(ctx,
+		"UPDATE users SET balance = balance + "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
+		kopecks, telegramID)
+	return err
+}
+
+// DeductBalance атомарно списывает kopecks при условии balance >= kopecks
+// (одним UPDATE — без гонок). Возвращает ok=false, если средств не хватило.
+func (b *base) DeductBalance(ctx context.Context, telegramID int64, kopecks int64) (bool, error) {
+	if kopecks <= 0 {
+		return false, nil
+	}
+	res, err := b.db.ExecContext(ctx,
+		"UPDATE users SET balance = balance - "+b.ph(1)+" WHERE telegram_id = "+b.ph(2)+" AND balance >= "+b.ph(3),
+		kopecks, telegramID, kopecks)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 func (b *base) UsersForNotify(ctx context.Context) ([]model.User, error) {
@@ -709,9 +748,9 @@ func (b *base) AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) e
 		p.CreatedAt = nowStr()
 	}
 	_, err := b.db.ExecContext(ctx,
-		"INSERT INTO pending_invoices (id, method, ext_id, telegram_id, months, created_at, resolved) "+
-			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", 0)",
-		p.ID, p.Method, p.ExtID, p.TelegramID, p.Months, p.CreatedAt)
+		"INSERT INTO pending_invoices (id, method, ext_id, telegram_id, months, created_at, resolved, purpose, kopecks) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", 0, "+b.ph(7)+", "+b.ph(8)+")",
+		p.ID, p.Method, p.ExtID, p.TelegramID, p.Months, p.CreatedAt, p.Purpose, p.Kopecks)
 	return err
 }
 
@@ -720,7 +759,7 @@ func (b *base) AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) e
 // сравнение времени для обоих движков без диалект-специфичных функций дат.
 func (b *base) ListUnresolvedPending(ctx context.Context, createdBefore string, limit int) ([]model.PendingInvoice, error) {
 	rows, err := b.db.QueryContext(ctx,
-		"SELECT id, method, ext_id, telegram_id, months, created_at FROM pending_invoices "+
+		"SELECT id, method, ext_id, telegram_id, months, created_at, purpose, kopecks FROM pending_invoices "+
 			"WHERE resolved = 0 AND created_at <= "+b.ph(1)+" ORDER BY created_at ASC LIMIT "+b.ph(2),
 		createdBefore, limit)
 	if err != nil {
@@ -730,7 +769,7 @@ func (b *base) ListUnresolvedPending(ctx context.Context, createdBefore string, 
 	var out []model.PendingInvoice
 	for rows.Next() {
 		var p model.PendingInvoice
-		if err := rows.Scan(&p.ID, &p.Method, &p.ExtID, &p.TelegramID, &p.Months, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Method, &p.ExtID, &p.TelegramID, &p.Months, &p.CreatedAt, &p.Purpose, &p.Kopecks); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -742,4 +781,21 @@ func (b *base) ResolvePending(ctx context.Context, id int64) error {
 	_, err := b.db.ExecContext(ctx,
 		"UPDATE pending_invoices SET resolved = 1 WHERE id = "+b.ph(1), id)
 	return err
+}
+
+func (b *base) PendingByExtID(ctx context.Context, extID string) (*model.PendingInvoice, error) {
+	if extID == "" {
+		return nil, nil
+	}
+	p := &model.PendingInvoice{}
+	err := b.db.QueryRowContext(ctx,
+		"SELECT id, method, ext_id, telegram_id, months, created_at, purpose, kopecks FROM pending_invoices WHERE ext_id = "+b.ph(1)+" ORDER BY id DESC LIMIT 1", extID).
+		Scan(&p.ID, &p.Method, &p.ExtID, &p.TelegramID, &p.Months, &p.CreatedAt, &p.Purpose, &p.Kopecks)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }

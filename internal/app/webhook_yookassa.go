@@ -58,6 +58,16 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 		a.log.Warn("yookassa webhook: payment not confirmed by API", "id", n.Object.ID, "status", pay.Status, "paid", pay.Paid)
 		return true, nil
 	}
+	if a.store != nil {
+		if p, _ := a.store.PendingByExtID(ctx, n.Object.ID); p != nil && p.Purpose == "topup" {
+			amount := pay.Amount.Value + " " + pay.Amount.Currency
+			if err := a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodYooKassa, amount, n.Object.ID); err != nil {
+				return false, fmt.Errorf("topup yookassa %s: %w", n.Object.ID, err)
+			}
+			_ = a.store.ResolvePending(ctx, p.ID)
+			return true, nil
+		}
+	}
 	chatID, _ := strconv.ParseInt(pay.Metadata["telegram_id"], 10, 64)
 	months, _ := strconv.Atoi(pay.Metadata["months"])
 	if chatID == 0 || months == 0 {
