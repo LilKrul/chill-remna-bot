@@ -365,7 +365,11 @@ func (a *App) handleStatus(ctx context.Context, chatID int64) {
 		a.sendKB(ctx, chatID, i18n.T(lang, "status.fail", err.Error()), rows)
 		return
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "status.line", count, dbKind, mode, methods), rows)
+	text := i18n.T(lang, "status.line", count, dbKind, mode, methods)
+	if isAdmin {
+		text += "\n\n" + i18n.T(lang, "status.res_title") + "\n" + resourceStats()
+	}
+	a.sendKB(ctx, chatID, text, rows)
 }
 
 // statusNavRows — кнопки под сервисным сообщением: «Назад» (админу, в Управление) + «Главная».

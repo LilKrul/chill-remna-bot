@@ -105,6 +105,25 @@ var AllSections = []Section{
 	{SectionAdminStats, "⚙️ Управление", "⚙️ Manage"},
 }
 
+// userFacingSections — разделы, баннер которых реально видит ПОКУПАТЕЛЬ
+// (экраны «Купить» и «Мои подписки»). Остальные баннеры — админские:
+// мастер установки, меню Интерфейс/Управление, Пользователи, Платежи.
+var userFacingSections = map[string]bool{
+	SectionBuySubscription: true,
+	SectionMySubscription:  true,
+}
+
+// UserSections возвращает только пользовательские разделы (в порядке AllSections).
+func UserSections() []Section {
+	out := make([]Section, 0, len(userFacingSections))
+	for _, s := range AllSections {
+		if userFacingSections[s.Key] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // LabelByKey ищет человеческую подпись раздела по ключу. Если ключ
 // не зарегистрирован — возвращает сам ключ (заметно в UI = надо добавить).
 func LabelByKey(key, lang string) string {

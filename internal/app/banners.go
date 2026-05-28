@@ -26,7 +26,7 @@ import (
 func (a *App) showSectionBanners(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	rows := make([][]models.InlineKeyboardButton, 0, len(assets.AllSections)+2)
-	for _, sec := range assets.AllSections {
+	for _, sec := range assets.UserSections() {
 		rows = append(rows, []models.InlineKeyboardButton{
 			btn(assets.LabelByKey(sec.Key, lang), "sec:open:"+sec.Key),
 		})

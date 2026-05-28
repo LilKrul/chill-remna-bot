@@ -58,8 +58,12 @@ func (a *App) showPricing(ctx context.Context, chatID int64) {
 	if cur == "" {
 		cur = i18n.T(lang, "admin.none")
 	}
+	hwid := i18n.T(lang, "pricing.hwid_default")
+	if pr.DeviceLimit > 0 {
+		hwid = strconv.Itoa(pr.DeviceLimit)
+	}
 	table := a.formatPlansTable(lang)
-	a.sendKB(ctx, chatID, i18n.T(lang, "pricing.title", cur, table), [][]models.InlineKeyboardButton{
+	a.sendKB(ctx, chatID, i18n.T(lang, "pricing.title", cur, hwid, pr.ResetStrategy(), table), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "pricing.btn_quick"), "prc:quick")},
 		{btn(i18n.T(lang, "pricing.btn_base"), "prc:base"), btn(i18n.T(lang, "pricing.btn_cur"), "prc:cur")},
 		{btn(i18n.T(lang, "pricing.btn_traffic"), "prc:traffic"), btn(i18n.T(lang, "pricing.btn_devices"), "prc:devices")},
