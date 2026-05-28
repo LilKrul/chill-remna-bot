@@ -176,6 +176,26 @@ func (s *fakeStore) HasPaidPayment(_ context.Context, id int64) (bool, error) {
 	}
 	return false, nil
 }
+
+func (s *fakeStore) MostPopularPlan(_ context.Context) (int, int, error) {
+	counts := map[int]int{}
+	total := 0
+	for _, p := range s.pays {
+		if p.Status == model.PaymentPaid {
+			counts[p.Months]++
+			total++
+		}
+	}
+	best := 0
+	bestN := 0
+	for mo, n := range counts {
+		if n > bestN || (n == bestN && (best == 0 || mo < best)) {
+			best = mo
+			bestN = n
+		}
+	}
+	return best, total, nil
+}
 func (s *fakeStore) PaymentByExtID(_ context.Context, extID string) (bool, error) {
 	if extID == "" {
 		return false, nil

@@ -49,6 +49,11 @@ type Storage interface {
 	ListPayments(ctx context.Context, limit, offset int) ([]model.Payment, int, error)
 	HasPaidPayment(ctx context.Context, telegramID int64) (bool, error)
 	PaymentByExtID(ctx context.Context, extID string) (bool, error)
+	// MostPopularPlan возвращает (months, totalPaidAcrossAllPlans).
+	// months = 0, если оплаченных платежей нет вообще.
+	// totalPaidAcrossAllPlans позволяет вызывающему коду решить, достаточно ли
+	// статистики для показа подсказки (например, >= 10).
+	MostPopularPlan(ctx context.Context) (months int, total int, err error)
 
 	// LoadMediaFileID возвращает кэшированный Telegram file_id для раздела
 	// (если уже отправляли картинку этого раздела по URL и получили id обратно).
@@ -316,6 +321,32 @@ func (b *base) ListPayments(ctx context.Context, limit, offset int) ([]model.Pay
 		out = append(out, p)
 	}
 	return out, total, rows.Err()
+}
+
+// MostPopularPlan — самый частый тариф среди оплаченных платежей и общее число
+// оплаченных платежей. SQL общий для PG/SQLite; ORDER BY count DESC + LIMIT 1.
+func (b *base) MostPopularPlan(ctx context.Context) (int, int, error) {
+	var total int
+	if err := b.db.QueryRowContext(ctx,
+		"SELECT COUNT(1) FROM payments WHERE status = "+b.ph(1),
+		model.PaymentPaid).Scan(&total); err != nil {
+		return 0, 0, err
+	}
+	if total == 0 {
+		return 0, 0, nil
+	}
+	var months int
+	err := b.db.QueryRowContext(ctx,
+		"SELECT months FROM payments WHERE status = "+b.ph(1)+
+			" GROUP BY months ORDER BY COUNT(1) DESC, months ASC LIMIT 1",
+		model.PaymentPaid).Scan(&months)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, total, nil
+	}
+	if err != nil {
+		return 0, total, err
+	}
+	return months, total, nil
 }
 
 func (b *base) HasPaidPayment(ctx context.Context, telegramID int64) (bool, error) {

@@ -83,8 +83,22 @@ func (a *App) showPlans(ctx context.Context, chatID int64) {
 		return
 	}
 	rows = append(rows, homeRow(lang))
-	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, i18n.T(lang, "buy.choose_plan"), rows)
+
+	// «🔥 Чаще всего выбирают N мес» — показываем только если оплат уже достаточно
+	// (>= popularThreshold), иначе шапка молчит, чтобы не давать «социального
+	// доказательства» на пустом месте.
+	caption := i18n.T(lang, "buy.choose_plan")
+	if a.store != nil {
+		if months, total, err := a.store.MostPopularPlan(ctx); err == nil && months > 0 && total >= popularThreshold {
+			caption = i18n.T(lang, "buy.popular", months) + "\n\n" + caption
+		}
+	}
+	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, caption, rows)
 }
+
+// popularThreshold — минимум платежей, начиная с которого подсветка популярного
+// тарифа становится осмысленной (меньше — это «шум одного человека»).
+const popularThreshold = 10
 
 func (a *App) onBuyPlan(ctx context.Context, chatID int64, val string) {
 	mo, err := strconv.Atoi(val)
