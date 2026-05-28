@@ -208,9 +208,11 @@ var en = map[string]string{
 		"People registered in the bot. Block and delete affect the bot ONLY and do NOT touch " +
 		"panel accounts.\n\nChoose a user:",
 	"users.empty": "👥 No users yet.",
-	"user.card": "👤 <b>%s</b>\nRegistered: %s\nP2P access: %s\nStatus: %s\n\n" +
-		"⚠️ The actions below change bot access only; the panel account stays untouched.",
+	"user.card": "👤 <b>%s</b>\nRegistered: %s\nP2P access: %s\nStatus: %s\n\n%s\n\n" +
+		"🗑 «Delete» will ask whether to remove from the bot only or together with the panel subscription (only this user's account is deleted).",
 	"user.active":           "active ✅",
+	"user.sub_active":       "📦 Subscription active until <b>%s</b>\nLink (tap to copy):\n<code>%s</code>",
+	"user.no_sub":           "📭 No active subscription in the panel.",
 	"user.blocked":          "blocked 🚫",
 	"user.yes":              "yes ✅",
 	"user.no":               "no",

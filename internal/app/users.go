@@ -120,7 +120,16 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	} else {
 		p2pBtn = btn(i18n.T(lang, "btn.p2p_allow"), "usr:p2pon:"+id)
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status), [][]models.InlineKeyboardButton{
+	subBlock := i18n.T(lang, "user.no_sub")
+	a.mu.Lock()
+	panel := a.panel
+	a.mu.Unlock()
+	if panel != nil {
+		if url, exp, ok := panel.Subscription(ctx, uid); ok {
+			subBlock = i18n.T(lang, "user.sub_active", formatExpire(exp, lang), a.rewriteSub(url))
+		}
+	}
+	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status, subBlock), [][]models.InlineKeyboardButton{
 		{p2pBtn},
 		{toggle, btn(i18n.T(lang, "btn.delete"), "usr:del:"+id)},
 		{btn(i18n.T(lang, "btn.back"), "usr:list"), btn(i18n.T(lang, "btn.home"), "menu:home")},
