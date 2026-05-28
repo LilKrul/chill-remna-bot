@@ -166,6 +166,7 @@ func (a *App) navRow(ctx context.Context, chatID int64, isAdmin bool) []models.I
 			row = append(row, btn(i18n.T(lang, "btn.trial_user"), "menu:trial"))
 		}
 	}
+	row = append(row, btn(i18n.T(lang, "btn.balance"), "menu:balance"))
 	return row
 }
 
@@ -469,6 +470,8 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 		a.showPlans(ctx, chatID)
 	case "topup":
 		a.showTopUp(ctx, chatID)
+	case "balance":
+		a.showBalance(ctx, chatID)
 	case "mysubs":
 		a.showMySubs(ctx, chatID)
 	case "home":

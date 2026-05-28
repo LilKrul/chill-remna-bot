@@ -925,13 +925,13 @@ func TestNavRow(t *testing.T) {
 		t.Fatalf("админ должен иметь только Главную: %s", btnData(row))
 	}
 	// юзер без подписки -> Главная + Купить
-	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:buy|" {
+	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:buy|menu:balance|" {
 		t.Fatalf("юзер без подписки: %s", btnData(row))
 	}
 	// после «покупки» (в панели появилась подписка) -> Главная + Мои подписки
 	hasSub = true
 	a.invalidateSubCache(user)
-	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|" {
+	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|menu:balance|" {
 		t.Fatalf("юзер с подпиской: %s", btnData(row))
 	}
 }
@@ -1023,7 +1023,7 @@ func TestStarsFlow(t *testing.T) {
 		t.Fatal("оплата не записана в лог")
 	}
 	// после покупки nav показывает «Мои подписки»
-	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|" {
+	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|menu:balance|" {
 		t.Fatalf("после Stars-оплаты ожидались Мои подписки: %s", btnData(row))
 	}
 }

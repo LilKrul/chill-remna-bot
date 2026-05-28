@@ -61,6 +61,63 @@ func (a *App) userBalance(ctx context.Context, chatID int64) int64 {
 	return u.Balance
 }
 
+// showBalance — вкладка «Баланс»: текущий баланс + планировщик «на сколько хватит»
+// по каждому тарифу, плюс кнопки пополнить/купить.
+func (a *App) showBalance(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	bal := a.userBalance(ctx, chatID)
+	table, best := a.balanceForecast(lang, bal)
+	caption := i18n.T(lang, "balance.head", kopecksToRub(bal))
+	if table != "" {
+		caption += "\n\n" + i18n.T(lang, "balance.forecast_hdr") + "\n" + table
+		if best > 0 {
+			caption += "\n" + i18n.T(lang, "balance.max_months", best)
+		}
+	}
+	a.sendKB(ctx, chatID, caption, [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup"), btn(i18n.T(lang, "btn.buy"), "menu:buy")},
+		{btn(i18n.T(lang, "btn.home"), "menu:home")},
+	})
+}
+
+// balanceForecast строит таблицу «на сколько хватит баланса» по тарифам и
+// возвращает максимум месяцев среди вариантов, укладывающихся в баланс.
+func (a *App) balanceForecast(lang string, balKopecks int64) (string, int) {
+	pr := a.pricing()
+	var sb strings.Builder
+	sb.WriteString("<pre>")
+	sb.WriteString(padRight("Plan", 6) + "  " + padRight("Price", 11) + "  " + i18n.T(lang, "balance.col_lasts") + "\n")
+	sb.WriteString(strings.Repeat("─", 34) + "\n")
+	best := 0
+	rows := 0
+	for _, mo := range model.PlanMonths {
+		base := pr.Base[mo]
+		if base == "" {
+			continue
+		}
+		k, ok := rubToKopecks(base)
+		if !ok || k <= 0 {
+			continue
+		}
+		rows++
+		count := int(balKopecks / k)
+		total := count * mo
+		if total > best {
+			best = total
+		}
+		lasts := "—"
+		if count > 0 {
+			lasts = fmt.Sprintf("%d× ≈ %d %s", count, total, i18n.T(lang, "balance.mo"))
+		}
+		sb.WriteString(padRight(strconv.Itoa(mo)+"m", 6) + "  " + padRight(base+curSuffix(curRUB), 11) + "  " + lasts + "\n")
+	}
+	sb.WriteString("</pre>")
+	if rows == 0 {
+		return "", 0
+	}
+	return sb.String(), best
+}
+
 // --- пополнение баланса ---
 
 func (a *App) showTopUp(ctx context.Context, chatID int64) {
