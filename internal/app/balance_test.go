@@ -61,7 +61,6 @@ func TestBalance_TopUpIdempotentAndAutopay(t *testing.T) {
 	const u int64 = 555
 	_ = fs.UpsertUser(ctx, u)
 
-	// Пополнение на 500 ₽ — идемпотентно по ext_id.
 	if err := a.finalizeTopUp(ctx, u, 50000, model.PayMethodYooKassa, "500 ₽", "yk_top1"); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +71,6 @@ func TestBalance_TopUpIdempotentAndAutopay(t *testing.T) {
 		t.Fatalf("после двух одинаковых топ-апов баланс должен быть 50000, got %+v", got)
 	}
 
-	// Автосписание: покупка 1 мес (150 ₽) с баланса.
 	a.getUI(u).buyMonths = 1
 	a.payFromBalance(ctx, u)
 	got, _ := fs.GetUser(ctx, u)
@@ -83,9 +81,7 @@ func TestBalance_TopUpIdempotentAndAutopay(t *testing.T) {
 		t.Fatalf("после оплаты с баланса не выдана ссылка:\n%s", fm.joined())
 	}
 
-	// Недостаточно средств: списать ещё 5×150 нельзя при 350 ₽ остатка? 350>=150, поэтому
-	// проверим явную нехватку — спишем вручную почти всё и попробуем купить.
-	_, _ = fs.DeductBalance(ctx, u, 34000) // остаток 1000 коп = 10 ₽
+	_, _ = fs.DeductBalance(ctx, u, 34000)
 	n0 := len(fm.texts)
 	a.payFromBalance(ctx, u)
 	if got, _ := fs.GetUser(ctx, u); got == nil || got.Balance != 1000 {

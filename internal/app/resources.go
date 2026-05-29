@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// resourceStats — сводка по памяти/CPU контейнера бота и ВМ. Источник — cgroup
-// (v2, затем v1): работает изнутри контейнера без docker.sock. Если cgroup
-// недоступен (локальный запуск/тесты) — деградирует до runtime-памяти процесса.
 func resourceStats() string {
 	var b strings.Builder
 	if used, limit, ok := cgroupMemory(); ok {
@@ -48,9 +45,8 @@ func readUintFile(path string) (uint64, bool) {
 	return n, true
 }
 
-// cgroupMemory: (used, limit, ok). limit=0 — безлимит/не задан.
 func cgroupMemory() (int64, int64, bool) {
-	if used, ok := readUintFile("/sys/fs/cgroup/memory.current"); ok { // cgroup v2
+	if used, ok := readUintFile("/sys/fs/cgroup/memory.current"); ok {
 		var limit int64
 		if data, err := os.ReadFile("/sys/fs/cgroup/memory.max"); err == nil {
 			if s := strings.TrimSpace(string(data)); s != "max" {
@@ -61,7 +57,7 @@ func cgroupMemory() (int64, int64, bool) {
 		}
 		return int64(used), limit, true
 	}
-	if used, ok := readUintFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); ok { // cgroup v1
+	if used, ok := readUintFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); ok {
 		var limit int64
 		if l, ok := readUintFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); ok && l < (1<<62) {
 			limit = int64(l)
@@ -71,9 +67,8 @@ func cgroupMemory() (int64, int64, bool) {
 	return 0, 0, false
 }
 
-// cpuUsageUsec — суммарное CPU-время контейнера в микросекундах.
 func cpuUsageUsec() (uint64, bool) {
-	if data, err := os.ReadFile("/sys/fs/cgroup/cpu.stat"); err == nil { // cgroup v2
+	if data, err := os.ReadFile("/sys/fs/cgroup/cpu.stat"); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			if strings.HasPrefix(line, "usage_usec ") {
 				if n, e := strconv.ParseUint(strings.TrimSpace(line[len("usage_usec "):]), 10, 64); e == nil {
@@ -82,13 +77,12 @@ func cpuUsageUsec() (uint64, bool) {
 			}
 		}
 	}
-	if n, ok := readUintFile("/sys/fs/cgroup/cpuacct/cpuacct.usage"); ok { // cgroup v1 (нс)
+	if n, ok := readUintFile("/sys/fs/cgroup/cpuacct/cpuacct.usage"); ok {
 		return n / 1000, true
 	}
 	return 0, false
 }
 
-// cgroupCPUPercent — доля CPU за интервал d, в % от ВСЕЙ ВМ (делим на ядра).
 func cgroupCPUPercent(d time.Duration) (float64, bool) {
 	t0, ok := cpuUsageUsec()
 	if !ok {

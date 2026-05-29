@@ -1,5 +1,3 @@
-// Package config читает bootstrap-параметры из окружения. Всё остальное
-// настраивается мастером в Telegram и хранится в БД.
 package config
 
 import (
@@ -10,17 +8,14 @@ import (
 )
 
 type Config struct {
-	BotToken string // токен бота (обязательно)
-	AdminID  int64  // Telegram ID администратора (обязательно)
-	DataDir  string // каталог данных (sqlite-файл, secret.key, bootstrap.json)
+	BotToken string
+	AdminID  int64
+	DataDir  string
 
-	DBKind      string // sqlite|postgres|"" (иначе спросит мастер)
-	DatabaseURL string // DSN PostgreSQL, если DBKind=postgres
-	SecretKey   string // ключ шифрования секретов (иначе генерируется в DataDir)
+	DBKind      string
+	DatabaseURL string
+	SecretKey   string
 
-	// PremiumEmoji: карта "обычный эмодзи" -> custom_emoji_id для анимированных
-	// (premium) эмодзи. Работает, если у владельца бота есть Telegram Premium.
-	// Формат env PREMIUM_EMOJI: "✅=123,⏳=456". Пусто — обычные эмодзи.
 	PremiumEmoji map[string]string
 }
 

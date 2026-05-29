@@ -21,8 +21,6 @@ func (a *App) remindersCfg() model.RemindersConfig {
 	return a.botCfg.Reminders
 }
 
-// showNotifyAdmin — админ-блок «Уведомления»: напоминания до конца триала и
-// до конца платной подписки (окна 7/3/1 дн.).
 func (a *App) showNotifyAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	rc := a.remindersCfg()

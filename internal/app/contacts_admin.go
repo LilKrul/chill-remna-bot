@@ -10,18 +10,6 @@ import (
 	"remnabot/internal/model"
 )
 
-// --- админ: контакты/соглашение ---
-//
-// Раздел задаёт три значения, которые видит пользователь:
-//   • Group URL — ссылка на канал/чат (на главной кнопка «👥 Группа»).
-//   • Support URL — ссылка на поддержку (кнопка «🛟 Поддержка»).
-//   • Terms — текст пользовательского соглашения; если непуст, бот покажет
-//     его пользователю один раз ПЕРЕД первой покупкой подписки и попросит
-//     нажать «✅ Принимаю». После принятия (users.terms_accepted_at) поток
-//     покупки идёт сразу, без повторного запроса.
-// Все три значения — пустые по умолчанию: если URL пустой, кнопка просто
-// не показывается; если Terms пуст — согласие не запрашивается.
-
 func (a *App) showContacts(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.mu.Lock()
@@ -48,7 +36,7 @@ func (a *App) showContacts(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "contacts.btn_group"), "ctc:group"), btn(i18n.T(lang, "contacts.btn_support"), "ctc:support")},
 		{btn(i18n.T(lang, "contacts.btn_terms"), "ctc:terms")},
 	}
-	// Кнопки очистки появляются только если соответствующее поле непустое.
+
 	if c.G != "" || c.S != "" || c.T != "" {
 		rows = append(rows, []models.InlineKeyboardButton{
 			btn(i18n.T(lang, "contacts.btn_clear"), "ctc:clear"),
@@ -61,7 +49,6 @@ func (a *App) showContacts(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, body, rows)
 }
 
-// onContacts — диспетчер callback'ов "ctc:*".
 func (a *App) onContacts(ctx context.Context, chatID int64, val string) {
 	ui := a.getUI(chatID)
 	lang := a.lang(chatID)
@@ -77,8 +64,7 @@ func (a *App) onContacts(ctx context.Context, chatID int64, val string) {
 		ui.adminInput = "ctc_terms"
 		a.sendKB(ctx, chatID, i18n.T(lang, "contacts.ask_terms"), cancel)
 	case "clear":
-		// Сбрасываем все три поля сразу (по запросу — частичный сброс делается
-		// отдельно: задал «-» в нужное поле).
+
 		a.mu.Lock()
 		if a.botCfg != nil {
 			a.botCfg.Contact = model.ContactConfig{}
@@ -92,7 +78,6 @@ func (a *App) onContacts(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// setContact сохраняет одно из трёх полей. raw="-"/"—" обнуляет.
 func (a *App) setContact(ctx context.Context, chatID int64, field, raw string) {
 	raw = strings.TrimSpace(raw)
 	if raw == "-" || raw == "—" {

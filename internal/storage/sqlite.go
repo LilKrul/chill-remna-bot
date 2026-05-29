@@ -12,13 +12,13 @@ import (
 type sqliteStore struct{ base }
 
 func openSQLite(path string, crypter *crypto.Crypter) (Storage, error) {
-	// _pragma включает внешние ключи и WAL для адекватной конкуренции на чтение.
+
 	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
-	// SQLite — один писатель: ограничиваем пул, чтобы не ловить "database is locked".
+
 	db.SetMaxOpenConns(1)
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping sqlite: %w", err)

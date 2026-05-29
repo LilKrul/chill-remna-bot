@@ -12,13 +12,6 @@ import (
 	"remnabot/internal/remnawave"
 )
 
-// --- админ: «🎁 Триал» (отдельный блок в Настройках подписки) ---
-//
-// Триал = разовая бесплатная активация подписки с собственными лимитами
-// (срок в днях, GB трафика, HWID, сквады). Все параметры задаются здесь,
-// дефолтов нет: пока Enabled=false или Days=0 — кнопка «🎁 Триал» у юзера
-// не показывается.
-
 func (a *App) trialCfg() (enabled bool, days, gb, hwid int, intSq []string, extSq string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -57,7 +50,6 @@ func (a *App) showTrialAdmin(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, body, rows)
 }
 
-// onTrialAdmin — диспетчер callback-ов «trial:*».
 func (a *App) onTrialAdmin(ctx context.Context, chatID int64, val string) {
 	lang := a.lang(chatID)
 	action, arg, _ := cut3(val)
@@ -159,15 +151,10 @@ func (a *App) showTrialSquads(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, i18n.T(lang, "trial.squads_title", len(intSquads), len(extSquads), len(activeInt)), rows)
 }
 
-// --- быстрая настройка (FSM на uiState.adminInput) ---
-// Шаги: trial_q_days → trial_q_gb → trial_q_hwid → готово (включить).
-
 func (a *App) startTrialQuick(ctx context.Context, chatID int64) {
 	a.getUI(chatID).adminInput = "trial_q_days"
 	a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "trial.q_days"), "menu:trial")
 }
-
-// --- setters для handleAdminText ---
 
 func (a *App) toggleTrialInternal(uuid string) {
 	if uuid == "" {
@@ -237,8 +224,6 @@ func (a *App) setTrialHWID(n int) {
 	}
 }
 
-// --- юзер: активация триала ---
-
 func (a *App) trialAvailable(ctx context.Context, chatID int64) bool {
 	a.mu.Lock()
 	enabled := a.botCfg != nil && a.botCfg.Trial.Enabled && a.botCfg.Trial.Days > 0
@@ -289,7 +274,6 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		_ = a.store.SetSubExpiry(ctx, chatID, expireAt, "trial")
 	}
 	a.invalidateSubCache(chatID)
-	// Сообщение об активной подписке — единое, как при покупке (имя, срок,
-	// копируемая ссылка, ссылка для браузера, кнопка поддержки).
+
 	a.sendSubActive(ctx, chatID, link, expireAt)
 }

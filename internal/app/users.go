@@ -14,7 +14,6 @@ import (
 
 const usersPageSize = 8
 
-// rememberUser обновляет ник/имя из Telegram у уже существующей записи (новую не создаёт).
 func (a *App) rememberUser(ctx context.Context, chatID int64, username, firstName string) {
 	if a.store == nil || (username == "" && firstName == "") {
 		return
@@ -22,7 +21,6 @@ func (a *App) rememberUser(ctx context.Context, chatID int64, username, firstNam
 	_ = a.store.SetUserInfo(ctx, chatID, username, firstName)
 }
 
-// userBlocked сообщает, ограничен ли доступ к боту для этого chatID (только не-админ).
 func (a *App) userBlocked(ctx context.Context, chatID int64) bool {
 	if chatID == a.cfg.AdminID || a.store == nil {
 		return false
@@ -30,8 +28,6 @@ func (a *App) userBlocked(ctx context.Context, chatID int64) bool {
 	u, err := a.store.GetUser(ctx, chatID)
 	return err == nil && u != nil && u.Blocked
 }
-
-// --- админ: раздел «Пользователи» (список / карточка / блок / удаление) ---
 
 func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	lang := a.lang(chatID)
@@ -181,11 +177,6 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// adminDeleteUser удаляет пользователя из бота. Если deleteSub=true — дополнительно
-// УДАЛЯЕТ его (и только его) подписку в панели Remnawave (DELETE по uuid, с проверкой
-// «создан ботом»). При deleteSub=false панель не трогаем вообще.
-// Локально всегда чистим payments/p2p_requests/users этого telegram_id.
-// Ошибку удаления в панели показываем подсказкой, но удаление из бота НЕ откатываем.
 func (a *App) adminDeleteUser(ctx context.Context, adminChat, uid int64, deleteSub bool) {
 	if a.store == nil {
 		return
@@ -204,8 +195,6 @@ func (a *App) adminDeleteUser(ctx context.Context, adminChat, uid int64, deleteS
 	_ = a.store.DeleteUser(ctx, uid)
 }
 
-// --- админ: лог оплат ---
-
 func payMethodLabel(method string) string {
 	switch method {
 	case "stars":
@@ -216,9 +205,6 @@ func payMethodLabel(method string) string {
 	return method
 }
 
-// paymentTotals считает по списку оплаченных платежей: число платящих юзеров
-// (уникальные telegram_id) и сумму по валютам (₽/⭐/USDT и т.п.) — суммировать
-// разные валюты в одно число нельзя, поэтому группируем по единице измерения.
 func paymentTotals(ps []model.Payment) (users int, sums string) {
 	seen := map[int64]struct{}{}
 	byUnit := map[string]float64{}
@@ -231,7 +217,7 @@ func paymentTotals(ps []model.Payment) (users int, sums string) {
 		}
 		v, err := strconv.ParseFloat(strings.Replace(fields[0], ",", ".", 1), 64)
 		if err != nil {
-			continue // напр. "—" у триала
+			continue
 		}
 		unit := strings.TrimSpace(strings.Join(fields[1:], " "))
 		if _, ok := byUnit[unit]; !ok {
@@ -271,9 +257,6 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 	}
 	pages := (total + usersPageSize - 1) / usersPageSize
 
-	// Подготавливаем колонки одинаковой ширины: дата (10), метод (8), юзер (12),
-	// срок (3), сумма (10), статус (10). Внутри <pre> моноширинный шрифт
-	// делает столбцы аккуратной таблицей.
 	type row struct{ date, method, user, term, amount, status string }
 	rows := make([]row, 0, len(items))
 	wMethod, wUser, wAmount := len("Method"), len("User"), len("Amount")
@@ -349,8 +332,6 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 	a.sendKB(ctx, chatID, sb.String(), kbRows)
 }
 
-// padRight дополняет строку пробелами справа до ширины w (на основе видимой
-// длины строки, корректно для эмодзи/кириллицы — каждая «руна» = 1 символ).
 func padRight(s string, w int) string {
 	cur := visualWidth(s)
 	if cur >= w {
@@ -359,9 +340,6 @@ func padRight(s string, w int) string {
 	return s + strings.Repeat(" ", w-cur)
 }
 
-// visualWidth возвращает количество run в строке (моноширинный шрифт в <pre>
-// отдаёт примерно одинаковую ширину для большинства печатных run, включая
-// латиницу/кириллицу/цифры/эмодзи — достаточно для выравнивания таблицы).
 func visualWidth(s string) int {
 	n := 0
 	for range s {
@@ -377,8 +355,6 @@ func (a *App) onPayments(ctx context.Context, chatID int64, val string) {
 		a.showPayments(ctx, chatID, page)
 	}
 }
-
-// --- пользователь: мои подписки ---
 
 func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -407,8 +383,6 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	rows = append(rows, home)
 	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, a.subActiveText(ctx, chatID, url, expireAt), rows)
 }
-
-// --- админ: выбор сквада из панели ---
 
 func (a *App) showSquadPicker(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)

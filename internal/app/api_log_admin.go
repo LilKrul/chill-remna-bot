@@ -10,13 +10,6 @@ import (
 	"remnabot/internal/i18n"
 )
 
-// --- админ: лог API-запросов к панели Remnawave ---
-//
-// Источник — ring buffer внутри remnawave.Client.Logs(). Показываем последние
-// записи (новые сверху), таблично, с пагинацией. Кнопка «🔄 Обновить» —
-// перечитать буфер (он живёт в памяти процесса, доступен сразу). «🧹 Очистить»
-// сбрасывает буфер.
-
 const apiLogPageSize = 20
 
 func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
@@ -52,7 +45,6 @@ func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
 		page = pages - 1
 	}
 
-	// Новые записи — сверху: реверсируем и берём страницу.
 	rev := make([]int, total)
 	for i := 0; i < total; i++ {
 		rev[i] = total - 1 - i
@@ -63,8 +55,6 @@ func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
 		to = total
 	}
 
-	// Колонки: time(HH:MM:SS) · method(6) · status(3) · ms(5) · path(остаток).
-	// Под <pre>, моноширинно.
 	var sb strings.Builder
 	sb.WriteString(i18n.T(lang, "apilog.title", total, page+1, pages))
 	sb.WriteString("\n<pre>")
@@ -120,7 +110,6 @@ func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
 	a.sendKB(ctx, chatID, sb.String(), rows)
 }
 
-// onAPILog — диспетчер callback'ов "alog:*".
 func (a *App) onAPILog(ctx context.Context, chatID int64, val string) {
 	action, arg, _ := strings.Cut(val, ":")
 	switch action {

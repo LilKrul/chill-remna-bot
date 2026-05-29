@@ -86,8 +86,6 @@ func TestTransferSQLiteToSQLite(t *testing.T) {
 	src := openSQLiteTest(t)
 	dst := openSQLiteTest(t)
 
-	// Засеваем источник: конфиг + пользователь (с ником/блоком/терминами) +
-	// платёж + P2P-заявка + кэш медиа.
 	cfg := sampleConfig()
 	if err := src.SaveConfig(ctx, cfg); err != nil {
 		t.Fatal(err)
@@ -119,12 +117,11 @@ func TestTransferSQLiteToSQLite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Конфиг.
 	got, ok, err := dst.LoadConfig(ctx)
 	if err != nil || !ok || got.Panel.APIToken != cfg.Panel.APIToken {
 		t.Fatalf("config не перенёсся: ok=%v err=%v", ok, err)
 	}
-	// Пользователь со всеми полями.
+
 	u, err := dst.GetUser(ctx, 777)
 	if err != nil || u == nil {
 		t.Fatalf("user не перенёсся: %v", err)
@@ -132,30 +129,27 @@ func TestTransferSQLiteToSQLite(t *testing.T) {
 	if u.Username != "vasya" || u.FirstName != "Вася" || !u.Blocked || u.TermsAcceptedAt == "" {
 		t.Fatalf("поля юзера потеряны: %+v", u)
 	}
-	// Платёж.
+
 	if ok, _ := dst.HasPaidPayment(ctx, 777); !ok {
 		t.Fatal("платёж не перенёсся")
 	}
 	if dup, _ := dst.PaymentByExtID(ctx, "yk_1"); !dup {
 		t.Fatal("ext_id платежа не перенёсся")
 	}
-	// P2P-заявка (id сохраняется).
+
 	if r, err := dst.GetP2PRequest(ctx, pr.ID); err != nil || r == nil || r.Status != model.P2PApproved {
 		t.Fatalf("p2p-заявка не перенёслась: %+v err=%v", r, err)
 	}
-	// Медиа-кэш.
+
 	if id, ok, _ := dst.LoadMediaFileID(ctx, "main_menu"); !ok || id != "file_abc" {
 		t.Fatalf("media_cache не перенёсся: id=%q ok=%v", id, ok)
 	}
 
-	// Идемпотентность: повторный перенос не должен падать (платёж-дубль пропускается).
 	if err := Transfer(ctx, src, dst); err != nil {
 		t.Fatalf("повторный Transfer упал: %v", err)
 	}
 }
 
-// TestPostgresContract запускается, только если задан TEST_POSTGRES_DSN
-// (в CI поднимается через сервис postgres). Прогоняет тот же контракт против PG.
 func TestPostgresContract(t *testing.T) {
 	dsn := os.Getenv("TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -180,7 +174,6 @@ func TestPostgresContract(t *testing.T) {
 	}
 }
 
-// eachStore прогоняет fn против SQLite (всегда) и PostgreSQL (если задан TEST_POSTGRES_DSN).
 func eachStore(t *testing.T, fn func(t *testing.T, st Storage)) {
 	t.Run("sqlite", func(t *testing.T) { fn(t, openSQLiteTest(t)) })
 	if dsn := os.Getenv("TEST_POSTGRES_DSN"); dsn != "" {
@@ -193,14 +186,13 @@ func eachStore(t *testing.T, fn func(t *testing.T, st Storage)) {
 			if err := st.Migrate(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			// PG-БД общая между тестами — чистим данные, чтобы счётчики были детерминированы.
+
 			cleanPGData(t, dsn)
 			fn(t, st)
 		})
 	}
 }
 
-// cleanPGData очищает таблицы данных в общей PG-БД (settings/schema_migrations не трогаем).
 func cleanPGData(t *testing.T, dsn string) {
 	t.Helper()
 	db, err := sql.Open("pgx", dsn)
@@ -276,13 +268,12 @@ func TestUsersListBlockDelete(t *testing.T) {
 		if err != nil || total != 3 || len(users) != 3 {
 			t.Fatalf("ListUsers: total=%d len=%d err=%v", total, len(users), err)
 		}
-		// пагинация
+
 		page, total, err := st.ListUsers(ctx, 2, 0)
 		if err != nil || total != 3 || len(page) != 2 {
 			t.Fatalf("ListUsers page: total=%d len=%d err=%v", total, len(page), err)
 		}
 
-		// блокировка
 		if err := st.SetBlocked(ctx, 22, true); err != nil {
 			t.Fatal(err)
 		}
@@ -297,7 +288,6 @@ func TestUsersListBlockDelete(t *testing.T) {
 			t.Fatalf("после SetBlocked(false) не должен быть Blocked: %+v", u)
 		}
 
-		// SetBlocked для несуществующего создаёт запись
 		if err := st.SetBlocked(ctx, 44, true); err != nil {
 			t.Fatal(err)
 		}
@@ -305,7 +295,6 @@ func TestUsersListBlockDelete(t *testing.T) {
 			t.Fatalf("SetBlocked должен апсертить: %+v", u)
 		}
 
-		// удаление
 		if err := st.DeleteUser(ctx, 11); err != nil {
 			t.Fatal(err)
 		}
@@ -318,14 +307,14 @@ func TestUsersListBlockDelete(t *testing.T) {
 func TestUserInfoAndPurchase(t *testing.T) {
 	eachStore(t, func(t *testing.T, st Storage) {
 		ctx := context.Background()
-		// SetUserInfo для несуществующего — no-op (строку не создаёт)
+
 		if err := st.SetUserInfo(ctx, 6882779276, "vasya", "Вася"); err != nil {
 			t.Fatal(err)
 		}
 		if u, _ := st.GetUser(ctx, 6882779276); u != nil {
 			t.Fatal("SetUserInfo не должен создавать запись")
 		}
-		// после регистрации — обновляет ник/имя
+
 		if err := st.UpsertUser(ctx, 6882779276); err != nil {
 			t.Fatal(err)
 		}
@@ -336,7 +325,7 @@ func TestUserInfoAndPurchase(t *testing.T) {
 		if u == nil || u.Username != "vasya" || u.FirstName != "Вася" {
 			t.Fatalf("ник/имя не сохранились: %+v", u)
 		}
-		// HasApprovedPurchase
+
 		if ok, _ := st.HasApprovedPurchase(ctx, 6882779276); ok {
 			t.Fatal("без заявок покупок быть не должно")
 		}
@@ -347,7 +336,7 @@ func TestUserInfoAndPurchase(t *testing.T) {
 		if ok, _ := st.HasApprovedPurchase(ctx, 6882779276); !ok {
 			t.Fatal("после approved-заявки покупка должна определяться")
 		}
-		// ник попадает в список
+
 		users, _, err := st.ListUsers(ctx, 10, 0)
 		if err != nil {
 			t.Fatal(err)
@@ -381,7 +370,7 @@ func TestBalance(t *testing.T) {
 		if u, _ := st.GetUser(ctx, 555); u == nil || u.Balance != 35000 {
 			t.Fatalf("после списания баланс должен быть 35000: %+v", u)
 		}
-		// Нехватка: списать больше остатка нельзя.
+
 		if ok, _ := st.DeductBalance(ctx, 555, 99999); ok {
 			t.Fatal("DeductBalance не должен списывать при нехватке")
 		}
@@ -394,7 +383,7 @@ func TestBalance(t *testing.T) {
 func TestPendingInvoices(t *testing.T) {
 	eachStore(t, func(t *testing.T, st Storage) {
 		ctx := context.Background()
-		// Свежий и старый pending.
+
 		old := &model.PendingInvoice{Method: model.PayMethodYooKassa, ExtID: "yk_1", TelegramID: 555, Months: 1, CreatedAt: "2020-01-01T00:00:00Z"}
 		fresh := &model.PendingInvoice{Method: model.PayMethodCryptoBot, ExtID: "cb:9", TelegramID: 555, Months: 3, CreatedAt: "2099-01-01T00:00:00Z"}
 		if err := st.AddPendingInvoice(ctx, old); err != nil {
@@ -403,12 +392,12 @@ func TestPendingInvoices(t *testing.T) {
 		if err := st.AddPendingInvoice(ctx, fresh); err != nil {
 			t.Fatal(err)
 		}
-		// createdBefore = 2050 → видим только старый (fresh из 2099 отфильтрован).
+
 		list, err := st.ListUnresolvedPending(ctx, "2050-01-01T00:00:00Z", 10)
 		if err != nil || len(list) != 1 || list[0].ExtID != "yk_1" {
 			t.Fatalf("ListUnresolvedPending фильтр по времени неверен: %+v err=%v", list, err)
 		}
-		// Резолв снимает с учёта.
+
 		if err := st.ResolvePending(ctx, old.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -416,7 +405,7 @@ func TestPendingInvoices(t *testing.T) {
 		if len(list) != 0 {
 			t.Fatalf("после ResolvePending старый инвойс не должен возвращаться: %+v", list)
 		}
-		// limit соблюдается.
+
 		list, _ = st.ListUnresolvedPending(ctx, "2099-12-31T00:00:00Z", 1)
 		if len(list) != 1 {
 			t.Fatalf("limit не соблюдён: %d", len(list))
@@ -443,7 +432,7 @@ func TestPaymentsLog(t *testing.T) {
 		if err != nil || total != 2 || len(items) != 2 {
 			t.Fatalf("ListPayments: total=%d len=%d err=%v", total, len(items), err)
 		}
-		// PaidPayments — только оплаченные (rejected не считается).
+
 		paid, err := st.PaidPayments(ctx)
 		if err != nil || len(paid) != 1 || paid[0].Status != model.PaymentPaid {
 			t.Fatalf("PaidPayments: len=%d err=%v", len(paid), err)

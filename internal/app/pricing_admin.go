@@ -11,7 +11,6 @@ import (
 	"remnabot/internal/model"
 )
 
-// askPriceMonth — выбор срока для задания цены; callback "<prefix>:price:<mo>".
 func (a *App) askPriceMonth(ctx context.Context, chatID int64, prefix string) {
 	lang := a.lang(chatID)
 	var row []models.InlineKeyboardButton
@@ -56,8 +55,6 @@ func (a *App) formatTrafficLimits() string {
 	return strings.Join(parts, " ")
 }
 
-// formatDeviceLimits — сводка лимита устройств (HWID): per-tariff значения, если
-// заданы; иначе общий DeviceLimit; иначе «дефолт панели».
 func (a *App) formatDeviceLimits(lang string) string {
 	pr := a.pricing()
 	var parts []string
@@ -75,9 +72,6 @@ func (a *App) formatDeviceLimits(lang string) string {
 	return i18n.T(lang, "pricing.hwid_default")
 }
 
-// showPricing — базовый прайс, валюта и сводка по тарифам (per-month
-// цена + трафик), плюс кнопка «🪄 Быстрая настройка тарифа» — пошаговый
-// помощник, проставляющий цену и трафик за один проход.
 func (a *App) showPricing(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	pr := a.pricing()
@@ -91,7 +85,6 @@ func (a *App) showPricing(ctx context.Context, chatID int64) {
 	})
 }
 
-// formatPlansTable — фикс-ширина <pre>-таблицы: «Months | Price | Traffic».
 func (a *App) formatPlansTable(lang string) string {
 	pr := a.pricing()
 	var sb strings.Builder
@@ -143,7 +136,7 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 		ui.priceMonths = mo
 		a.askInput(ctx, chatID, i18n.T(lang, "pricing.q_price", mo), "menu:pricing")
 	case "traffic":
-		// «prc:traffic» → выбор месяца → «prc:trafmo:<mo>».
+
 		var row []models.InlineKeyboardButton
 		for _, mo := range model.PlanMonths {
 			row = append(row, btn(strconv.Itoa(mo)+"м", "prc:trafmo:"+strconv.Itoa(mo)))
@@ -156,8 +149,7 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 		ui.priceMonths = mo
 		a.askInput(ctx, chatID, i18n.T(lang, "pricing.ask_traffic_gb", mo), "menu:pricing")
 	case "devices":
-		// Лимит устройств (HWID) — ПО ТАРИФАМ (как трафик): выбор срока → число.
-		// Можно дать, например, на годовой тариф больше устройств.
+
 		var row []models.InlineKeyboardButton
 		for _, mo := range model.PlanMonths {
 			row = append(row, btn(strconv.Itoa(mo)+"м", "prc:devmo:"+strconv.Itoa(mo)))
@@ -187,7 +179,6 @@ func (a *App) onPricing(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// setTrafficGB / setDeviceLimit — вызываются из handleAdminText.
 func (a *App) setTrafficGB(months, gb int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -203,9 +194,6 @@ func (a *App) setTrafficGB(months, gb int) {
 	a.botCfg.Pricing.Traffic[months] = gb
 }
 
-// setDeviceLimitGlobal — общий HWID-override (hwidDeviceLimit) для всех
-// подписок, создаваемых ботом. 0 = «не передавать поле», т.е. использовать
-// HWID_FALLBACK_DEVICE_LIMIT панели.
 func (a *App) setDeviceLimitGlobal(n int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -218,7 +206,6 @@ func (a *App) setDeviceLimitGlobal(n int) {
 	a.botCfg.Pricing.DeviceLimit = n
 }
 
-// setDevicesPer задаёт лимит устройств (HWID) для конкретного срока.
 func (a *App) setDevicesPer(months, n int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -235,8 +222,6 @@ func (a *App) setDevicesPer(months, n int) {
 	a.botCfg.Pricing.Devices[months] = n
 }
 
-// startPlanQuick — быстрая настройка одного тарифа (последовательно
-// спрашиваем месяц → цену → трафик; результат сразу применяется).
 func (a *App) startPlanQuick(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	var row []models.InlineKeyboardButton

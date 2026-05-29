@@ -21,8 +21,6 @@ func (a *App) starsConfig() model.StarsConfig {
 	return a.botCfg.Stars
 }
 
-// --- пользователь: оплата Telegram Stars (XTR) ---
-
 func (a *App) startStars(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	months := a.getUI(chatID).buyMonths
@@ -42,12 +40,10 @@ func (a *App) startStars(ctx context.Context, chatID int64) {
 	a.msg.SendInvoice(ctx, chatID, title, desc, "stars:"+strconv.Itoa(months), "XTR", amount)
 }
 
-// handlePreCheckout подтверждает предоплатную проверку (для Stars — всегда ok).
 func (a *App) handlePreCheckout(ctx context.Context, q *models.PreCheckoutQuery) {
 	a.msg.AnswerPreCheckout(ctx, q.ID, true, "")
 }
 
-// handleSuccessfulPayment финализирует покупку за Stars: провижн + лог + ссылка.
 func (a *App) handleSuccessfulPayment(ctx context.Context, m *models.Message) {
 	sp := m.SuccessfulPayment
 	chatID := m.Chat.ID
@@ -66,8 +62,6 @@ func (a *App) handleSuccessfulPayment(ctx context.Context, m *models.Message) {
 	}
 	a.sendSubActive(ctx, chatID, link, expireAt)
 }
-
-// --- админ: настройки Stars ---
 
 func (a *App) showStarsAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -113,11 +107,8 @@ func (a *App) onStars(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// approxRubPerStar — ОРИЕНТИРОВОЧНАЯ цена одной звезды в рублях (курс плавает).
 const approxRubPerStar = 1.5
 
-// starsSuggestion — примерный пересчёт рублёвой цены тарифа в звёзды + запас на
-// комиссию. Сознательно грубый: курс звёзд меняется, точную цифру админ задаёт сам.
 func (a *App) starsSuggestion(lang string, months int) string {
 	base := a.pricing().Base[months]
 	k, ok := rubToKopecks(base)
@@ -125,7 +116,7 @@ func (a *App) starsSuggestion(lang string, months int) string {
 		return ""
 	}
 	rub := float64(k) / 100.0
-	stars := int(math.Ceil(rub / approxRubPerStar * 1.05)) // +5% запас на комиссию/курс
+	stars := int(math.Ceil(rub / approxRubPerStar * 1.05))
 	return i18n.T(lang, "stars.suggest", base, stars)
 }
 

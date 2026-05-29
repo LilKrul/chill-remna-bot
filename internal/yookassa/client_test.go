@@ -20,7 +20,7 @@ func TestCreateAndGetPayment(t *testing.T) {
 			_, _ = w.Write([]byte(`{"id":"pay_1","status":"pending","confirmation":{"confirmation_url":"https://yoo/pay/1"}}`))
 			return
 		}
-		// GET /payments/pay_1
+
 		_, _ = w.Write([]byte(`{"id":"pay_1","status":"succeeded","paid":true,"amount":{"value":"150.00","currency":"RUB"},"metadata":{"months":"3","telegram_id":"555"}}`))
 	}))
 	defer srv.Close()

@@ -14,10 +14,8 @@ import (
 	"remnabot/internal/storage"
 )
 
-// topUpPresets — пресеты пополнения (рубли).
 var topUpPresets = []int{100, 300, 500, 1000}
 
-// rubToKopecks парсит "150" / "150.50" / "150,5" → копейки.
 func rubToKopecks(s string) (int64, bool) {
 	s = strings.TrimSpace(strings.ReplaceAll(s, ",", "."))
 	if s == "" {
@@ -42,7 +40,6 @@ func rubToKopecks(s string) (int64, bool) {
 	return w*100 + f, true
 }
 
-// kopecksToRub форматирует копейки в "150" или "150.50".
 func kopecksToRub(k int64) string {
 	if k%100 == 0 {
 		return strconv.FormatInt(k/100, 10)
@@ -61,8 +58,6 @@ func (a *App) userBalance(ctx context.Context, chatID int64) int64 {
 	return u.Balance
 }
 
-// showBalance — вкладка «Баланс»: текущий баланс + планировщик «на сколько хватит»
-// по каждому тарифу, плюс кнопки пополнить/купить.
 func (a *App) showBalance(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	bal := a.userBalance(ctx, chatID)
@@ -81,8 +76,6 @@ func (a *App) showBalance(ctx context.Context, chatID int64) {
 	})
 }
 
-// balanceForecast строит таблицу «на сколько хватит баланса» по тарифам и
-// возвращает максимум месяцев среди вариантов, укладывающихся в баланс.
 func (a *App) balanceForecast(lang string, balKopecks int64) (string, int) {
 	pr := a.pricing()
 	var sb strings.Builder
@@ -118,8 +111,6 @@ func (a *App) balanceForecast(lang string, balKopecks int64) (string, int) {
 	}
 	return sb.String(), best
 }
-
-// --- пополнение баланса ---
 
 func (a *App) showTopUp(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -161,7 +152,6 @@ func (a *App) onTopUp(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// setTopUpCustom принимает введённую пользователем сумму пополнения.
 func (a *App) setTopUpCustom(ctx context.Context, chatID int64, text string) {
 	ui := a.getUI(chatID)
 	ui.awaitTopUp = false
@@ -201,8 +191,6 @@ func (a *App) showTopUpMethods(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, i18n.T(lang, "topup.choose_method", kopecksToRub(k)), rows)
 }
 
-// startTopUp создаёт инвойс пополнения. Назначение ("topup" + копейки) пишем в
-// pending_invoices — по нему вебхук/проверка/реконсилятор зачислят на баланс.
 func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 	lang := a.lang(chatID)
 	k := a.getUI(chatID).topUpKopecks
@@ -269,8 +257,6 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 	}
 }
 
-// finalizeTopUp идемпотентно зачисляет пополнение на баланс. ext_id резервируется
-// записью платежа (UNIQUE) ДО зачисления — двойного кредита на гонке не будет.
 func (a *App) finalizeTopUp(ctx context.Context, chatID int64, kopecks int64, method, amount, extID string) error {
 	if a.store == nil {
 		return nil
@@ -279,7 +265,7 @@ func (a *App) finalizeTopUp(ctx context.Context, chatID int64, kopecks int64, me
 		TelegramID: chatID, Method: method, Amount: amount, Status: model.PaymentPaid, ExtID: extID, Comment: "topup",
 	}); err != nil {
 		if errors.Is(err, storage.ErrDuplicateExtID) {
-			return nil // уже зачтено
+			return nil
 		}
 		return err
 	}
@@ -292,10 +278,6 @@ func (a *App) finalizeTopUp(ctx context.Context, chatID int64, kopecks int64, me
 	return nil
 }
 
-// --- оплата с баланса (автосписание) ---
-
-// payFromBalance списывает цену тарифа с баланса и сразу выдаёт подписку.
-// При ошибке выдачи в панель — возвращает деньги на баланс (рефанд).
 func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	months := a.getUI(chatID).buyMonths
@@ -320,7 +302,7 @@ func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 	}
 	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, "balance", priceStr+curSuffix(curRUB), "")
 	if err != nil {
-		// рефанд: выдача не удалась — возвращаем средства
+
 		_ = a.store.AddBalance(ctx, chatID, kopecks)
 		a.send(ctx, chatID, i18n.T(lang, "balance.pay_fail", err.Error()))
 		return

@@ -21,14 +21,13 @@ import (
 	"remnabot/internal/yookassa"
 )
 
-// fakeMsg перехватывает исходящие сообщения вместо реального Telegram.
 type fakeMsg struct {
 	mu       sync.Mutex
 	texts    []string
 	seq      int
-	live     map[int]string // id -> текст активных (неудалённых) сообщений
+	live     map[int]string
 	deleted  []int
-	invoices []string // currency:amount:payload
+	invoices []string
 }
 
 func (f *fakeMsg) Send(_ context.Context, _ int64, text string) int { return f.add(text) }
@@ -85,7 +84,6 @@ func (f *fakeMsg) joined() string {
 	return strings.Join(f.texts, "\n---\n")
 }
 
-// fakeStore — хранилище в памяти (реализует storage.Storage без БД).
 type fakeStore struct {
 	cfg     *model.BotConfig
 	users   map[int64]*model.User
@@ -128,7 +126,7 @@ func (s *fakeStore) GetUser(_ context.Context, id int64) (*model.User, error) {
 
 func (s *fakeStore) SetUserInfo(_ context.Context, id int64, username, firstName string) error {
 	if s.users == nil || s.users[id] == nil {
-		return nil // обновляем только существующую запись
+		return nil
 	}
 	s.users[id].Username = username
 	s.users[id].FirstName = firstName
@@ -147,7 +145,7 @@ func (s *fakeStore) AddPayment(_ context.Context, p *model.Payment) error {
 	if s.pays == nil {
 		s.pays = map[int64]*model.Payment{}
 	}
-	// Эмуляция partial-UNIQUE (method, ext_id) WHERE ext_id<>'' — как в БД.
+
 	if p.ExtID != "" {
 		for _, x := range s.pays {
 			if x.Method == p.Method && x.ExtID == p.ExtID {
@@ -468,14 +466,13 @@ func cb(uid int64, data string) *models.CallbackQuery {
 	return &models.CallbackQuery{ID: "cbid", Data: data, From: models.User{ID: uid}}
 }
 
-// panelStub — заглушка REST API панели Remnawave.
 func panelStub(users int) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/system/stats") {
 			_, _ = w.Write([]byte(`{"response":{"users":{"totalUsers":` + itoa(users) + `}}}`))
 			return
 		}
-		w.WriteHeader(http.StatusOK) // health
+		w.WriteHeader(http.StatusOK)
 	}))
 }
 func itoa(n int) string {
@@ -490,7 +487,6 @@ func itoa(n int) string {
 	return string(b)
 }
 
-// Полный сценарий: удалённая панель, официальная установка (Caddy), /api открыт.
 func TestWizard_RemoteDocs_HappyPath(t *testing.T) {
 	srv := panelStub(7)
 	defer srv.Close()
@@ -523,7 +519,6 @@ func TestWizard_RemoteDocs_HappyPath(t *testing.T) {
 	}
 }
 
-// Локальный режим: способ установки и кука пропускаются, URL подставляется сам.
 func TestWizard_Local_SkipsInstallAndCookie(t *testing.T) {
 	srv := panelStub(3)
 	defer srv.Close()
@@ -534,8 +529,7 @@ func TestWizard_Local_SkipsInstallAndCookie(t *testing.T) {
 	a.handleCallback(ctx, cb(100, "lang:en"))
 	a.handleCallback(ctx, cb(100, "db:sqlite"))
 	a.handleCallback(ctx, cb(100, "loc:local"))
-	// локальный режим форсит base http://remnawave:3000 — verify не достучится,
-	// поэтому проверяем шаг (запрос токена), а не успешную установку.
+
 	a.handleMessage(ctx, msgText(100, "tok"))
 
 	w := a.wiz[100]
@@ -545,14 +539,13 @@ func TestWizard_Local_SkipsInstallAndCookie(t *testing.T) {
 	if w.cfg.Panel.Mode != model.ModeLocal || w.cfg.Panel.BaseURL == "" {
 		t.Fatalf("локальный режим не выставлен: %+v", w.cfg.Panel)
 	}
-	// токен ввели → verify запустился и упал на health (нет связи) → не установлен
+
 	if a.installed() {
 		t.Fatal("в локальном тесте установка не должна завершиться (панель недостижима)")
 	}
 	_ = fs
 }
 
-// Удалённо + eGames: после токена мастер просит куку.
 func TestWizard_RemoteEGames_AsksCookie(t *testing.T) {
 	a, fm, _ := newTestApp(t)
 	ctx := context.Background()
@@ -573,7 +566,6 @@ func TestWizard_RemoteEGames_AsksCookie(t *testing.T) {
 	}
 }
 
-// Postgres без docker.sock (ctl=nil) и без env DSN → запрос DSN вручную.
 func TestWizard_PostgresNoDocker_AsksDSN(t *testing.T) {
 	a, fm, _ := newTestApp(t)
 	ctx := context.Background()
@@ -587,7 +579,6 @@ func TestWizard_PostgresNoDocker_AsksDSN(t *testing.T) {
 	}
 }
 
-// Не-админ не может запустить мастер.
 func TestNonAdminIgnored(t *testing.T) {
 	a, fm, _ := newTestApp(t)
 	a.handleMessage(context.Background(), msgText(999, "/start"))
@@ -604,8 +595,7 @@ func photoMsg(uid int64, fileID string) *models.Message {
 }
 
 func TestP2P_FullFlow(t *testing.T) {
-	// Stateful: до создания (POST/PATCH) by-telegram-id возвращает 404, после —
-	// аккаунт с subscriptionUrl (как реальная панель).
+
 	created := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
@@ -641,20 +631,17 @@ func TestP2P_FullFlow(t *testing.T) {
 	ctx := context.Background()
 	const user int64 = 555
 
-	// 1) выбор плана и метода -> гейт доступа (юзер ещё не одобрен)
 	a.handleCallback(ctx, cb(user, "buy:1"))
 	a.handleCallback(ctx, cb(user, "method:p2p"))
 	if u, _ := fs.GetUser(ctx, user); u != nil && u.P2PApproved {
 		t.Fatal("на этом шаге юзер не должен быть одобрен")
 	}
 
-	// 2) админ одобряет доступ
 	a.handleCallback(ctx, cb(100, "adm:uok:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || !u.P2PApproved {
 		t.Fatal("админ должен был одобрить доступ")
 	}
 
-	// 3) повторный выбор -> выдаётся карта + создаётся заявка
 	a.handleCallback(ctx, cb(user, "buy:1"))
 	a.handleCallback(ctx, cb(user, "method:p2p"))
 	if !strings.Contains(fm.joined(), "CARD-1") {
@@ -670,14 +657,12 @@ func TestP2P_FullFlow(t *testing.T) {
 		t.Fatal("заявка не создана")
 	}
 
-	// 4) «я оплатил» + скриншот
 	a.handleCallback(ctx, cb(user, "p2p:paid:"+strconv.FormatInt(reqID, 10)))
 	a.handlePhoto(ctx, photoMsg(user, "file_123"))
 	if r, _ := fs.GetP2PRequest(ctx, reqID); r == nil || r.Status != model.P2PSubmitted || r.Screenshot != "file_123" {
 		t.Fatalf("скриншот не сохранён: %+v", r)
 	}
 
-	// 5) админ подтверждает -> провижн в панель + ссылка юзеру
 	a.handleCallback(ctx, cb(100, "adm:pok:"+strconv.FormatInt(reqID, 10)))
 	if r, _ := fs.GetP2PRequest(ctx, reqID); r == nil || r.Status != model.P2PApproved {
 		t.Fatalf("оплата не подтверждена: %+v", r)
@@ -687,7 +672,6 @@ func TestP2P_FullFlow(t *testing.T) {
 	}
 }
 
-// Сценарий админки «Пользователи»: блокировка ограничивает доступ, удаление чистит запись.
 func TestUsersAdmin_BlockEnforceDelete(t *testing.T) {
 	fm := &fakeMsg{}
 	fs := &fakeStore{}
@@ -703,56 +687,42 @@ func TestUsersAdmin_BlockEnforceDelete(t *testing.T) {
 	ctx := context.Background()
 	const user int64 = 555
 
-	// юзер регистрируется
 	_ = fs.UpsertUser(ctx, user)
 
-	// админ блокирует
 	a.handleCallback(ctx, cb(100, "usr:block:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || !u.Blocked {
 		t.Fatalf("юзер должен быть заблокирован: %+v", u)
 	}
 
-	// заблокированный юзер пишет /start -> получает отказ, меню не показывается
 	fm.texts = nil
 	a.handleMessage(ctx, msgText(user, "/start"))
 	if !strings.Contains(fm.joined(), "ограничен") {
 		t.Fatalf("заблокированному должен прийти отказ, got:\n%s", fm.joined())
 	}
 
-	// заблокированный юзер жмёт кнопку покупки -> тоже отказ (callback)
 	fm.texts = nil
 	a.handleCallback(ctx, cb(user, "menu:buy"))
 	if !strings.Contains(fm.joined(), "ограничен") {
 		t.Fatalf("callback заблокированного должен быть отклонён, got:\n%s", fm.joined())
 	}
 
-	// админ разблокирует
 	a.handleCallback(ctx, cb(100, "usr:unblock:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || u.Blocked {
 		t.Fatalf("юзер должен быть разблокирован: %+v", u)
 	}
 
-	// админ удаляет
 	a.handleCallback(ctx, cb(100, "usr:delbot:555"))
 	if u, _ := fs.GetUser(ctx, user); u != nil {
 		t.Fatal("после удаления записи быть не должно")
 	}
 }
 
-// При удалении бот-юзера бот ДОЛЖЕН отключить его подписку в панели
-// (POST /api/users/<uuid>/actions/disable) — иначе после повторной регистрации
-// доступ к старой подписке сохранится. При этом:
-//   - блокировка пользователя в боте панель НЕ трогает;
-//   - чужие аккаунты (созданные не ботом) панель отключать запрещено —
-//     проверка по Tag/username делается клиентом.
-//
-// Здесь проверяем оба поведения на стабе панели.
 func TestUsersAdmin_DeleteDisablesInPanel(t *testing.T) {
 	var blockHits, deleteHits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/api/users/by-telegram-id/"):
-			// Возвращаем «свой» аккаунт (Tag=CHILLBOT).
+
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"response":[{"uuid":"u-555","tag":"CHILLBOT","username":"tg_555","subscriptionUrl":"https://x/sub/y"}]}`))
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/users/"):
@@ -780,24 +750,22 @@ func TestUsersAdmin_DeleteDisablesInPanel(t *testing.T) {
 	ctx := context.Background()
 
 	_ = fs.UpsertUser(ctx, 555)
-	// Блокировка не должна ходить в панель.
+
 	a.handleCallback(ctx, cb(100, "usr:block:555"))
 	if blockHits != 0 {
 		t.Fatalf("блокировка не должна обращаться к панели, hits=%d", blockHits)
 	}
-	// Удаление «из бота + панели» — должно УДАЛИТЬ свой аккаунт в панели (DELETE).
+
 	a.handleCallback(ctx, cb(100, "usr:delfull:555"))
 	if deleteHits != 1 {
 		t.Fatalf("delfull должен дёрнуть DELETE /api/users ровно 1 раз, hits=%d", deleteHits)
 	}
-	// Локальные user/payments/p2p должны быть очищены (fakeStore так и делает).
+
 	if u, _ := fs.GetUser(ctx, 555); u != nil {
 		t.Fatal("после удаления users не должно остаться")
 	}
 }
 
-// Single-message UI: при навигации бот удаляет предыдущий экран,
-// а кросс-чат уведомления (модерация) НЕ удаляются.
 func TestSingleMessageUI(t *testing.T) {
 	srv := panelStub(5)
 	defer srv.Close()
@@ -805,15 +773,14 @@ func TestSingleMessageUI(t *testing.T) {
 	a.botCfg = &model.BotConfig{Installed: true, Language: "ru"}
 	ctx := context.Background()
 
-	// админ открывает меню -> экран #1
 	a.handleMessage(ctx, msgText(100, "/start"))
 	afterStart := fm.liveCount()
 	if afterStart == 0 {
 		t.Fatalf("после /start должно быть видимое сообщение, live=%d", afterStart)
 	}
-	// переход в «Управление» -> прошлый экран удалён, остаётся текущий
+
 	a.handleCallback(ctx, cb(100, "menu:manage"))
-	// ещё переход
+
 	a.handleCallback(ctx, cb(100, "menu:home"))
 	if got := fm.liveCount(); got != afterStart {
 		t.Fatalf("на экране должно оставаться только текущее (%d), а живых=%d; deleted=%v", afterStart, got, fm.deleted)
@@ -823,7 +790,6 @@ func TestSingleMessageUI(t *testing.T) {
 	}
 }
 
-// Уведомление админу о заявке не должно удаляться при навигации пользователя.
 func TestNotificationsArePersistent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -844,7 +810,6 @@ func TestNotificationsArePersistent(t *testing.T) {
 	ctx := context.Background()
 	const user int64 = 555
 
-	// пользователь просит доступ -> админу уходит постоянное уведомление
 	a.handleCallback(ctx, cb(user, "buy:1"))
 	a.handleCallback(ctx, cb(user, "method:p2p"))
 	if !strings.Contains(fm.joined(), "просит доступ") {
@@ -852,13 +817,12 @@ func TestNotificationsArePersistent(t *testing.T) {
 	}
 	notifDeleted := len(fm.deleted)
 
-	// пользователь продолжает навигацию — это не должно удалять уведомление админу
 	a.handleCallback(ctx, cb(user, "buy:1"))
 	a.handleCallback(ctx, cb(user, "buy:1"))
 	if len(fm.deleted) > notifDeleted {
-		// допускается удаление экранов ПОЛЬЗОВАТЕЛЯ, но уведомление админу должно жить
+
 	}
-	// уведомление админу (его текст) всё ещё среди живых
+
 	foundLive := false
 	fm.mu.Lock()
 	for _, txt := range fm.live {
@@ -903,8 +867,6 @@ func TestNavRow(t *testing.T) {
 	ctx := context.Background()
 	const user int64 = 555
 
-	// Stateful panel stub: до «покупки» возвращает 404, после флага hasSub —
-	// аккаунт с subscriptionUrl. Имитирует реальный источник правды (панель).
 	hasSub := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
@@ -920,15 +882,14 @@ func TestNavRow(t *testing.T) {
 	defer srv.Close()
 	a.panel = remnawave.New(model.PanelConfig{Mode: model.ModeRemote, BaseURL: srv.URL, APIToken: "t"})
 
-	// админ -> только Главная
 	if row := a.navRow(ctx, 100, true); len(row) != 1 || row[0].CallbackData != "menu:home" {
 		t.Fatalf("админ должен иметь только Главную: %s", btnData(row))
 	}
-	// юзер без подписки -> Главная + Купить
+
 	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:buy|menu:balance|" {
 		t.Fatalf("юзер без подписки: %s", btnData(row))
 	}
-	// после «покупки» (в панели появилась подписка) -> Главная + Мои подписки
+
 	hasSub = true
 	a.invalidateSubCache(user)
 	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|menu:balance|" {
@@ -936,7 +897,6 @@ func TestNavRow(t *testing.T) {
 	}
 }
 
-// Кнопка «Разрешить P2P» в карточке: выдаёт доступ и уведомляет пользователя.
 func TestUserCard_AllowP2P(t *testing.T) {
 	a, fm, fs := newTestApp(t)
 	a.store = fs
@@ -952,7 +912,7 @@ func TestUserCard_AllowP2P(t *testing.T) {
 	if !strings.Contains(fm.joined(), "оплат") || !strings.Contains(fm.joined(), "перевод") {
 		t.Fatalf("пользователь должен получить уведомление об открытом P2P:\n%s", fm.joined())
 	}
-	// запрет обратно
+
 	a.handleCallback(ctx, cb(100, "usr:p2poff:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || u.P2PApproved {
 		t.Fatalf("P2P-доступ должен быть снят: %+v", u)
@@ -970,10 +930,8 @@ func cbMsg(uid int64, data string, msgID int) *models.CallbackQuery {
 		Message: models.MaybeInaccessibleMessage{Message: &models.Message{ID: msgID}}}
 }
 
-// Полный флоу Telegram Stars: выбор метода -> инвойс -> precheckout -> оплата -> провижн + лог + ссылка.
 func TestStarsFlow(t *testing.T) {
-	// Stateful: до создания (POST/PATCH) by-telegram-id возвращает 404, после —
-	// аккаунт с subscriptionUrl (как реальная панель).
+
 	created := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
@@ -1011,9 +969,9 @@ func TestStarsFlow(t *testing.T) {
 	if len(fm.invoices) != 1 || fm.invoices[0] != "XTR:100:stars:1" {
 		t.Fatalf("инвойс не выставлен корректно: %v", fm.invoices)
 	}
-	// precheckout (должен ответить ok без паники)
+
 	a.handlePreCheckout(ctx, &models.PreCheckoutQuery{ID: "pc1", InvoicePayload: "stars:1"})
-	// успешная оплата
+
 	a.handleSuccessfulPayment(ctx, successPayMsg(user, "stars:1", 100))
 
 	if !strings.Contains(fm.joined(), "sub/abc") {
@@ -1022,20 +980,18 @@ func TestStarsFlow(t *testing.T) {
 	if ok, _ := fs.HasPaidPayment(ctx, user); !ok {
 		t.Fatal("оплата не записана в лог")
 	}
-	// после покупки nav показывает «Мои подписки»
+
 	if row := a.navRow(ctx, user, false); btnData(row) != "menu:home|menu:mysubs|menu:balance|" {
 		t.Fatalf("после Stars-оплаты ожидались Мои подписки: %s", btnData(row))
 	}
 }
 
-// Уведомление-заявка удаляется после решения админа.
 func TestModerationNotificationDeleted(t *testing.T) {
 	a, fm, fs := newTestApp(t)
 	a.store = fs
 	a.botCfg = &model.BotConfig{Installed: true, Language: "ru", P2P: model.P2PConfig{Enabled: true, Prices: map[int]string{1: "100"}}}
 	ctx := context.Background()
 
-	// одобряем доступ пользователю по уведомлению с msgID=777
 	const notifID = 777
 	a.handleCallback(ctx, cbMsg(100, "adm:uok:555", notifID))
 	found := false
@@ -1056,8 +1012,8 @@ func TestPricingResolver(t *testing.T) {
 	pr := model.Pricing{
 		Currency: "руб",
 		Base:     map[int]string{1: "150", 3: "400"},
-		P2P:      map[int]string{1: "140"}, // переопределение P2P для 1 мес
-		YooKassa: map[int]string{},         // нет переопределения — берётся база
+		P2P:      map[int]string{1: "140"},
+		YooKassa: map[int]string{},
 		Stars:    map[int]int{1: 100},
 	}
 	if got := pr.Fiat(model.PayMethodP2P, 1); got != "140" {
@@ -1074,9 +1030,8 @@ func TestPricingResolver(t *testing.T) {
 	}
 }
 
-// Флоу ЮKassa: выбор метода -> кнопка оплаты -> проверка статуса -> провижн + лог.
 func TestYooKassaFlow(t *testing.T) {
-	// стуб панели Remnawave
+
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/by-telegram-id/") {
 			w.WriteHeader(http.StatusNotFound)
@@ -1086,7 +1041,6 @@ func TestYooKassaFlow(t *testing.T) {
 	}))
 	defer panel.Close()
 
-	// стуб API ЮKassa
 	yk := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			_, _ = w.Write([]byte(`{"id":"pay_42","status":"pending","confirmation":{"confirmation_url":"https://yoo/p/42"}}`))
@@ -1120,7 +1074,7 @@ func TestYooKassaFlow(t *testing.T) {
 	if !strings.Contains(fm.joined(), "Оплат") {
 		t.Fatalf("не показан запрос на оплату:\n%s", fm.joined())
 	}
-	// проверка оплаты -> succeeded -> провижн
+
 	a.handleCallback(ctx, cb(user, "ykc:pay_42"))
 	if !strings.Contains(fm.joined(), "sub/yk") {
 		t.Fatalf("после успешной оплаты нет ссылки:\n%s", fm.joined())
@@ -1128,7 +1082,7 @@ func TestYooKassaFlow(t *testing.T) {
 	if ok, _ := fs.HasPaidPayment(ctx, user); !ok {
 		t.Fatal("оплата ЮKassa не записана в лог")
 	}
-	// идемпотентность: повторная проверка не создаёт второй платёж
+
 	before := len(fs.pays)
 	a.handleCallback(ctx, cb(user, "ykc:pay_42"))
 	if len(fs.pays) != before {
@@ -1136,29 +1090,26 @@ func TestYooKassaFlow(t *testing.T) {
 	}
 }
 
-// Нажатие постоянной reply-кнопки «Главная» открывает меню (как /start).
 func TestHomeReplyButton(t *testing.T) {
 	a, fm, fs := newTestApp(t)
 	a.store = fs
 	a.botCfg = &model.BotConfig{Installed: true, Language: "ru"}
 	ctx := context.Background()
-	// админ жмёт reply-кнопку «🏠 Главная»
+
 	a.handleMessage(ctx, msgText(100, "🏠 Главная"))
 	if fm.joined() == "" {
 		t.Fatal("по кнопке «Главная» бот ничего не показал")
 	}
-	// входящее сообщение пользователя удаляется (чистота чата)
+
 	if len(fm.deleted) == 0 {
 		t.Fatal("сообщение-нажатие «Главная» должно удаляться")
 	}
 }
 
-// --- реконсилятор ---
-
 func TestReconciler_ResolvesAlreadyPaid(t *testing.T) {
 	ctx := context.Background()
 	fs := &fakeStore{}
-	// Платёж уже зачтён (вебхук успел), но pending ещё висит.
+
 	_ = fs.AddPayment(ctx, &model.Payment{TelegramID: 777, Method: model.PayMethodYooKassa, ExtID: "yk_x", Status: model.PaymentPaid})
 	_ = fs.AddPendingInvoice(ctx, &model.PendingInvoice{
 		Method: model.PayMethodYooKassa, ExtID: "yk_x", TelegramID: 777, Months: 1,
@@ -1192,11 +1143,10 @@ func TestReconciler_SkipsFresh(t *testing.T) {
 	fs := &fakeStore{}
 	_ = fs.AddPendingInvoice(ctx, &model.PendingInvoice{
 		Method: model.PayMethodYooKassa, ExtID: "yk_fresh", TelegramID: 777, Months: 1,
-		// создан только что → попадает в grace-окно, реконсилятор его не трогает.
 	})
 	a := &App{store: fs, log: slog.Default()}
 	a.reconcileOnce(ctx)
-	// Запрос без grace-фильтра должен всё ещё видеть его нерешённым.
+
 	left, _ := fs.ListUnresolvedPending(ctx, time.Now().UTC().Format(time.RFC3339), 50)
 	if len(left) != 1 {
 		t.Fatalf("свежий инвойс не должен трогаться реконсилятором, осталось: %d", len(left))

@@ -35,12 +35,9 @@ func (a *App) p2pConfig() model.P2PConfig {
 	return a.botCfg.P2P
 }
 
-// --- меню / покупка ---
-
 func (a *App) showPlans(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	// Триал → платный можно оформить только в день окончания триала, иначе
-	// наращивание срока подарило бы юзеру остаток триала поверх платных дней.
+
 	if a.store != nil {
 		if u, _ := a.store.GetUser(ctx, chatID); u != nil && u.NotifyKind == "trial" && u.SubExpireAt != "" {
 			if exp, err := time.Parse(time.RFC3339, u.SubExpireAt); err == nil && daysUntil(exp, time.Now().UTC()) > 1 {
@@ -50,7 +47,7 @@ func (a *App) showPlans(ctx context.Context, chatID int64) {
 			}
 		}
 	}
-	// Перед первой покупкой — пользовательское соглашение (если настроено).
+
 	if text, need := a.termsRequired(ctx, chatID); need {
 		a.askTerms(ctx, chatID, text)
 		return
@@ -71,9 +68,6 @@ func (a *App) showPlans(ctx context.Context, chatID int64) {
 	}
 	rows = append(rows, homeRow(lang))
 
-	// «🔥 Чаще всего выбирают N мес» — показываем только если оплат уже достаточно
-	// (>= popularThreshold), иначе шапка молчит, чтобы не давать «социального
-	// доказательства» на пустом месте.
 	caption := i18n.T(lang, "buy.choose_plan")
 	if a.store != nil {
 		if months, total, err := a.store.MostPopularPlan(ctx); err == nil && months > 0 && total >= popularThreshold {
@@ -83,8 +77,6 @@ func (a *App) showPlans(ctx context.Context, chatID int64) {
 	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, caption, rows)
 }
 
-// popularThreshold — минимум платежей, начиная с которого подсветка популярного
-// тарифа становится осмысленной (меньше — это «шум одного человека»).
 const popularThreshold = 10
 
 func (a *App) onBuyPlan(ctx context.Context, chatID int64, val string) {
@@ -130,7 +122,6 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 		rows = append(rows, []models.InlineKeyboardButton{btn(label, "method:cb")})
 	}
 
-	// Оплата с баланса — первым пунктом, если средств хватает на базовую цену.
 	bal := a.userBalance(ctx, chatID)
 	if k, ok := rubToKopecks(pr.Base[months]); ok && k > 0 && bal >= k {
 		payBtn := []models.InlineKeyboardButton{btn(i18n.T(lang, "balance.btn_pay", kopecksToRub(k)), "method:bal")}
@@ -142,7 +133,7 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 		})
 		return
 	}
-	// Пополнить баланс + домой.
+
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup")})
 	rows = append(rows, homeRow(lang))
 	a.sendKB(ctx, chatID, i18n.T(lang, "buy.choose_method", kopecksToRub(bal)), rows)
@@ -162,8 +153,6 @@ func (a *App) onMethod(ctx context.Context, chatID int64, val string) {
 		a.startCryptoBot(ctx, chatID)
 	}
 }
-
-// --- P2P: гейт доступа -> карта -> скрин ---
 
 func (a *App) startP2P(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -271,9 +260,9 @@ func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 		return
 	}
 	ui.awaitShotReq = 0
-	// id скриншота пользователя — удалим его после решения админа.
+
 	ui.p2pShotMsgID = m.ID
-	// «Скриншот получен…» шлём напрямую, чтобы получить id и потом удалить.
+
 	lang := a.lang(chatID)
 	ui.p2pSubmitMsgID = a.msg.SendKB(ctx, chatID,
 		a.applyPremium(i18n.T(lang, "p2p.submitted")),
@@ -290,8 +279,6 @@ func (a *App) notifyAdminPayment(ctx context.Context, req *model.P2PRequest, fil
 		btn(i18n.T(lang, "admin.btn_pay_no"), "adm:pno:"+id),
 	}})
 }
-
-// --- админ: настройки P2P + модерация ---
 
 func (a *App) showP2PAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -319,7 +306,7 @@ func (a *App) showP2PAdmin(ctx context.Context, chatID int64) {
 
 func (a *App) onAdmin(ctx context.Context, chatID int64, val string, srcMsgID int) {
 	action, arg, _ := strings.Cut(val, ":")
-	// Решение по уведомлению-заявке удаляет само уведомление — остаётся только результат.
+
 	switch action {
 	case "uok", "uno", "pok", "pno":
 		if srcMsgID != 0 {
@@ -425,19 +412,15 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 	a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
 }
 
-// finalizePurchase — единый финализатор: создаёт/продлевает аккаунт в панели,
-// пишет запись в лог оплат и возвращает ссылку на подписку. Используется и для
-// P2P (после ручного подтверждения), и для Telegram Stars (после оплаты).
 func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int, method, amount, extID string) (string, string, error) {
 	a.mu.Lock()
 	panel := a.panel
 	limits := remnawave.UserLimits{}
 	if a.botCfg != nil {
-		// Сквады — общие настройки (Plan), не per-tariff.
+
 		limits.InternalSquads = a.botCfg.Plan.ActiveInternalSquads
 		limits.ExternalSquad = a.botCfg.Plan.ExternalSquadUUID
-		// Backward-compat: если новые сквады не выбраны, но в P2P.SquadUUID
-		// остался legacy-сквад — используем его как single internal.
+
 		if len(limits.InternalSquads) == 0 && a.botCfg.P2P.SquadUUID != "" {
 			limits.InternalSquads = []string{a.botCfg.P2P.SquadUUID}
 		}
@@ -464,8 +447,6 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	return link, expireAt, nil
 }
 
-// handleAdminText обрабатывает текстовый ввод админа вне мастера установки
-// (причина отказа, реквизиты карт, цена, сквад).
 func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 	ui := a.getUI(chatID)
 	lang := a.lang(chatID)
@@ -617,7 +598,7 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.showWebhooksAdmin(ctx, chatID)
 	case "wh_base":
 		text = strings.TrimSpace(text)
-		// Снимаем завершающий "/", чтобы потом не плодилось "//webhook".
+
 		text = strings.TrimRight(text, "/")
 		a.mu.Lock()
 		if a.botCfg != nil {
@@ -779,8 +760,6 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 	}
 }
 
-// --- helpers ---
-
 func curSuffix(cur string) string {
 	if cur == "" {
 		return ""
@@ -788,12 +767,8 @@ func curSuffix(cur string) string {
 	return " " + cur
 }
 
-// curRUB — фиксированная валюта фиатных методов (P2P, ЮKassa) и базовых цен.
-// По требованию не настраивается: P2P/ЮKassa всегда в рублях. Stars (⭐) и
-// CryptoBot (монета Asset) показывают свою валюту отдельно.
 const curRUB = "₽"
 
-// curFor — валюта отображения метода оплаты (фиат — всегда ₽).
 func (a *App) curFor(string) string { return curRUB }
 
 func splitTrim(s, sep string) []string {
@@ -806,7 +781,6 @@ func splitTrim(s, sep string) []string {
 	return out
 }
 
-// formatFiatPrices — строка цен метода (с учётом переопределения и базы).
 func (a *App) formatFiatPrices(method string) string {
 	pr := a.pricing()
 	var parts []string
@@ -821,7 +795,6 @@ func (a *App) formatFiatPrices(method string) string {
 	return strings.Join(parts, " ")
 }
 
-// setFiatPrice пишет переопределение цены метода в едином прайсе.
 func (a *App) setFiatPrice(method string, months int, val string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -837,7 +810,6 @@ func (a *App) setFiatPrice(method string, months int, val string) {
 	}
 }
 
-// setBasePrice / setCurrency / setStarPrice — редактирование единого прайса.
 func (a *App) setBasePrice(months int, val string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -868,9 +840,6 @@ func (a *App) setStarPrice(months, val int) {
 	a.botCfg.Pricing.Stars[months] = val
 }
 
-// collectEmoji строит карту "эмодзи -> custom_emoji_id" из присланного админом
-// сообщения с анимированными (premium) эмодзи. Работает, если у владельца бота
-// есть Telegram Premium. Эмодзи затем подставляются во все сообщения бота.
 func (a *App) collectEmoji(ctx context.Context, chatID int64, m *models.Message) {
 	a.getUI(chatID).adminInput = ""
 	u16 := utf16.Encode([]rune(m.Text))
@@ -899,10 +868,6 @@ func (a *App) collectEmoji(ctx context.Context, chatID int64, m *models.Message)
 	a.send(ctx, chatID, i18n.T(a.lang(chatID), "admin.emoji_saved", added))
 }
 
-// cleanupP2PUser удаляет у пользователя «хвосты» процесса P2P-оплаты:
-// само фото-скриншот и сообщение «Скриншот получен…». Вызывается после
-// approve/reject — заявка закрыта, эти сообщения больше не нужны и не
-// должны висеть в чате.
 func (a *App) cleanupP2PUser(ctx context.Context, userChatID int64) {
 	a.mu.Lock()
 	ui, ok := a.ui[userChatID]

@@ -13,10 +13,6 @@ import (
 //go:embed migrations/*/*.sql
 var migrationsFS embed.FS
 
-// runMigrations применяет ещё не применённые .sql из migrations/<dialect>.
-//
-// Сознательно простой раннер (одна инструкция на файл), достаточный для текущей
-// схемы. По мере роста схемы заменяется на goose без изменения вызывающего кода.
 func runMigrations(ctx context.Context, b *base, dialect string) error {
 	if _, err := b.db.ExecContext(ctx,
 		"CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY)"); err != nil {

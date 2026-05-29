@@ -1,6 +1,3 @@
-// Package yookassa — минимальный клиент API ЮKassa (api.yookassa.ru/v3).
-// Подтверждение оплаты в боте делается опросом статуса (GetPayment), без
-// входящих вебхуков, поэтому достаточно двух вызовов: создать и проверить.
 package yookassa
 
 import (
@@ -15,7 +12,6 @@ import (
 	"time"
 )
 
-// BaseURL — адрес API ЮKassa (var, чтобы переопределять в тестах).
 var BaseURL = "https://api.yookassa.ru/v3"
 
 type Client struct {
@@ -28,10 +24,9 @@ func New(shopID, secret string) *Client {
 	return &Client{shopID: shopID, secret: secret, http: &http.Client{Timeout: 20 * time.Second}}
 }
 
-// Payment — нужные нам поля ответа ЮKassa.
 type Payment struct {
 	ID     string `json:"id"`
-	Status string `json:"status"` // pending | waiting_for_capture | succeeded | canceled
+	Status string `json:"status"`
 	Paid   bool   `json:"paid"`
 	Amount struct {
 		Value    string `json:"value"`
@@ -91,7 +86,6 @@ func (c *Client) do(ctx context.Context, method, path string, body any, idemKey 
 	return &p, nil
 }
 
-// CreatePayment создаёт платёж и возвращает его id и URL для оплаты.
 func (c *Client) CreatePayment(ctx context.Context, value, currency, description, returnURL string, telegramID int64, months int) (*Payment, error) {
 	if currency == "" {
 		currency = "RUB"
@@ -109,7 +103,6 @@ func (c *Client) CreatePayment(ctx context.Context, value, currency, description
 	return c.do(ctx, http.MethodPost, "/payments", body, idempotenceKey())
 }
 
-// GetPayment возвращает текущее состояние платежа по id.
 func (c *Client) GetPayment(ctx context.Context, id string) (*Payment, error) {
 	return c.do(ctx, http.MethodGet, "/payments/"+id, nil, "")
 }

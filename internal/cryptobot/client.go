@@ -1,13 +1,3 @@
-// Package cryptobot — минимальный клиент Crypto Pay API (CryptoBot / Crypto Pay).
-// Документация: https://help.crypt.bot/crypto-pay-api
-//
-// Нам нужны два вызова:
-//   - POST /createInvoice  — создать инвойс, получить mini-app URL.
-//   - POST /getInvoices    — получить статус инвойса (fallback на случай
-//     недоставки webhook'а).
-//
-// Аутентификация: заголовок Crypto-Pay-API-Token со значением API-токена,
-// выпущенным в @CryptoBot → My apps → New app.
 package cryptobot
 
 import (
@@ -20,8 +10,6 @@ import (
 	"time"
 )
 
-// BaseURL переопределяемый в тестах. Production — pay.crypt.bot,
-// testnet — testnet-pay.crypt.bot (выпускается тогда тестовый токен).
 var BaseURL = "https://pay.crypt.bot/api"
 
 type Client struct {
@@ -33,17 +21,16 @@ func New(token string) *Client {
 	return &Client{token: token, http: &http.Client{Timeout: 20 * time.Second}}
 }
 
-// Invoice — поля, которые мы читаем из CreateInvoice ответа.
 type Invoice struct {
 	InvoiceID         int64  `json:"invoice_id"`
-	Status            string `json:"status"` // active | paid | expired
+	Status            string `json:"status"`
 	Hash              string `json:"hash"`
-	Asset             string `json:"asset"` // USDT | TON | BTC | ...
+	Asset             string `json:"asset"`
 	Amount            string `json:"amount"`
-	BotInvoiceURL     string `json:"bot_invoice_url"`      // t.me/CryptoBot?start=...
-	MiniAppInvoiceURL string `json:"mini_app_invoice_url"` // прямой mini-app
-	WebAppInvoiceURL  string `json:"web_app_invoice_url"`  // запасной web-app
-	Payload           string `json:"payload"`              // что мы положили (tg_id+months)
+	BotInvoiceURL     string `json:"bot_invoice_url"`
+	MiniAppInvoiceURL string `json:"mini_app_invoice_url"`
+	WebAppInvoiceURL  string `json:"web_app_invoice_url"`
+	Payload           string `json:"payload"`
 }
 
 type response[T any] struct {
@@ -83,15 +70,11 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	return nil
 }
 
-// CreateInvoice — выставить инвойс на сумму amount в asset (USDT/TON/BTC/...).
-// payload — наш payload, в который кладём telegram_id|months для восстановления
-// контекста при доставке вебхука / при ручной проверке статуса.
 func (c *Client) CreateInvoice(ctx context.Context, amountRUB, acceptedAssets string, telegramID int64, months int) (*Invoice, error) {
 	if acceptedAssets == "" {
 		acceptedAssets = "USDT"
 	}
-	// Фиатный инвойс (как RW Shop): цена фиксирована в рублях, пользователь
-	// платит криптой (accepted_assets) по живому курсу CryptoPay.
+
 	body := map[string]any{
 		"currency_type":   "fiat",
 		"fiat":            "RUB",
@@ -99,7 +82,7 @@ func (c *Client) CreateInvoice(ctx context.Context, amountRUB, acceptedAssets st
 		"accepted_assets": acceptedAssets,
 		"description":     fmt.Sprintf("VPN subscription %d mo", months),
 		"payload":         fmt.Sprintf("%d:%d", telegramID, months),
-		"expires_in":      60 * 30, // 30 минут
+		"expires_in":      60 * 30,
 	}
 	var r response[Invoice]
 	if err := c.do(ctx, http.MethodPost, "/createInvoice", body, &r); err != nil {
@@ -111,7 +94,6 @@ func (c *Client) CreateInvoice(ctx context.Context, amountRUB, acceptedAssets st
 	return &r.Result, nil
 }
 
-// GetInvoice — получить статус инвойса по id (fallback, если webhook не пришёл).
 func (c *Client) GetInvoice(ctx context.Context, invoiceID int64) (*Invoice, error) {
 	body := map[string]any{
 		"invoice_ids": strconv.FormatInt(invoiceID, 10),

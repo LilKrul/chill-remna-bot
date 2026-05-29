@@ -1,4 +1,3 @@
-// Package remnawave — клиент REST API панели Remnawave.
 package remnawave
 
 import (
@@ -16,33 +15,29 @@ import (
 	"remnabot/internal/model"
 )
 
-// LocalBaseURL — адрес панели внутри общей docker-сети (минуя reverse-proxy).
 const LocalBaseURL = "http://remnawave:3000"
 
-// APIEvent — одна запись лога исходящих запросов к панели (для админ-просмотра).
 type APIEvent struct {
 	Time       time.Time
 	Method     string
 	Path       string
-	Status     int // 0, если ошибка транспорта (Err непустой)
+	Status     int
 	DurationMs int64
-	Err        string // сообщение об ошибке (короткое)
+	Err        string
 }
 
-// apiLogCap — кольцевой буфер: чем больше, тем дольше «помним» прошлые запросы.
-// 200 — компромисс между видимостью истории и потреблением памяти.
 const apiLogCap = 200
 
 type Client struct {
 	base   string
 	token  string
-	cookie string // "name=value" для eGames(nginx), иначе ""
-	apiKey string // X-API-Key для защищённого Caddy, иначе ""
+	cookie string
+	apiKey string
 	local  bool
 	http   *http.Client
 
 	logMu sync.Mutex
-	logs  []APIEvent // ring buffer длиной apiLogCap
+	logs  []APIEvent
 }
 
 func New(cfg model.PanelConfig) *Client {
@@ -64,12 +59,12 @@ func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 	if c.local {
-		// ProxyCheckGuard панели рвёт сокет без этих заголовков при прямом :3000.
+
 		req.Header.Set("X-Forwarded-For", "127.0.0.1")
 		req.Header.Set("X-Forwarded-Proto", "https")
 	}
 	if c.cookie != "" {
-		req.Header.Set("Cookie", c.cookie) // eGames(nginx): иначе 444
+		req.Header.Set("Cookie", c.cookie)
 	}
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
@@ -103,8 +98,6 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (*http.R
 	return resp, err
 }
 
-// appendLog добавляет запись в ring buffer (под мьютексом). Старые записи
-// вытесняются, чтобы не разрастаться по памяти.
 func (c *Client) appendLog(ev APIEvent) {
 	c.logMu.Lock()
 	defer c.logMu.Unlock()
@@ -114,7 +107,6 @@ func (c *Client) appendLog(ev APIEvent) {
 	}
 }
 
-// Logs возвращает копию текущего лога (новые записи в конце).
 func (c *Client) Logs() []APIEvent {
 	c.logMu.Lock()
 	defer c.logMu.Unlock()
@@ -123,14 +115,12 @@ func (c *Client) Logs() []APIEvent {
 	return out
 }
 
-// ClearLogs очищает кольцевой буфер (используется кнопкой «🧹 Очистить»).
 func (c *Client) ClearLogs() {
 	c.logMu.Lock()
 	defer c.logMu.Unlock()
 	c.logs = nil
 }
 
-// Health проверяет доступность панели.
 func (c *Client) Health(ctx context.Context) error {
 	resp, err := c.do(ctx, http.MethodGet, "/api/system/health", nil)
 	if err != nil {
@@ -143,7 +133,6 @@ func (c *Client) Health(ctx context.Context) error {
 	return nil
 }
 
-// SystemStats возвращает число пользователей панели.
 func (c *Client) SystemStats(ctx context.Context) (int, error) {
 	resp, err := c.do(ctx, http.MethodGet, "/api/system/stats", nil)
 	if err != nil {
@@ -174,22 +163,12 @@ type panelUser struct {
 	Username        string `json:"username"`
 }
 
-// BotTag помечает аккаунты, созданные этим ботом.
-// Жёсткие правила безопасности: бот продлевает ТОЛЬКО свои аккаунты, и НИКОГДА
-// не удаляет и не отключает (DISABLED) пользователей панели (таких вызовов нет).
 const BotTag = "CHILLBOT"
 
 func ownedByBot(u *panelUser, telegramID int64) bool {
 	return u.Tag == BotTag || u.Username == fmt.Sprintf("tg_%d", telegramID)
 }
 
-// UserLimits — параметры тарифа, передаваемые в Remnawave вместе с
-// expireAt при создании/продлении. Все поля опциональны:
-//   - TrafficBytes == 0 → лимит трафика не выставляем (или сбрасываем).
-//   - DeviceLimit == 0 → дефолт панели.
-//   - InternalSquads пуст → не привязываем internal-сквады.
-//   - ExternalSquad == "" → не привязываем external-сквад.
-//   - Strategy ∈ {"NO_RESET","DAY","WEEK","MONTH"}; "" не передаём.
 type UserLimits struct {
 	TrafficBytes   int64
 	DeviceLimit    int
@@ -198,10 +177,6 @@ type UserLimits struct {
 	Strategy       string
 }
 
-// CreateOrUpdateUser создаёт юзера в панели или продлевает существующего
-// (поиск по telegramId) на months месяцев и возвращает ссылку на подписку.
-// При продлении лимиты ТОЖЕ применяются (например, апгрейд тарифа на 12 мес
-// с большим объёмом должен сразу поднять лимит трафика).
 func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, months int, limits UserLimits) (string, string, error) {
 	existing, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
@@ -231,8 +206,6 @@ func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, month
 	return c.upsertCall(ctx, http.MethodPost, "/api/users", body)
 }
 
-// CreateOrUpdateUserDays — то же что CreateOrUpdateUser, но срок задаётся
-// в днях, а не месяцах (для триала с произвольной длительностью).
 func (c *Client) CreateOrUpdateUserDays(ctx context.Context, telegramID int64, days int, limits UserLimits) (string, string, error) {
 	existing, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
@@ -264,8 +237,6 @@ func (c *Client) CreateOrUpdateUserDays(ctx context.Context, telegramID int64, d
 	return c.upsertCall(ctx, http.MethodPost, "/api/users", body)
 }
 
-// applyLimits добавляет поля лимитов в body запроса (нули/пусто — пропускаем,
-// чтобы не перезаписать дефолты панели нулями).
 func applyLimits(body map[string]any, l UserLimits) {
 	if l.TrafficBytes > 0 {
 		body["trafficLimitBytes"] = l.TrafficBytes
@@ -284,14 +255,11 @@ func applyLimits(body map[string]any, l UserLimits) {
 	}
 }
 
-// Squad — внутренний сквад панели (для выбора при создании пользователей).
 type Squad struct {
 	UUID string `json:"uuid"`
 	Name string `json:"name"`
 }
 
-// ListSquads возвращает внутренние сквады панели. Разбор защитный: ответ
-// панели может прийти как {response:{internalSquads:[...]}} или {response:[...]}.
 func (c *Client) ListSquads(ctx context.Context) ([]Squad, error) {
 	resp, err := c.do(ctx, http.MethodGet, "/api/internal-squads", nil)
 	if err != nil {
@@ -307,14 +275,14 @@ func (c *Client) ListSquads(ctx context.Context) ([]Squad, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, fmt.Errorf("разбор ответа панели: %w", err)
 	}
-	// 1) объект с полем internalSquads
+
 	var obj struct {
 		InternalSquads []Squad `json:"internalSquads"`
 	}
 	if json.Unmarshal(env.Response, &obj) == nil && len(obj.InternalSquads) > 0 {
 		return obj.InternalSquads, nil
 	}
-	// 2) сразу массив
+
 	var arr []Squad
 	if json.Unmarshal(env.Response, &arr) == nil {
 		return arr, nil
@@ -322,14 +290,11 @@ func (c *Client) ListSquads(ctx context.Context) ([]Squad, error) {
 	return nil, nil
 }
 
-// ExternalSquad — внешний сквад панели (используется как «единый» для юзера).
 type ExternalSquad struct {
 	UUID string `json:"uuid"`
 	Name string `json:"name"`
 }
 
-// ListExternalSquads возвращает внешние сквады панели.
-// Формат ответа панели: {response:{externalSquads:[...]}} (OpenAPI 2.6.1).
 func (c *Client) ListExternalSquads(ctx context.Context) ([]ExternalSquad, error) {
 	resp, err := c.do(ctx, http.MethodGet, "/api/external-squads", nil)
 	if err != nil {
@@ -350,12 +315,6 @@ func (c *Client) ListExternalSquads(ctx context.Context) ([]ExternalSquad, error
 	return env.Response.ExternalSquads, nil
 }
 
-// DisableByTelegramID отключает аккаунт пользователя в панели (POST /api/users/{uuid}/actions/disable).
-// Жёсткое правило безопасности: трогаем ТОЛЬКО аккаунты, созданные этим ботом
-// (Tag == BotTag или username == tg_<id>); чужие аккаунты не трогаем.
-//
-// Возвращает (true, nil), если аккаунт нашёлся и был отключён или уже отключён.
-// Возвращает (false, nil), если в панели юзера нет — это не ошибка.
 func (c *Client) DisableByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
 	u, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
@@ -378,11 +337,6 @@ func (c *Client) DisableByTelegramID(ctx context.Context, telegramID int64) (boo
 	return true, nil
 }
 
-// DeleteByTelegramID УДАЛЯЕТ аккаунт пользователя в панели (DELETE /api/users/{uuid}).
-// СТРОГАЯ безопасность: находим аккаунт по telegramId и удаляем ТОЛЬКО его, и
-// ТОЛЬКО если он создан этим ботом (Tag==BotTag или username==tg_<id>). Чужие
-// аккаунты не трогаем. (true,nil) — удалён; (false,nil) — в панели нет; error —
-// при попытке тронуть чужой аккаунт или ошибке панели.
 func (c *Client) DeleteByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
 	u, err := c.findByTelegram(ctx, telegramID)
 	if err != nil {
@@ -405,7 +359,6 @@ func (c *Client) DeleteByTelegramID(ctx context.Context, telegramID int64) (bool
 	return true, nil
 }
 
-// Subscription возвращает ссылку на подписку пользователя (по telegramId), если он есть в панели.
 func (c *Client) Subscription(ctx context.Context, telegramID int64) (string, string, bool) {
 	u, err := c.findByTelegram(ctx, telegramID)
 	if err != nil || u == nil || u.SubscriptionURL == "" {
@@ -461,7 +414,6 @@ func (c *Client) upsertCall(ctx context.Context, method, path string, body any) 
 	return env.Response.SubscriptionURL, env.Response.ExpireAt, nil
 }
 
-// nextExpire — новая дата окончания: продлеваем от max(now, текущая) на months.
 func nextExpire(existing *panelUser, months int) string {
 	base := time.Now().UTC()
 	if existing != nil && existing.ExpireAt != "" {

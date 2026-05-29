@@ -9,20 +9,6 @@ import (
 	"remnabot/internal/i18n"
 )
 
-// --- админ: раздел «Баннеры разделов» ---
-//
-// Поток UI:
-//   1) showSectionBanners — список 15 разделов (по 1 кнопке на строку с
-//      понятной подписью), внизу кнопки «Назад» (к showIface) и «Главная».
-//   2) showSectionBanner(section) — показывает ТЕКУЩУЮ картинку раздела
-//      (из media_cache → file_id, либо дефолтный URL из assets) c подписью
-//      и кнопками «📤 Отправить новую» / «↩️ Сбросить к дефолту» / «❌ Отмена».
-//   3) При нажатии «Отправить новую» — пишем chatID→section в uiState
-//      и просим прислать фото; handlePhoto (p2p.go) распознаёт состояние и
-//      зовёт setSectionBannerFile, который сохраняет file_id в media_cache.
-//   4) «Сбросить» удаляет запись из media_cache (DeleteMediaFileID);
-//      следующая отправка пойдёт по дефолтному URL из assets.SectionImages.
-
 func (a *App) showSectionBanners(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	rows := make([][]models.InlineKeyboardButton, 0, len(assets.AllSections)+2)
@@ -38,12 +24,6 @@ func (a *App) showSectionBanners(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, i18n.T(lang, "banners.title"), rows)
 }
 
-// onSectionBanner — диспетчер callback-ов с префиксом "sec:":
-//
-//	sec:open:<key>    — показать карточку раздела (текущая картинка + кнопки)
-//	sec:upload:<key>  — попросить прислать новое фото
-//	sec:reset:<key>   — удалить кэш (вернуть дефолт из assets)
-//	sec:cancel:<key>  — отмена ожидания фото, возврат к карточке раздела
 func (a *App) onSectionBanner(ctx context.Context, chatID int64, val string) {
 	action, key, _ := cut3(val)
 	switch action {
@@ -59,7 +39,6 @@ func (a *App) onSectionBanner(ctx context.Context, chatID int64, val string) {
 	}
 }
 
-// cut3 разрезает "action:key" → (action, key, true). Если ":" нет — (val, "", false).
 func cut3(s string) (string, string, bool) {
 	for i := 0; i < len(s); i++ {
 		if s[i] == ':' {
@@ -69,9 +48,6 @@ func cut3(s string) (string, string, bool) {
 	return s, "", false
 }
 
-// showSectionBanner отправляет ТЕКУЩУЮ картинку раздела (как у пользователя
-// её увидят) с кнопками управления. Если раздела нет в каталоге — мягкий
-// fallback на текст с подсказкой.
 func (a *App) showSectionBanner(ctx context.Context, chatID int64, section string) {
 	lang := a.lang(chatID)
 	label := assets.LabelByKey(section, lang)
@@ -84,13 +60,11 @@ func (a *App) showSectionBanner(ctx context.Context, chatID int64, section strin
 	caption := i18n.T(lang, "banners.section_caption", label)
 
 	if url == "" {
-		// Раздел незарегистрирован — показываем только инструкцию.
+
 		a.sendKB(ctx, chatID, caption, rows)
 		return
 	}
 
-	// Берём свежую картинку «как у пользователя»: либо закэшированный file_id,
-	// либо дефолтный URL. Кэшируем file_id, если он пришёл из URL.
 	var cached string
 	if a.store != nil {
 		if id, ok, _ := a.store.LoadMediaFileID(ctx, section); ok {
@@ -109,8 +83,6 @@ func (a *App) showSectionBanner(ctx context.Context, chatID int64, section strin
 	}
 }
 
-// askSectionBanner ставит uiState в ожидание фото и просит его прислать.
-// Из этого экрана можно вернуться через «Отмена».
 func (a *App) askSectionBanner(ctx context.Context, chatID int64, section string) {
 	lang := a.lang(chatID)
 	a.getUI(chatID).awaitSectionBanner = section
@@ -120,8 +92,6 @@ func (a *App) askSectionBanner(ctx context.Context, chatID int64, section string
 	})
 }
 
-// setSectionBannerFile принимает file_id присланного админом фото и сохраняет
-// его в media_cache. Вызывается из handlePhoto (p2p.go) когда uiState ждёт.
 func (a *App) setSectionBannerFile(ctx context.Context, chatID int64, section, fileID string) {
 	if a.store == nil {
 		return
@@ -130,13 +100,10 @@ func (a *App) setSectionBannerFile(ctx context.Context, chatID int64, section, f
 		a.send(ctx, chatID, "❌ "+err.Error())
 		return
 	}
-	// Возвращаемся к карточке — там сразу видно новую картинку.
+
 	a.showSectionBanner(ctx, chatID, section)
 }
 
-// resetSectionBanner стирает закэшированный file_id; следующий показ раздела
-// пойдёт по дефолтному URL из assets.SectionImages, который восстановит
-// первичный file_id.
 func (a *App) resetSectionBanner(ctx context.Context, chatID int64, section string) {
 	if a.store == nil {
 		return

@@ -19,16 +19,6 @@ import (
 //go:embed banner_default.jpg
 var defaultBanner []byte
 
-// botEmojis — эмодзи, которые встречает ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ (покупатель)
-// в сообщениях бота. Цель раздела /emoji — позволить владельцу бота
-// заменить их на свои premium-аналоги (анимированные custom_emoji),
-// чтобы магазин выглядел богато.
-//
-// Admin-only эмодзи (🔑 🍪 🌐 ⚠️ 📡 🪄 ✏️ 🗓 🖥) НЕ включены: клиент их
-// никогда не видит, премиум-замена там бессмысленна.
-//
-// Use — короткое название раздела бота, где этот эмодзи встречается.
-// Это видит админ в /emoji и сразу понимает, где премиум-замена сработает.
 var botEmojis = []struct{ E, Use string }{
 	{"👋", "приветствие на /start"},
 	{"✅", "подтверждение: «Я оплатил», активация подписки, доступ"},
@@ -71,7 +61,6 @@ func displayName(first, username string) string {
 	return "друг"
 }
 
-// userLabel — «Ник (id)» для списка/карточки. Ник: @username, иначе имя, иначе только id.
 func userLabel(u *model.User) string {
 	id := strconv.FormatInt(u.TelegramID, 10)
 	nick := ""
@@ -87,8 +76,6 @@ func userLabel(u *model.User) string {
 	return nick + " (" + id + ")"
 }
 
-// userLabelByID подгружает пользователя из хранилища и возвращает «Ник (id)»;
-// если записи нет — просто числовой id. Удобно для уведомлений админу.
 func (a *App) userLabelByID(ctx context.Context, id int64) string {
 	if a.store != nil {
 		if u, _ := a.store.GetUser(ctx, id); u != nil {
@@ -98,17 +85,10 @@ func (a *App) userLabelByID(ctx context.Context, id int64) string {
 	return strconv.FormatInt(id, 10)
 }
 
-// userHasSub — есть ли у пользователя АКТИВНАЯ подписка в Remnawave (а не
-// просто запись «paid» в локальном логе). Локальные таблицы ничего не
-// говорят о реальном состоянии аккаунта в панели: запись могла остаться
-// после истечения / удаления / disable. Источник правды — панель.
-//
-// Если панель недоступна (a.panel == nil), для надёжности возвращаем false
-// — пусть пользователь увидит «Купить», а не «Мои подписки», ведущие в никуда.
-const subCacheTTL = 30 // секунд
+const subCacheTTL = 30
 
 func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
-	// 1) Быстрый путь — кэш живой.
+
 	a.subMu.Lock()
 	if a.subCache != nil {
 		if e, ok := a.subCache[chatID]; ok && time.Now().Before(e.expireAt) {
@@ -118,7 +98,6 @@ func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
 	}
 	a.subMu.Unlock()
 
-	// 2) Запрос в панель (источник правды).
 	a.mu.Lock()
 	panel := a.panel
 	a.mu.Unlock()
@@ -127,7 +106,6 @@ func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
 	}
 	_, _, has := panel.Subscription(ctx, chatID)
 
-	// 3) Кладём в кэш на 30 секунд.
 	a.subMu.Lock()
 	if a.subCache == nil {
 		a.subCache = map[int64]subCacheEntry{}
@@ -137,8 +115,6 @@ func (a *App) userHasSub(ctx context.Context, chatID int64) bool {
 	return has
 }
 
-// invalidateSubCache — сброс кэша подписки для chatID (после покупки/удаления),
-// чтобы следующий рендер сразу увидел актуальное состояние, не дожидаясь TTL.
 func (a *App) invalidateSubCache(chatID int64) {
 	a.subMu.Lock()
 	defer a.subMu.Unlock()
@@ -147,8 +123,6 @@ func (a *App) invalidateSubCache(chatID int64) {
 	}
 }
 
-// navRow — нижний ряд инлайн-навигации: админу только «Главная»; пользователю
-// «Главная» + «Купить», а после покупки — «Главная» + «Мои подписки».
 func (a *App) navRow(ctx context.Context, chatID int64, isAdmin bool) []models.InlineKeyboardButton {
 	lang := a.lang(chatID)
 	row := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
@@ -170,9 +144,6 @@ func (a *App) navRow(ctx context.Context, chatID int64, isAdmin bool) []models.I
 	return row
 }
 
-// renewEligible — показывать ли кнопку «Продлить»: на триале (всегда, само
-// продление на платный гейтится днём окончания) или до конца платной подписки
-// осталось <= 7 дней.
 func (a *App) renewEligible(ctx context.Context, chatID int64) bool {
 	if a.store == nil {
 		return false
@@ -194,9 +165,6 @@ func (a *App) renewEligible(ctx context.Context, chatID int64) bool {
 	return daysUntil(exp, time.Now().UTC()) <= 7
 }
 
-// contactRows возвращает дополнительный ряд для пользователя со ссылками
-// «👥 Группа» / «🛟 Поддержка». URL-кнопки открывают ссылки напрямую.
-// Если оба URL пусты — возвращает nil (ряд не добавляется).
 func (a *App) contactRows() [][]models.InlineKeyboardButton {
 	a.mu.Lock()
 	g, sup := "", ""
@@ -225,9 +193,6 @@ func homeRow(lang string) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
 }
 
-// navBack — ряд «◀️ Назад» (в backCB) + «🏠 Главная». Ставится на экранах-вопросах
-// (выбор месяца/стратегии и т.п.), чтобы из ЛЮБОГО шага можно было вернуться,
-// ничего не задавая.
 func navBack(lang, backCB string) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{
 		btn(i18n.T(lang, "btn.back"), backCB),
@@ -254,10 +219,6 @@ func (a *App) showIface(ctx context.Context, chatID int64) {
 	})
 }
 
-// showPay — теперь это «Настройки подписки»: статусы платёжек живые
-// (✅/❌ по фактическим Enabled), все настройки подписки в одном экране
-// (цены, трафик, устройства, стратегия сброса, сквады). Имя функции
-// оставлено для совместимости с onMenu (menu:pay).
 func (a *App) showPay(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.mu.Lock()
@@ -305,10 +266,6 @@ func (a *App) showManage(ctx context.Context, chatID int64) {
 	})
 }
 
-// squadDisplay возвращает (internalCSV, externalName): имена выбранных сквадов
-// через запятую (internal, может быть несколько) и имя выбранного external
-// (всегда один). Имена резолвятся из панели по UUID; если панель недоступна или
-// сквад не найден — показываем сам UUID, чтобы не терять информацию.
 func (a *App) squadDisplay(ctx context.Context) (string, string) {
 	a.mu.Lock()
 	var activeInt []string
@@ -321,8 +278,6 @@ func (a *App) squadDisplay(ctx context.Context) (string, string) {
 	return a.squadNames(ctx, activeInt, extUUID)
 }
 
-// squadNames резолвит имена выбранных сквадов по UUID через панель и возвращает
-// (internalCSV, externalName). Переиспользуется для тарифов (Plan) и триала.
 func (a *App) squadNames(ctx context.Context, activeInt []string, extUUID string) (string, string) {
 	a.mu.Lock()
 	panel := a.panel
@@ -366,8 +321,6 @@ func (a *App) squadNames(ctx context.Context, activeInt []string, extUUID string
 	return internalCSV, externalName
 }
 
-// startReconfigure перезапускает мастер с шага БД, СОХРАНЯЯ текущий конфиг
-// (P2P, баннер, эмодзи, язык) — меняются только БД и подключение к панели.
 func (a *App) startReconfigure(ctx context.Context, chatID int64) {
 	a.mu.Lock()
 	var base model.BotConfig
@@ -380,10 +333,6 @@ func (a *App) startReconfigure(ctx context.Context, chatID int64) {
 	a.gotoDB(ctx, chatID, w)
 }
 
-// --- стартовый баннер / меню ---
-
-// bannerInputFor отдаёт встроенную картинку раздела как InputFile (для загрузки),
-// с откатом на общий defaultBanner, если ассета нет.
 func bannerInputFor(section string) models.InputFile {
 	if b := assets.Bytes(section); len(b) > 0 {
 		return &models.InputFileUpload{Filename: section + ".jpg", Data: bytes.NewReader(b)}
@@ -410,8 +359,7 @@ func (a *App) welcomeContent(name string) (models.InputFile, string, []models.Me
 	case w.ImageURL != "":
 		photo = &models.InputFileString{Data: w.ImageURL}
 	default:
-		// Дефолт приветствия — тематический «щит/firewall» из встроенных ассетов
-		// (более подходит под VPN, чем общий banner_default.jpg).
+
 		photo = bannerInputFor(assets.SectionMainMenu)
 	}
 
@@ -434,7 +382,7 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 		caption = i18n.T(lang, "menu.admin_title")
 		ents = nil
 		rows = a.adminMenuRows(lang)
-		photo = bannerInputFor(assets.SectionAdminStats) // тематическая картинка админки
+		photo = bannerInputFor(assets.SectionAdminStats)
 	} else {
 		rows = a.contactRows()
 		rows = append(rows, a.navRow(ctx, chatID, false))
@@ -575,8 +523,6 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	}
 }
 
-// --- админ: баннер ---
-
 func (a *App) showWelcomeAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.sendKB(ctx, chatID, i18n.T(lang, "welcome.title"), [][]models.InlineKeyboardButton{
@@ -639,8 +585,6 @@ func (a *App) setWelcomeText(ctx context.Context, chatID int64, m *models.Messag
 	a.showWelcomeAdmin(ctx, chatID)
 }
 
-// --- админ: эмодзи (грид) ---
-
 func (a *App) showEmojiGrid(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	m := a.premiumMap()
@@ -654,7 +598,7 @@ func (a *App) showEmojiGrid(ctx context.Context, chatID int64) {
 		}
 		sb.WriteString("\n" + e.E + mark + " — " + e.Use)
 	}
-	// Кнопки — по 4 в ряд, без описаний (описание уже в caption выше).
+
 	var rows [][]models.InlineKeyboardButton
 	var row []models.InlineKeyboardButton
 	for _, e := range botEmojis {

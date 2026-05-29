@@ -29,7 +29,6 @@ func TestReminders_SubAndTrial(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	// Платный юзер, до конца ~2 дня → окно «3» срабатывает.
 	_ = fs.UpsertUser(ctx, 777)
 	_ = fs.SetSubExpiry(ctx, 777, now.Add(48*time.Hour).Format(time.RFC3339), "paid")
 	a.remindOnce(ctx)
@@ -39,14 +38,13 @@ func TestReminders_SubAndTrial(t *testing.T) {
 	if !strings.Contains(fm.joined(), "подписка заканчивается") {
 		t.Fatalf("paid: напоминание о подписке не отправлено:\n%s", fm.joined())
 	}
-	// Повторный прогон не должен слать то же окно снова.
+
 	before := len(fm.texts)
 	a.remindOnce(ctx)
 	if len(fm.texts) != before {
 		t.Fatalf("paid: повторное напоминание не должно отправляться")
 	}
 
-	// Триал-юзер, до конца ~12 часов → окно за 1 день срабатывает.
 	_ = fs.UpsertUser(ctx, 888)
 	_ = fs.SetSubExpiry(ctx, 888, now.Add(12*time.Hour).Format(time.RFC3339), "trial")
 	n0 := len(fm.texts)

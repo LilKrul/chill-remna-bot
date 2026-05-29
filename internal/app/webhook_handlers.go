@@ -6,10 +6,6 @@ import (
 	"fmt"
 )
 
-// Healthy реализует web.Handlers.Healthy: бот считается живым, когда есть
-// открытое хранилище и валидный botCfg.Installed. Опрос панели опционален —
-// если она временно недоступна, бот всё равно отвечает /healthz=200, чтобы
-// прокси не считал нас мёртвыми.
 func (a *App) Healthy(_ context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -22,7 +18,6 @@ func (a *App) Healthy(_ context.Context) error {
 	return nil
 }
 
-// webhookConfig возвращает копию конфига вебхука или пустую структуру.
 func (a *App) WebhookConfig() (addr string, enabled bool, publicURL string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -36,7 +31,6 @@ func (a *App) WebhookConfig() (addr string, enabled bool, publicURL string) {
 	return addr, a.botCfg.Webhook.Enabled, a.botCfg.Webhook.PublicBaseURL
 }
 
-// PublicWebhookURL — публичный URL конкретного эндпоинта (для показа в админке).
 func (a *App) PublicWebhookURL(path string) string {
 	a.mu.Lock()
 	base := ""

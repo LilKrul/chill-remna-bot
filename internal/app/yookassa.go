@@ -29,8 +29,6 @@ func (a *App) ykClient() *yookassa.Client {
 	return yookassa.New(cfg.ShopID, cfg.SecretKey)
 }
 
-// --- пользователь: оплата картой через ЮKassa ---
-
 func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	months := a.getUI(chatID).buyMonths
@@ -78,14 +76,13 @@ func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 	})
 }
 
-// onYKCheck опрашивает статус платежа и при успехе активирует подписку.
 func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 	lang := a.lang(chatID)
 	client := a.ykClient()
 	if client == nil || payID == "" {
 		return
 	}
-	// идемпотентность: если платёж уже проведён — просто отдадим ссылку.
+
 	if a.store != nil {
 		if done, _ := a.store.PaymentByExtID(ctx, payID); done {
 			a.showMySubs(ctx, chatID)
@@ -124,8 +121,6 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 	}
 	a.sendSubActive(ctx, chatID, link, expireAt)
 }
-
-// --- админ: настройки ЮKassa ---
 
 func (a *App) showYooKassaAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)

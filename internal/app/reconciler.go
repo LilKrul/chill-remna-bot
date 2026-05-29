@@ -11,20 +11,13 @@ import (
 	"remnabot/internal/storage"
 )
 
-// Параметры фонового добивания оплат.
 const (
-	reconcileInterval = 2 * time.Minute // как часто проверяем неподтверждённые инвойсы
-	reconcileGrace    = 2 * time.Minute // «свежие» инвойсы не трогаем — вебхук ещё может прийти
-	reconcileGiveUp   = 24 * time.Hour  // через сутки инвойс считаем протухшим и снимаем с учёта
-	reconcileBatch    = 50              // максимум инвойсов за один проход
+	reconcileInterval = 2 * time.Minute
+	reconcileGrace    = 2 * time.Minute
+	reconcileGiveUp   = 24 * time.Hour
+	reconcileBatch    = 50
 )
 
-// RunReconciler — фоновый «добивающий» проход по неподтверждённым инвойсам
-// (YooKassa / CryptoBot). Закрывает случай, когда вебхук провайдера не дошёл
-// (бот лежал / был за недоступным reverse-proxy), а пользователь не нажал
-// «Проверить»: периодически перепрашиваем статус у провайдера и, если оплачено,
-// выдаём подписку — идемпотентно, через тот же finalizePurchase, что и вебхук.
-// Работает до отмены ctx.
 func (a *App) RunReconciler(ctx context.Context) {
 	t := time.NewTicker(reconcileInterval)
 	defer t.Stop()
@@ -57,13 +50,12 @@ func (a *App) reconcileOnce(ctx context.Context) {
 }
 
 func (a *App) reconcileInvoice(ctx context.Context, st storage.Storage, pi *model.PendingInvoice) {
-	// Протухло — снимаем с учёта (деньги, если и были, вернёт провайдер; наша
-	// задача — не висеть в очереди бесконечно).
+
 	if t, err := time.Parse(time.RFC3339, pi.CreatedAt); err == nil && time.Since(t) > reconcileGiveUp {
 		_ = st.ResolvePending(ctx, pi.ID)
 		return
 	}
-	// Уже выдано (вебхук или кнопка «Проверить» успели) — закрываем тихо.
+
 	if done, _ := st.PaymentByExtID(ctx, pi.ExtID); done {
 		_ = st.ResolvePending(ctx, pi.ID)
 		return
@@ -81,11 +73,11 @@ func (a *App) reconcileInvoice(ctx context.Context, st storage.Storage, pi *mode
 func (a *App) reconcileYooKassa(ctx context.Context, st storage.Storage, pi *model.PendingInvoice) {
 	client := a.ykClient()
 	if client == nil {
-		return // платёжка выключена/не настроена — попробуем в следующий проход
+		return
 	}
 	pay, err := client.GetPayment(ctx, pi.ExtID)
 	if err != nil {
-		return // транзиентная ошибка — повторим позже
+		return
 	}
 	switch {
 	case pay.Status == "succeeded" && pay.Paid:
@@ -103,7 +95,7 @@ func (a *App) reconcileCryptoBot(ctx context.Context, st storage.Storage, pi *mo
 	idStr := strings.TrimPrefix(pi.ExtID, "cb:")
 	invoiceID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		_ = st.ResolvePending(ctx, pi.ID) // битый ext_id — не зацикливаемся
+		_ = st.ResolvePending(ctx, pi.ID)
 		return
 	}
 	inv, err := client.GetInvoice(ctx, invoiceID)
@@ -130,7 +122,7 @@ func (a *App) reconcileFinalize(ctx context.Context, st storage.Storage, pi *mod
 	}
 	link, expireAt, err := a.finalizePurchase(ctx, pi.TelegramID, pi.Months, pi.Method, amount, pi.ExtID)
 	if err != nil {
-		// Уже зачтено параллельно — закрываем; иначе оставляем на следующий проход.
+
 		if errors.Is(err, storage.ErrDuplicateExtID) {
 			_ = st.ResolvePending(ctx, pi.ID)
 			return

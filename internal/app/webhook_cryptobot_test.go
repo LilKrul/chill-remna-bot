@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// TestVerifyCryptoBotSignature_OK — корректная подпись HMAC(body, SHA256(token)).
 func TestVerifyCryptoBotSignature_OK(t *testing.T) {
 	token := "abc:123"
 	body := []byte(`{"update_type":"invoice_paid","payload":{"invoice_id":42,"status":"paid"}}`)
@@ -21,7 +20,6 @@ func TestVerifyCryptoBotSignature_OK(t *testing.T) {
 	}
 }
 
-// TestVerifyCryptoBotSignature_Bad — подмена body ломает подпись.
 func TestVerifyCryptoBotSignature_Bad(t *testing.T) {
 	token := "abc:123"
 	body := []byte(`{"a":1}`)
@@ -35,7 +33,6 @@ func TestVerifyCryptoBotSignature_Bad(t *testing.T) {
 	}
 }
 
-// TestParseCryptoBotPayload — разбор "<tg_id>:<months>".
 func TestParseCryptoBotPayload(t *testing.T) {
 	tg, mo, err := parseCryptoBotPayload("12345:3")
 	if err != nil || tg != 12345 || mo != 3 {

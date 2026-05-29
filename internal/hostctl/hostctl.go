@@ -1,6 +1,3 @@
-// Package hostctl позволяет боту управлять docker на хосте через смонтированный
-// docker.sock: подключиться к сети панели, поднять PostgreSQL по выбору
-// пользователя (дописав сервис в compose-файл) и обновить себя.
 package hostctl
 
 import (
@@ -15,15 +12,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// PostgresDSN — строка подключения к поднимаемому ботом PostgreSQL.
 const PostgresDSN = "postgres://remnabot:remnabot@db:5432/remnabot?sslmode=disable"
 
 type Controller struct {
 	composeFile    string
 	project        string
 	hostDir        string
-	panelContainer string // имя контейнера панели (для подключения к её сети)
-	selfContainer  string // имя контейнера бота
+	panelContainer string
+	selfContainer  string
 }
 
 func New() *Controller {
@@ -43,7 +39,6 @@ func env(k, def string) string {
 	return def
 }
 
-// Available сообщает, может ли бот управлять docker (есть сокет, бинарь и compose-файл).
 func (c *Controller) Available() bool {
 	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
 		return false
@@ -57,8 +52,6 @@ func (c *Controller) Available() bool {
 	return true
 }
 
-// ConnectPanelNetwork подключает контейнер бота ко всем пользовательским сетям
-// контейнера панели, чтобы бот мог обращаться к ней по имени (remnawave:3000).
 func (c *Controller) ConnectPanelNetwork(ctx context.Context) error {
 	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f",
 		`{{range $k,$_ := .NetworkSettings.Networks}}{{$k}} {{end}}`, c.panelContainer).Output()
@@ -82,7 +75,6 @@ func (c *Controller) ConnectPanelNetwork(ctx context.Context) error {
 	return nil
 }
 
-// EnablePostgres дописывает сервис db в compose, поднимает его и ждёт готовности.
 func (c *Controller) EnablePostgres(ctx context.Context) (string, error) {
 	if err := c.addPostgresToCompose(); err != nil {
 		return "", fmt.Errorf("правка compose: %w", err)
@@ -96,8 +88,6 @@ func (c *Controller) EnablePostgres(ctx context.Context) (string, error) {
 	return PostgresDSN, nil
 }
 
-// addPostgresToCompose добавляет сервис db и том pg-data, прописывает боту
-// DB_KIND/DATABASE_URL. db работает в сети проекта по умолчанию (как и бот).
 func (c *Controller) addPostgresToCompose() error {
 	data, err := os.ReadFile(c.composeFile)
 	if err != nil {
@@ -155,7 +145,6 @@ func (c *Controller) addPostgresToCompose() error {
 	return os.WriteFile(c.composeFile, out, 0o644)
 }
 
-// SelfUpdate запускает отдельный одноразовый контейнер-контроллер (pull+up).
 func (c *Controller) SelfUpdate(ctx context.Context) error {
 	script := fmt.Sprintf("docker compose -p %s up -d --build", c.project)
 	args := []string{

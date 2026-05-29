@@ -15,33 +15,21 @@ import (
 	"remnabot/internal/i18n"
 )
 
-// rwWebhookEvent — общий формат входящего вебхука панели Remnawave.
-// Реальная панель шлёт `event` (snake_case) и `data` (объект с полями
-// пользователя). Имена полей внутри `data` могут варьироваться в зависимости
-// от версии панели — здесь принимаем наиболее распространённые алиасы
-// (uuid/userId, telegramId, expireAt/expireTime). На все события смотрим
-// одним типом, а специфичная обработка — в switch ниже.
 type rwWebhookEvent struct {
 	Event string          `json:"event"`
 	Data  json.RawMessage `json:"data"`
 }
 
-// rwUserPayload — облако возможных полей юзера панели.
 type rwUserPayload struct {
 	UUID       string `json:"uuid"`
-	UserID     string `json:"userId"` // алиас uuid в некоторых билдах
+	UserID     string `json:"userId"`
 	Username   string `json:"username"`
 	TelegramID int64  `json:"telegramId"`
 	ExpireAt   string `json:"expireAt"`
-	ExpireTime string `json:"expireTime"` // legacy-имя
+	ExpireTime string `json:"expireTime"`
 	Status     string `json:"status"`
 }
 
-// verifyRemnawaveSignature сравнивает X-Remnawave-Signature (hex) c HMAC-SHA256
-// тела по WEBHOOK_SECRET_HEADER. Сравнение constant-time, чтобы не было
-// тайминг-сайдчанелла. Если секрет не задан — валидация пропускается
-// (для локальной отладки), но в продакшене обязательно установить его в
-// «Управление → 🔗 Вебхуки → 🔑 Секрет панели».
 func verifyRemnawaveSignature(signatureHex, secret string, body []byte) error {
 	if secret == "" {
 		return nil
@@ -61,16 +49,6 @@ func verifyRemnawaveSignature(signatureHex, secret string, body []byte) error {
 	return nil
 }
 
-// HandleRemnawaveWebhook — обработчик POST /webhook/remnawave (Phase 3).
-//
-// События панели, которые мы пушим юзеру:
-//   - user.expired           → подписка истекла, кнопка «Продлить»
-//   - user.expires_in_*h/d   → скоро истекает, превентивное напоминание
-//   - user.limited           → трафик исчерпан, кнопка «Купить ещё»
-//
-// Все остальные события (user.created, user.disabled, …) логируются с
-// handled=true, чтобы панель не ретраила бесконечно — но юзеру не пушим,
-// иначе спам на любом действии админа.
 func (a *App) HandleRemnawaveWebhook(ctx context.Context, signature string, body []byte) (bool, error) {
 	a.mu.Lock()
 	secret := ""
@@ -91,12 +69,11 @@ func (a *App) HandleRemnawaveWebhook(ctx context.Context, signature string, body
 	}
 
 	var u rwUserPayload
-	_ = json.Unmarshal(ev.Data, &u) // безопасно: пустые поля если data другой формы
+	_ = json.Unmarshal(ev.Data, &u)
 
 	switch {
 	case strings.HasPrefix(ev.Event, "user.expires_in"):
-		// Префикс ловит user.expires_in_24h, user.expires_in_72h, в разных
-		// версиях панели окно настраивается.
+
 		a.pushExpiryWarning(ctx, u, ev.Event)
 		return true, nil
 	case ev.Event == "user.expired":
@@ -111,7 +88,6 @@ func (a *App) HandleRemnawaveWebhook(ctx context.Context, signature string, body
 	}
 }
 
-// pushExpiryWarning — мягкое уведомление «истекает через …, продлите».
 func (a *App) pushExpiryWarning(ctx context.Context, u rwUserPayload, event string) {
 	if u.TelegramID == 0 {
 		return
@@ -123,7 +99,6 @@ func (a *App) pushExpiryWarning(ctx context.Context, u rwUserPayload, event stri
 	a.log.Info("remnawave webhook: warn sent", "event", event, "tg_id", u.TelegramID)
 }
 
-// pushExpired — подписка истекла.
 func (a *App) pushExpired(ctx context.Context, u rwUserPayload) {
 	if u.TelegramID == 0 {
 		return
@@ -136,7 +111,6 @@ func (a *App) pushExpired(ctx context.Context, u rwUserPayload) {
 	a.log.Info("remnawave webhook: expired notified", "tg_id", u.TelegramID)
 }
 
-// pushTrafficLimited — у юзера кончился трафик / лимит устройств.
 func (a *App) pushTrafficLimited(ctx context.Context, u rwUserPayload) {
 	if u.TelegramID == 0 {
 		return

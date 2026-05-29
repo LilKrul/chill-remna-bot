@@ -1,13 +1,3 @@
-// Команда bot — точка входа Telegram-бота Remnawave.
-//
-// Окружение (bootstrap-минимум, остальное настраивается мастером в Telegram):
-//
-//	BOT_TOKEN          — токен бота (обязательно)
-//	ADMIN_TELEGRAM_ID  — Telegram ID администратора (обязательно)
-//	DATA_DIR           — каталог данных (по умолчанию /data)
-//	DB_KIND            — необязательно: sqlite|postgres (иначе спросит мастер)
-//	DATABASE_URL       — DSN PostgreSQL (если DB_KIND=postgres)
-//	SECRET_KEY         — ключ шифрования секретов (иначе сгенерируется в DATA_DIR)
 package main
 
 import (
@@ -23,7 +13,7 @@ import (
 	"remnabot/internal/crypto"
 	"remnabot/internal/web"
 
-	_ "remnabot/internal/storage/drivers" // регистрация драйверов БД (sqlite, pgx)
+	_ "remnabot/internal/storage/drivers"
 )
 
 func main() {
@@ -50,10 +40,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Параллельно с long-polling'ом поднимаем HTTP-сервер для входящих
-	// вебхуков (YooKassa, CryptoBot, Remnawave) и /healthz. Адрес читаем
-	// из BotConfig.Webhook — если выключено, всё равно стартуем на :8080,
-	// чтобы /healthz отдавал статус (нужно для docker healthcheck).
 	addr, _, _ := a.WebhookConfig()
 	webSrv := web.New(addr, a, log)
 
@@ -70,12 +56,12 @@ func main() {
 		defer wg.Done()
 		webErr = webSrv.Run(ctx)
 	}()
-	// Фоновый реконсилятор: добивает «оплачено-но-не-выдано» (пропущенные вебхуки).
+
 	go func() {
 		defer wg.Done()
 		a.RunReconciler(ctx)
 	}()
-	// Фоновые напоминания: до конца триала и до конца подписки (за N дней).
+
 	go func() {
 		defer wg.Done()
 		a.RunReminders(ctx)

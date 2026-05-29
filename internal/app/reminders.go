@@ -13,14 +13,8 @@ import (
 	"remnabot/internal/model"
 )
 
-// remindTick — как часто проверяем сроки. Раз в 30 минут достаточно для
-// окон в днях и не нагружает БД.
 const remindTick = 30 * time.Minute
 
-// RunReminders — фоновый тикер напоминаний: до конца триала (перейти на платный)
-// и до конца платной подписки (за DaysList дней — продлить). Сроки берём из
-// локально сохранённого users.sub_expire_at (обновляется при каждой выдаче),
-// без обращения к панели на каждый тик. Работает до отмены ctx.
 func (a *App) RunReminders(ctx context.Context) {
 	t := time.NewTicker(remindTick)
 	defer t.Stop()
@@ -61,7 +55,7 @@ func (a *App) remindUser(ctx context.Context, st interface {
 }, rc model.RemindersConfig, u *model.User, now time.Time) {
 	exp, err := time.Parse(time.RFC3339, u.SubExpireAt)
 	if err != nil || !exp.After(now) {
-		return // нет валидного срока или уже истекло — не напоминаем
+		return
 	}
 	left := daysUntil(exp, now)
 	sent := parseCSVInts(u.NotifySent)
@@ -77,13 +71,10 @@ func (a *App) remindUser(ctx context.Context, st interface {
 		return
 	}
 
-	// Платная подписка.
 	if !rc.Enabled || len(rc.DaysList) == 0 {
 		return
 	}
-	// Самое релевантное «ещё не отправленное» окно — наименьшее из тех, в которые
-	// уже попали (left <= w). Помечаем отправленными все окна >= него (большие
-	// окна к этому моменту неактуальны — например, бот лежал).
+
 	target := -1
 	for _, w := range rc.DaysList {
 		if left <= w && !sent[w] && (target == -1 || w < target) {
@@ -102,7 +93,6 @@ func (a *App) remindUser(ctx context.Context, st interface {
 	_ = st.MarkNotified(ctx, u.TelegramID, joinCSVInts(sent))
 }
 
-// sendReminder шлёт постоянное напоминание с кнопкой «Купить/Продлить».
 func (a *App) sendReminder(ctx context.Context, chatID int64, key string, daysLeft int) {
 	lang := a.lang(chatID)
 	a.notifyKB(ctx, chatID, i18n.T(lang, key, daysLeft), [][]models.InlineKeyboardButton{
@@ -110,7 +100,6 @@ func (a *App) sendReminder(ctx context.Context, chatID int64, key string, daysLe
 	})
 }
 
-// daysUntil — округление вверх до целых суток (0.5 дня → 1).
 func daysUntil(exp, now time.Time) int {
 	d := exp.Sub(now)
 	if d <= 0 {

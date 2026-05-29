@@ -1,6 +1,3 @@
-// Package storage — слой доступа к данным с единым интерфейсом и двумя
-// реализациями (SQLite и PostgreSQL). Бизнес-логика работает только с
-// интерфейсом Storage, поэтому движок БД меняется без переписывания кода.
 package storage
 
 import (
@@ -16,52 +13,41 @@ import (
 	"remnabot/internal/model"
 )
 
-// ErrDuplicateExtID возвращается из AddPayment, когда запись с тем же
-// (method, ext_id) уже существует — нарушение UNIQUE-индекса. Применяется
-// для идемпотентности обработки повторных вебхуков платёжных провайдеров:
-// вызывающий код различает «впервые» и «уже зачтено».
 var ErrDuplicateExtID = errors.New("storage: payment with this ext_id already exists")
 
-// Storage — контракт хранилища. Один и тот же набор тестов гоняется против
-// обеих реализаций (см. storage_contract_test.go), что гарантирует идентичное
-// поведение перед переключением/миграцией БД.
 type Storage interface {
 	Migrate(ctx context.Context) error
-	// LoadConfig возвращает конфигурацию и флаг существования (false на чистой БД).
+
 	LoadConfig(ctx context.Context) (*model.BotConfig, bool, error)
 	SaveConfig(ctx context.Context, cfg *model.BotConfig) error
 
 	UpsertUser(ctx context.Context, telegramID int64) error
-	// SetUserInfo обновляет ник/имя существующей записи (строку не создаёт).
+
 	SetUserInfo(ctx context.Context, telegramID int64, username, firstName string) error
 	GetUser(ctx context.Context, telegramID int64) (*model.User, error)
 	SetP2PApproved(ctx context.Context, telegramID int64, approved bool) error
-	// HasApprovedPurchase сообщает, есть ли у пользователя одобренная покупка.
+
 	HasApprovedPurchase(ctx context.Context, telegramID int64) (bool, error)
-	// ListUsers возвращает страницу пользователей (по created_at) и общее число.
+
 	ListUsers(ctx context.Context, limit, offset int) ([]model.User, int, error)
 	SetBlocked(ctx context.Context, telegramID int64, blocked bool) error
 	DeleteUser(ctx context.Context, telegramID int64) error
-	// DeletePaymentsByUser/DeleteP2PRequestsByUser — каскадная зачистка локальной
-	// истории пользователя при его удалении (чтобы после повторной регистрации
-	// бот не выводил «Мои подписки» по старым записям).
+
 	DeletePaymentsByUser(ctx context.Context, telegramID int64) error
 	DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) error
-	// SetTermsAccepted сохраняет факт принятия пользовательского соглашения
-	// (ts — ISO-время; пустая строка очищает флаг, если нужно перепринять).
+
 	SetTermsAccepted(ctx context.Context, telegramID int64, ts string) error
-	// SetTrialUsed — отметить, что юзер активировал триал (ISO-время).
+
 	SetTrialUsed(ctx context.Context, telegramID int64, ts string) error
-	// SetSubExpiry сохраняет срок текущей подписки/триала и сбрасывает счётчик
-	// отправленных напоминаний (kind: "paid"|"trial").
+
 	SetSubExpiry(ctx context.Context, telegramID int64, expireAt, kind string) error
-	// MarkNotified записывает CSV уже отправленных окон напоминаний.
+
 	MarkNotified(ctx context.Context, telegramID int64, sentCSV string) error
-	// UsersForNotify возвращает пользователей с непустым sub_expire_at (кандидаты на напоминание).
+
 	UsersForNotify(ctx context.Context) ([]model.User, error)
-	// AddBalance прибавляет копейки к балансу (пополнение).
+
 	AddBalance(ctx context.Context, telegramID int64, kopecks int64) error
-	// DeductBalance атомарно списывает копейки, если хватает (ok=false при нехватке).
+
 	DeductBalance(ctx context.Context, telegramID int64, kopecks int64) (bool, error)
 
 	CreateP2PRequest(ctx context.Context, r *model.P2PRequest) error
@@ -71,42 +57,31 @@ type Storage interface {
 	AddPayment(ctx context.Context, p *model.Payment) error
 	ListPayments(ctx context.Context, limit, offset int) ([]model.Payment, int, error)
 	HasPaidPayment(ctx context.Context, telegramID int64) (bool, error)
-	// PaidPayments — все оплаченные платежи (для итогов: платящие юзеры + сумма).
+
 	PaidPayments(ctx context.Context) ([]model.Payment, error)
 	PaymentByExtID(ctx context.Context, extID string) (bool, error)
-	// MostPopularPlan возвращает (months, totalPaidAcrossAllPlans).
-	// months = 0, если оплаченных платежей нет вообще.
-	// totalPaidAcrossAllPlans позволяет вызывающему коду решить, достаточно ли
-	// статистики для показа подсказки (например, >= 10).
+
 	MostPopularPlan(ctx context.Context) (months int, total int, err error)
 
-	// LoadMediaFileID возвращает кэшированный Telegram file_id для раздела
-	// (если уже отправляли картинку этого раздела по URL и получили id обратно).
-	// ok=false означает «надо отправить по URL и закэшировать новый id».
 	LoadMediaFileID(ctx context.Context, section string) (id string, ok bool, err error)
 	SaveMediaFileID(ctx context.Context, section, fileID string) error
-	// DeleteMediaFileID удаляет кэш для раздела — следующий sendKBSection
-	// пойдёт по дефолтному URL из assets (используется кнопкой «Сбросить»).
+
 	DeleteMediaFileID(ctx context.Context, section string) error
 
 	Export(ctx context.Context) (*Snapshot, error)
 	Import(ctx context.Context, s *Snapshot) error
 
-	// pending_invoices — рабочий список реконсилятора (см. RunReconciler).
 	AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) error
-	// ListUnresolvedPending — неподтверждённые инвойсы, созданные не позже
-	// createdBefore (RFC3339 UTC), не более limit штук.
+
 	ListUnresolvedPending(ctx context.Context, createdBefore string, limit int) ([]model.PendingInvoice, error)
 	ResolvePending(ctx context.Context, id int64) error
-	// PendingByExtID — pending-инвойс по ext_id (для определения назначения платежа).
+
 	PendingByExtID(ctx context.Context, extID string) (*model.PendingInvoice, error)
 
 	Kind() string
 	Close() error
 }
 
-// Open подключается к выбранному движку. dsn для sqlite — путь к файлу,
-// для postgres — строка подключения. crypter шифрует конфиг при записи.
 func Open(kind, dsn string, crypter *crypto.Crypter) (Storage, error) {
 	switch kind {
 	case model.DBSQLite:
@@ -118,11 +93,10 @@ func Open(kind, dsn string, crypter *crypto.Crypter) (Storage, error) {
 	}
 }
 
-// base — общая часть обеих реализаций: хранит *sql.DB, диалект и crypter.
 type base struct {
 	db      *sql.DB
 	kind    string
-	ph      placeholderFunc // стиль плейсхолдеров ($1 для PG, ? для SQLite)
+	ph      placeholderFunc
 	crypter *crypto.Crypter
 }
 
@@ -131,7 +105,6 @@ type placeholderFunc func(n int) string
 func (b *base) Kind() string { return b.kind }
 func (b *base) Close() error { return b.db.Close() }
 
-// loadConfig читает единственную строку настроек (id=1) и расшифровывает её.
 func (b *base) loadConfig(ctx context.Context) (*model.BotConfig, bool, error) {
 	var enc string
 	err := b.db.QueryRowContext(ctx, "SELECT config FROM settings WHERE id = 1").Scan(&enc)
@@ -152,7 +125,6 @@ func (b *base) loadConfig(ctx context.Context) (*model.BotConfig, bool, error) {
 	return &cfg, true, nil
 }
 
-// saveConfig сериализует и шифрует конфиг и сохраняет его в строку id=1 (upsert).
 func (b *base) saveConfig(ctx context.Context, cfg *model.BotConfig, upsertSQL string) error {
 	plain, err := json.Marshal(cfg)
 	if err != nil {
@@ -166,8 +138,6 @@ func (b *base) saveConfig(ctx context.Context, cfg *model.BotConfig, upsertSQL s
 	return err
 }
 
-// Transfer переносит данные из src в dst (при смене движка БД, напр. SQLite → PostgreSQL).
-// Сейчас это таблица настроек; по мере роста схемы сюда добавляются остальные таблицы.
 func Transfer(ctx context.Context, src, dst Storage) error {
 	snap, err := src.Export(ctx)
 	if err != nil {
@@ -215,8 +185,7 @@ func (b *base) HasApprovedPurchase(ctx context.Context, telegramID int64) (bool,
 func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, error) {
 	var approved, blocked int
 	var created, username, firstName string
-	// terms_accepted_at: в PG это TIMESTAMPTZ NULL, в SQLite — TEXT с дефолтом
-	// "". Через sql.NullString корректно ловим оба случая (NULL и пусто).
+
 	var terms, trial sql.NullString
 	var subExp, notifyKind, notifySent string
 	var balance int64
@@ -291,9 +260,7 @@ func (b *base) DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) er
 }
 
 func (b *base) SetTermsAccepted(ctx context.Context, telegramID int64, ts string) error {
-	// Пустую строку не пишем: PG-колонка — TIMESTAMPTZ NULL (не примет ""),
-	// а в SQLite — TEXT NOT NULL с дефолтом "". В коде сброс соглашения не
-	// используется, операция только set; пустой ts превращаем в no-op.
+
 	if ts == "" {
 		return nil
 	}
@@ -331,7 +298,7 @@ func (b *base) AddBalance(ctx context.Context, telegramID int64, kopecks int64) 
 	if kopecks == 0 {
 		return nil
 	}
-	// Гарантируем существование строки (топ-ап мог прийти до /start).
+
 	if _, err := b.db.ExecContext(ctx,
 		"INSERT INTO users (telegram_id, p2p_approved, created_at) VALUES ("+b.ph(1)+", 0, "+b.ph(2)+") ON CONFLICT (telegram_id) DO NOTHING",
 		telegramID, nowStr()); err != nil {
@@ -343,8 +310,6 @@ func (b *base) AddBalance(ctx context.Context, telegramID int64, kopecks int64) 
 	return err
 }
 
-// DeductBalance атомарно списывает kopecks при условии balance >= kopecks
-// (одним UPDATE — без гонок). Возвращает ok=false, если средств не хватило.
 func (b *base) DeductBalance(ctx context.Context, telegramID int64, kopecks int64) (bool, error) {
 	if kopecks <= 0 {
 		return false, nil
@@ -431,10 +396,6 @@ func (b *base) AddPayment(ctx context.Context, p *model.Payment) error {
 	return err
 }
 
-// isUniqueViolation распознаёт нарушение UNIQUE-ограничения для обоих
-// драйверов (modernc/sqlite и pgx). Признаков несколько: SQLite пишет
-// «UNIQUE constraint failed», PG — SQLSTATE 23505. Сравнение по тексту
-// ошибки — компромисс ради независимости от драйверного типа.
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
@@ -469,8 +430,6 @@ func (b *base) ListPayments(ctx context.Context, limit, offset int) ([]model.Pay
 	return out, total, rows.Err()
 }
 
-// MostPopularPlan — самый частый тариф среди оплаченных платежей и общее число
-// оплаченных платежей. SQL общий для PG/SQLite; ORDER BY count DESC + LIMIT 1.
 func (b *base) MostPopularPlan(ctx context.Context) (int, int, error) {
 	var total int
 	if err := b.db.QueryRowContext(ctx,
@@ -533,8 +492,6 @@ func (b *base) PaymentByExtID(ctx context.Context, extID string) (bool, error) {
 	return n > 0, err
 }
 
-// LoadMediaFileID — реализация на *base, диалект-нейтральная через b.ph(n).
-// Используется и pgStore, и sqliteStore через embedding.
 func (b *base) LoadMediaFileID(ctx context.Context, section string) (string, bool, error) {
 	var id string
 	err := b.db.QueryRowContext(ctx,
@@ -548,9 +505,6 @@ func (b *base) LoadMediaFileID(ctx context.Context, section string) (string, boo
 	return id, true, nil
 }
 
-// SaveMediaFileID — upsert по section. Синтаксис ON CONFLICT ... DO UPDATE
-// поддерживают и PG, и SQLite; время пишем через nowStr() как в соседних
-// методах (UpsertUser, и т.п.), чтобы избежать диалект-различий now()/datetime('now').
 func (b *base) SaveMediaFileID(ctx context.Context, section, fileID string) error {
 	_, err := b.db.ExecContext(ctx,
 		"INSERT INTO media_cache (section, file_id, updated_at) VALUES ("+
@@ -560,17 +514,12 @@ func (b *base) SaveMediaFileID(ctx context.Context, section, fileID string) erro
 	return err
 }
 
-// DeleteMediaFileID — used by admin «reset banner to default».
 func (b *base) DeleteMediaFileID(ctx context.Context, section string) error {
 	_, err := b.db.ExecContext(ctx,
 		"DELETE FROM media_cache WHERE section = "+b.ph(1), section)
 	return err
 }
 
-// --- перенос данных между движками БД (SQLite ↔ PostgreSQL) ---
-
-// Snapshot — полный слепок данных бота. Config переносит Transfer через
-// SaveConfig (upsert настроек диалект-специфичен), остальное — через Import.
 type Snapshot struct {
 	Config   *model.BotConfig
 	Users    []model.User
@@ -579,16 +528,11 @@ type Snapshot struct {
 	Media    []MediaItem
 }
 
-// MediaItem — запись media_cache. updated_at не переносим: это лишь кэш
-// Telegram file_id, при импорте время проставляется заново.
 type MediaItem struct {
 	Section string
 	FileID  string
 }
 
-// Export читает все данные через общий *base (диалект-нейтральные SELECT).
-// Реализован один раз на base, поэтому оба драйвера (pg/sqlite) ведут себя
-// одинаково — это и обеспечивает идентичность переноса в обе стороны.
 func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 	snap := &Snapshot{}
 	if cfg, ok, err := b.loadConfig(ctx); err != nil {
@@ -681,9 +625,6 @@ func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 	return snap, nil
 }
 
-// Import пишет данные слепка (кроме Config — его переносит Transfer). Идемпотентно
-// для users (ON CONFLICT) и payments (UNIQUE ext_id → пропуск дубля); рассчитан
-// прежде всего на перенос в ПУСТУЮ новую БД при смене движка.
 func (b *base) Import(ctx context.Context, s *Snapshot) error {
 	if s == nil {
 		return nil
@@ -711,9 +652,6 @@ func (b *base) Import(ctx context.Context, s *Snapshot) error {
 	return nil
 }
 
-// importUser вставляет пользователя со всеми полями, СОХРАНЯЯ created_at.
-// terms/trial выставляются отдельными сеттерами (диалект-безопасно: пустые
-// значения не пишутся — в PG это NULL-колонки timestamptz).
 func (b *base) importUser(ctx context.Context, u *model.User) error {
 	_, err := b.db.ExecContext(ctx,
 		"INSERT INTO users (telegram_id, p2p_approved, blocked, created_at, username, first_name) "+
@@ -738,8 +676,6 @@ func (b *base) importUser(ctx context.Context, u *model.User) error {
 	return nil
 }
 
-// --- pending_invoices (рабочий список реконсилятора) ---
-
 func (b *base) AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) error {
 	if p.ID == 0 {
 		p.ID = time.Now().UnixNano()
@@ -754,9 +690,6 @@ func (b *base) AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) e
 	return err
 }
 
-// ListUnresolvedPending — created_at хранится в RFC3339 UTC (фиксированная
-// ширина), поэтому лексикографическое сравнение строк корректно работает как
-// сравнение времени для обоих движков без диалект-специфичных функций дат.
 func (b *base) ListUnresolvedPending(ctx context.Context, createdBefore string, limit int) ([]model.PendingInvoice, error) {
 	rows, err := b.db.QueryContext(ctx,
 		"SELECT id, method, ext_id, telegram_id, months, created_at, purpose, kopecks FROM pending_invoices "+

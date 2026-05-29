@@ -1,7 +1,3 @@
-// Пользовательский и админский флоу оплаты через CryptoBot (@CryptoBot,
-// pay.crypt.bot). Создание инвойса, кнопка mini-app оплаты, fallback-кнопка
-// «Проверить оплату» на случай недоставки вебхука. Финальная активация
-// подписки — в HandleCryptoBotWebhook (см. webhook_cryptobot.go).
 package app
 
 import (
@@ -26,8 +22,6 @@ func (a *App) cbConfig() model.CryptoBotConfig {
 	return a.botCfg.CryptoBot
 }
 
-// cryptoAmount — сумма для лога/итогов: базовая цена в ₽ (крипто-оплата
-// якорится в рублях, как у RW Shop); фолбэк — фактически уплаченная крипта.
 func (a *App) cryptoAmount(months int, fallback string) string {
 	if p := a.pricing().Base[months]; p != "" {
 		return p + curSuffix(curRUB)
@@ -42,8 +36,6 @@ func (a *App) cbClient() *cryptobot.Client {
 	}
 	return cryptobot.New(cfg.Token)
 }
-
-// --- пользователь: создание инвойса ---
 
 func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
@@ -87,8 +79,6 @@ func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	})
 }
 
-// onCBCheck — polling-fallback на случай, если вебхук CryptoBot не дошёл.
-// Формат val: "<invoice_id>:<months>".
 func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 	lang := a.lang(chatID)
 	client := a.cbClient()
@@ -107,7 +97,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 			return
 		}
 	}
-	// Пополнение баланса (определяем по pending) — обрабатываем отдельно.
+
 	if a.store != nil {
 		if p, _ := a.store.PendingByExtID(ctx, extID); p != nil && p.Purpose == "topup" {
 			inv, err := client.GetInvoice(ctx, invoiceID)
@@ -155,8 +145,6 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 	}
 	a.sendSubActive(ctx, chatID, link, expireAt)
 }
-
-// --- админ: настройки CryptoBot ---
 
 func (a *App) showCryptoBotAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)

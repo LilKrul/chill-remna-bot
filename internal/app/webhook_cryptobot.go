@@ -15,28 +15,20 @@ import (
 	"remnabot/internal/storage"
 )
 
-// cryptoBotUpdate — формат уведомления CryptoBot.
-// https://help.crypt.bot/crypto-pay-api#webhooks
-//
-// Подпись: HMAC-SHA256(body, SHA256(token)) в hex, в заголовке
-// Crypto-Pay-API-Signature. Ключом для HMAC берётся не сам токен, а его
-// SHA256-дайджест — таково правило API.
 type cryptoBotUpdate struct {
 	UpdateID    int64  `json:"update_id"`
-	UpdateType  string `json:"update_type"` // invoice_paid
+	UpdateType  string `json:"update_type"`
 	RequestDate string `json:"request_date"`
 	Payload     struct {
 		InvoiceID int64  `json:"invoice_id"`
 		Status    string `json:"status"`
 		Asset     string `json:"asset"`
 		Amount    string `json:"amount"`
-		Payload   string `json:"payload"` // наш "telegram_id:months"
+		Payload   string `json:"payload"`
 		Hash      string `json:"hash"`
 	} `json:"payload"`
 }
 
-// verifyCryptoBotSignature — HMAC-SHA256(body, SHA256(token)).
-// При пустом токене проверка пропускается (только для локальной отладки).
 func verifyCryptoBotSignature(signatureHex, token string, body []byte) error {
 	if token == "" {
 		return nil
@@ -57,10 +49,6 @@ func verifyCryptoBotSignature(signatureHex, token string, body []byte) error {
 	return nil
 }
 
-// HandleCryptoBotWebhook — обработчик POST /webhook/cryptobot (Phase 4).
-//
-// Финализация подписки строго идемпотентна: ранний PaymentByExtID + UNIQUE
-// INDEX в БД. ExtID для CryptoBot — строковое представление invoice_id.
 func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body []byte) (bool, error) {
 	a.mu.Lock()
 	token := ""
@@ -105,7 +93,7 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 	chatID, months, err := parseCryptoBotPayload(up.Payload.Payload)
 	if err != nil {
 		a.log.Error("cryptobot webhook: bad payload", "raw", up.Payload.Payload, "err", err)
-		return true, nil // 200 OK — ретраить нет смысла
+		return true, nil
 	}
 
 	amount := a.cryptoAmount(months, up.Payload.Amount+" "+up.Payload.Asset)
@@ -123,7 +111,6 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 	return true, nil
 }
 
-// parseCryptoBotPayload разбирает наш "<telegram_id>:<months>".
 func parseCryptoBotPayload(raw string) (int64, int, error) {
 	tgs, mos, ok := strings.Cut(raw, ":")
 	if !ok {

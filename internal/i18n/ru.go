@@ -1,6 +1,5 @@
 package i18n
 
-// Строки в HTML-разметке Telegram (ParseMode=HTML).
 var ru = map[string]string{
 	"setup.welcome": "👋 Привет! Это мастер первичной установки бота Remnawave.\n\n" +
 		"Я задам несколько вопросов с пояснениями — после каждого ответа перейдём к следующему шагу.\n\n" +

@@ -1,7 +1,3 @@
-// Package i18n — простая файловая локализация RU/EN.
-//
-// Архитектура заложена под мультиязычность: добавление языка — это новая карта
-// строк, вызывающий код всегда обращается через T(lang, key, args...).
 package i18n
 
 import "fmt"
@@ -13,11 +9,8 @@ var bundles = map[string]map[string]string{
 	"en": en,
 }
 
-// Supported возвращает список доступных языков (для кнопок выбора).
 func Supported() []string { return []string{"ru", "en"} }
 
-// T возвращает локализованную строку. Если ключа нет в выбранном языке —
-// пробует fallback, затем возвращает сам ключ (чтобы пропуск был заметен).
 func T(lang, key string, args ...any) string {
 	tmpl := lookup(lang, key)
 	if tmpl == "" {

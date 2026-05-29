@@ -8,18 +8,6 @@ import (
 	"remnabot/internal/i18n"
 )
 
-// --- админ: «📡 Сквады» (internal + external) ---
-//
-// Раздел показывает все сквады из панели и позволяет переключать привязку:
-//   • Internal — мульти-выбор (юзер пойдёт во все выбранные ноды).
-//   • External — single-select (один родительский external-сквад на юзера).
-// При создании/продлении подписки бот передаёт выбранные сквады в API панели
-// (activeInternalSquads + externalSquadUuid).
-//
-// Кнопки рендерятся по результату ListSquads / ListExternalSquads (тянем
-// каждый раз — кэшировать смысла нет, админ открывает редко). Если панель
-// недоступна — мягкий fallback с инструкцией.
-
 func (a *App) showSquads(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	a.mu.Lock()
@@ -44,7 +32,7 @@ func (a *App) showSquads(ctx context.Context, chatID int64) {
 	}
 	extSquads, errE := panel.ListExternalSquads(ctx)
 	if errE != nil {
-		// Внешние сквады могут быть выключены в панели — это не блокер.
+
 		extSquads = nil
 	}
 
@@ -62,7 +50,6 @@ func (a *App) showSquads(ctx context.Context, chatID int64) {
 	}
 
 	rows := make([][]models.InlineKeyboardButton, 0, len(intSquads)+len(extSquads)+3)
-	// Заголовок — текстом отдельным сообщением выше не делаем, всё в caption.
 
 	for _, sq := range intSquads {
 		mark := "⬜"
@@ -74,7 +61,7 @@ func (a *App) showSquads(ctx context.Context, chatID int64) {
 		})
 	}
 	if len(extSquads) > 0 {
-		// Разделитель — пустой ряд из текстовой кнопки-noop.
+
 		rows = append(rows, []models.InlineKeyboardButton{btn("— 📡 External —", "sqd:noop")})
 		for _, sq := range extSquads {
 			mark := "⚪"
@@ -92,7 +79,6 @@ func (a *App) showSquads(ctx context.Context, chatID int64) {
 	a.sendKB(ctx, chatID, i18n.T(lang, "squads.title", len(intSquads), len(extSquads), len(activeInt), display(activeExt, lang)), rows)
 }
 
-// display возвращает читаемое значение или admin.none.
 func display(v, lang string) string {
 	if v == "" {
 		return i18n.T(lang, "admin.none")
@@ -100,7 +86,6 @@ func display(v, lang string) string {
 	return v
 }
 
-// onSquads — диспетчер callback'ов "sqd:*".
 func (a *App) onSquads(ctx context.Context, chatID int64, val string) {
 	action, arg, _ := cut3(val)
 	switch action {
@@ -109,12 +94,11 @@ func (a *App) onSquads(ctx context.Context, chatID int64, val string) {
 	case "ext":
 		a.toggleExternalSquad(ctx, chatID, arg)
 	case "refresh", "noop":
-		// noop / явное обновление — просто перерисовать.
+
 	}
 	a.showSquads(ctx, chatID)
 }
 
-// toggleInternalSquad — добавляет/убирает internal-сквад из активного списка.
 func (a *App) toggleInternalSquad(ctx context.Context, chatID int64, uuid string) {
 	if uuid == "" {
 		return
@@ -139,7 +123,6 @@ func (a *App) toggleInternalSquad(ctx context.Context, chatID int64, uuid string
 	_ = a.saveBotConfig(ctx)
 }
 
-// toggleExternalSquad — single-select: повторный клик по выбранному снимает.
 func (a *App) toggleExternalSquad(ctx context.Context, chatID int64, uuid string) {
 	if uuid == "" {
 		return

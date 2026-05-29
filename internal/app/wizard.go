@@ -144,7 +144,7 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 			a.onContacts(ctx, chatID, val)
 		}
 	case "trial":
-		// admin sub-actions go to admin handler; user just clicks "menu:trial"
+
 		if isAdmin {
 			a.onTrialAdmin(ctx, chatID, val)
 		}
@@ -153,16 +153,14 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 			a.onSquads(ctx, chatID, val)
 		}
 	case "terms":
-		// «Принимаю/Отказаться» соглашения — может нажать обычный пользователь.
+
 		a.onTerms(ctx, chatID, val, cq.From.FirstName, cq.From.Username)
 	case "inp":
 		if isAdmin && val == "cancel" {
 			a.cancelInput(ctx, chatID, isAdmin, cq.From.FirstName, cq.From.Username)
 		}
 	case "x":
-		// Управление notify-сообщением: «На главную» удаляет уведомление и
-		// открывает главный экран (привычная навигация). «close» — legacy,
-		// просто удаляет (используется редко, если где-то ещё прицеплен).
+
 		switch val {
 		case "home":
 			a.msg.Delete(ctx, chatID, cqMsgID(cq))
@@ -173,7 +171,6 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	}
 }
 
-// cqMsgID — id сообщения, к которому привязана инлайн-кнопка (0, если недоступно).
 func cqMsgID(cq *models.CallbackQuery) int {
 	if cq.Message.Message != nil {
 		return cq.Message.Message.ID

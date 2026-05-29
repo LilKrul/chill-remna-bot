@@ -1,5 +1,3 @@
-// Package crypto шифрует конфигурацию бота (включая токены и куки панели)
-// перед записью в БД с помощью AES-256-GCM.
 package crypto
 
 import (
@@ -14,12 +12,10 @@ import (
 	"path/filepath"
 )
 
-// Crypter шифрует и расшифровывает произвольные байты.
 type Crypter struct {
 	gcm cipher.AEAD
 }
 
-// NewFromKeyMaterial принимает произвольную строку-ключ и приводит её к 32 байтам.
 func NewFromKeyMaterial(material []byte) (*Crypter, error) {
 	sum := sha256.Sum256(material)
 	block, err := aes.NewCipher(sum[:])
@@ -33,8 +29,6 @@ func NewFromKeyMaterial(material []byte) (*Crypter, error) {
 	return &Crypter{gcm: gcm}, nil
 }
 
-// LoadOrCreate возвращает Crypter из env-значения, а если оно пустое —
-// читает/генерирует постоянный ключ в файле dataDir/secret.key.
 func LoadOrCreate(envKey, dataDir string) (*Crypter, error) {
 	if envKey != "" {
 		return NewFromKeyMaterial([]byte(envKey))
@@ -56,7 +50,6 @@ func LoadOrCreate(envKey, dataDir string) (*Crypter, error) {
 	return NewFromKeyMaterial(key)
 }
 
-// Encrypt возвращает base64(nonce || ciphertext).
 func (c *Crypter) Encrypt(plaintext []byte) (string, error) {
 	nonce := make([]byte, c.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -66,7 +59,6 @@ func (c *Crypter) Encrypt(plaintext []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(out), nil
 }
 
-// Decrypt разбирает строку, полученную из Encrypt.
 func (c *Crypter) Decrypt(encoded string) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {

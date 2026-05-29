@@ -7,11 +7,6 @@ import (
 	"path/filepath"
 )
 
-// Bootstrap фиксирует выбор движка БД, сделанный в мастере, чтобы после
-// перезапуска контейнера бот сам переподключился к той же базе.
-//
-// Это маленький локальный файл (не основная БД): хранить выбор движка в самой
-// БД невозможно — её сначала надо открыть.
 type Bootstrap struct {
 	DBKind string `json:"db_kind"`
 	DSN    string `json:"dsn"`
@@ -21,7 +16,6 @@ func bootstrapPath(dataDir string) string {
 	return filepath.Join(dataDir, "bootstrap.json")
 }
 
-// LoadBootstrap возвращает (nil, nil), если файла ещё нет (первый запуск).
 func LoadBootstrap(dataDir string) (*Bootstrap, error) {
 	data, err := os.ReadFile(bootstrapPath(dataDir))
 	if errors.Is(err, os.ErrNotExist) {
