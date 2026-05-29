@@ -38,7 +38,7 @@ func (a *App) startWizard(ctx context.Context, chatID int64) {
 	a.mu.Unlock()
 
 	a.sendKB(ctx, chatID, i18n.T(i18n.Fallback, "setup.welcome"), [][]models.InlineKeyboardButton{
-		{btn("Русский", "lang:ru"), btn("English", "lang:en")},
+		{btn("🇷🇺 Русский", "lang:ru"), btn("🇬🇧 English", "lang:en")},
 	})
 }
 
