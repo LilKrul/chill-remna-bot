@@ -41,6 +41,7 @@ type BotConfig struct {
 	YooKassa  YooKassaConfig  `json:"yookassa"`
 	CryptoBot CryptoBotConfig `json:"cryptobot"`
 	Platega   PlategaConfig   `json:"platega"`
+	Tribute   TributeConfig   `json:"tribute"`
 	Webhook   WebhookConfig   `json:"webhook"`
 	Reminders RemindersConfig `json:"reminders"`
 	Referral  ReferralConfig  `json:"referral"`
@@ -103,6 +104,7 @@ const (
 	PayMethodYooKassa  = "yookassa"
 	PayMethodCryptoBot = "cryptobot"
 	PayMethodPlatega   = "platega"
+	PayMethodTribute   = "tribute"
 )
 
 const (
@@ -299,4 +301,10 @@ type PlategaConfig struct {
 	Secret     string `json:"secret"`
 	Method     int    `json:"method"`
 	ReturnURL  string `json:"return_url"`
+}
+
+type TributeConfig struct {
+	Enabled bool   `json:"enabled"`
+	APIKey  string `json:"api_key"`
+	PayURL  string `json:"pay_url"`
 }

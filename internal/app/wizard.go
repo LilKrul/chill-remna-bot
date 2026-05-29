@@ -118,6 +118,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		}
 	case "plc":
 		a.onPLCheck(ctx, chatID, val)
+	case "trb":
+		if isAdmin {
+			a.onTributeAdmin(ctx, chatID, val)
+		}
 	case "wh":
 		if isAdmin {
 			a.onWebhooksAdmin(ctx, chatID, val)
