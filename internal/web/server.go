@@ -16,6 +16,8 @@ type Handlers interface {
 	HandleCryptoBotWebhook(ctx context.Context, signatureHex string, body []byte) (handled bool, err error)
 
 	HandleRemnawaveWebhook(ctx context.Context, signatureHex string, body []byte) (handled bool, err error)
+
+	HandlePlategaWebhook(ctx context.Context, body []byte) (handled bool, err error)
 }
 
 type Server struct {
@@ -34,6 +36,7 @@ func New(addr string, h Handlers, log *slog.Logger) *Server {
 	mux.HandleFunc("POST /webhook/yookassa", s.handleYooKassa)
 	mux.HandleFunc("POST /webhook/cryptobot", s.handleCryptoBot)
 	mux.HandleFunc("POST /webhook/remnawave", s.handleRemnawave)
+	mux.HandleFunc("POST /webhook/platega", s.handlePlatega)
 	s.srv = &http.Server{
 		Addr:              addr,
 		Handler:           mux,

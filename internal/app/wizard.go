@@ -112,6 +112,12 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		if isAdmin {
 			a.onMoyNalogAdmin(ctx, chatID, val)
 		}
+	case "pl":
+		if isAdmin {
+			a.onPlategaAdmin(ctx, chatID, val)
+		}
+	case "plc":
+		a.onPLCheck(ctx, chatID, val)
 	case "wh":
 		if isAdmin {
 			a.onWebhooksAdmin(ctx, chatID, val)

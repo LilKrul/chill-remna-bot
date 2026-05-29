@@ -121,6 +121,10 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 		label := i18n.T(lang, "method.cb_btn", pr.Base[months]+curSuffix(curRUB))
 		rows = append(rows, []models.InlineKeyboardButton{btn(label, "method:cb")})
 	}
+	if a.plConfig().Enabled && pr.Fiat(model.PayMethodPlatega, months) != "" {
+		label := i18n.T(lang, "method.pl_btn", pr.Fiat(model.PayMethodPlatega, months)+curSuffix(curRUB))
+		rows = append(rows, []models.InlineKeyboardButton{btn(label, "method:pl")})
+	}
 
 	bal := a.userBalance(ctx, chatID)
 	if k, ok := rubToKopecks(pr.Base[months]); ok && k > 0 && bal >= k {
@@ -151,6 +155,8 @@ func (a *App) onMethod(ctx context.Context, chatID int64, val string) {
 		a.startYooKassa(ctx, chatID)
 	case "cb":
 		a.startCryptoBot(ctx, chatID)
+	case "pl":
+		a.startPlatega(ctx, chatID)
 	}
 }
 
@@ -684,6 +690,10 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		field := ui.adminInput
 		ui.adminInput = ""
 		a.setMoyNalogField(ctx, chatID, field, text)
+	case "pl_merchant", "pl_secret", "pl_return":
+		field := ui.adminInput
+		ui.adminInput = ""
+		a.setPlategaField(ctx, chatID, field, text)
 	case "ref_value":
 		ui.adminInput = ""
 		n, _ := strconv.Atoi(strings.TrimSpace(text))

@@ -40,6 +40,7 @@ type BotConfig struct {
 	Stars     StarsConfig     `json:"stars"`
 	YooKassa  YooKassaConfig  `json:"yookassa"`
 	CryptoBot CryptoBotConfig `json:"cryptobot"`
+	Platega   PlategaConfig   `json:"platega"`
 	Webhook   WebhookConfig   `json:"webhook"`
 	Reminders RemindersConfig `json:"reminders"`
 	Referral  ReferralConfig  `json:"referral"`
@@ -101,6 +102,7 @@ const (
 	PayMethodStars     = "stars"
 	PayMethodYooKassa  = "yookassa"
 	PayMethodCryptoBot = "cryptobot"
+	PayMethodPlatega   = "platega"
 )
 
 const (
@@ -289,4 +291,12 @@ type MoyNalogConfig struct {
 	Login       string `json:"login"`
 	Password    string `json:"password"`
 	ServiceName string `json:"service_name"`
+}
+
+type PlategaConfig struct {
+	Enabled    bool   `json:"enabled"`
+	MerchantID string `json:"merchant_id"`
+	Secret     string `json:"secret"`
+	Method     int    `json:"method"`
+	ReturnURL  string `json:"return_url"`
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -65,6 +66,8 @@ func (a *App) reconcileInvoice(ctx context.Context, st storage.Storage, pi *mode
 		a.reconcileYooKassa(ctx, st, pi)
 	case model.PayMethodCryptoBot:
 		a.reconcileCryptoBot(ctx, st, pi)
+	case model.PayMethodPlatega:
+		a.reconcilePlatega(ctx, st, pi)
 	default:
 		_ = st.ResolvePending(ctx, pi.ID)
 	}
@@ -106,6 +109,23 @@ func (a *App) reconcileCryptoBot(ctx context.Context, st storage.Storage, pi *mo
 	case "paid":
 		a.reconcileFinalize(ctx, st, pi, a.cryptoAmount(pi.Months, inv.Amount+" "+inv.Asset))
 	case "expired":
+		_ = st.ResolvePending(ctx, pi.ID)
+	}
+}
+
+func (a *App) reconcilePlatega(ctx context.Context, st storage.Storage, pi *model.PendingInvoice) {
+	client := a.plClient()
+	if client == nil {
+		return
+	}
+	tx, err := client.GetTransaction(ctx, pi.ExtID)
+	if err != nil {
+		return
+	}
+	switch {
+	case strings.EqualFold(tx.Status, "CONFIRMED"):
+		a.reconcileFinalize(ctx, st, pi, fmt.Sprintf("%.2f %s", tx.Amount, tx.Currency))
+	case strings.EqualFold(tx.Status, "CANCELED") || strings.EqualFold(tx.Status, "CHARGEBACKED"):
 		_ = st.ResolvePending(ctx, pi.ID)
 	}
 }
