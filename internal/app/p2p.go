@@ -445,6 +445,9 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 		_ = a.store.SetSubExpiry(ctx, telegramID, expireAt, "paid")
 	}
 	a.grantReferralBonus(ctx, telegramID)
+	if method != "balance" && method != model.PayMethodStars {
+		a.fiscalize(parseAmountRub(amount), fmt.Sprintf("Подписка %d мес.", months))
+	}
 	return link, expireAt, nil
 }
 
@@ -677,6 +680,10 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 	case "promo_create":
 		ui.adminInput = ""
 		a.createPromoFromText(ctx, chatID, text)
+	case "mn_login", "mn_pass", "mn_name":
+		field := ui.adminInput
+		ui.adminInput = ""
+		a.setMoyNalogField(ctx, chatID, field, text)
 	case "ref_value":
 		ui.adminInput = ""
 		n, _ := strconv.Atoi(strings.TrimSpace(text))

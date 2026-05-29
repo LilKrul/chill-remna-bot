@@ -20,6 +20,7 @@ import (
 	"remnabot/internal/hostctl"
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
+	"remnabot/internal/moynalog"
 	"remnabot/internal/remnawave"
 	"remnabot/internal/storage"
 )
@@ -68,6 +69,10 @@ type App struct {
 
 	botUserMu sync.Mutex
 	botUser   string
+
+	mnMu     sync.Mutex
+	mnClient *moynalog.Client
+	mnKey    string
 }
 
 type subCacheEntry struct {

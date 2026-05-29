@@ -43,6 +43,7 @@ type BotConfig struct {
 	Webhook   WebhookConfig   `json:"webhook"`
 	Reminders RemindersConfig `json:"reminders"`
 	Referral  ReferralConfig  `json:"referral"`
+	MoyNalog  MoyNalogConfig  `json:"moynalog"`
 	Pricing   Pricing         `json:"pricing"`
 	Welcome   WelcomeConfig   `json:"welcome"`
 
@@ -279,3 +280,10 @@ const (
 	PromoKindBalance = "balance"
 	PromoKindDays    = "days"
 )
+
+type MoyNalogConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Login       string `json:"login"`
+	Password    string `json:"password"`
+	ServiceName string `json:"service_name"`
+}

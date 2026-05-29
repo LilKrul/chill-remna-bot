@@ -109,6 +109,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		} else {
 			a.onPromoUser(ctx, chatID, val)
 		}
+	case "mn":
+		if isAdmin {
+			a.onMoyNalogAdmin(ctx, chatID, val)
+		}
 	case "wh":
 		if isAdmin {
 			a.onWebhooksAdmin(ctx, chatID, val)

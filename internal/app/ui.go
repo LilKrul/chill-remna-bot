@@ -247,7 +247,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "btn.trial_admin"), "menu:trial"), btn(i18n.T(lang, "btn.squads"), "menu:squads")},
 		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
 		{btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa"), btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
-		{btn(i18n.T(lang, "btn.promo_admin"), "menu:promoadmin")},
+		{btn(i18n.T(lang, "btn.promo_admin"), "menu:promoadmin"), btn(i18n.T(lang, "btn.moynalog"), "menu:moynalog")},
 		homeRow(lang),
 	})
 }
@@ -439,6 +439,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "promoadmin":
 		if isAdmin {
 			a.showPromoAdmin(ctx, chatID)
+		}
+	case "moynalog":
+		if isAdmin {
+			a.showMoyNalogAdmin(ctx, chatID)
 		}
 	case "mysubs":
 		a.showMySubs(ctx, chatID)
