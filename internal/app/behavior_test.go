@@ -359,6 +359,15 @@ func (s *fakeStore) SetRefBonusPaid(_ context.Context, id int64) error {
 	}
 	return nil
 }
+func (s *fakeStore) AllUserIDs(_ context.Context) ([]int64, error) {
+	var ids []int64
+	for id, u := range s.users {
+		if !u.Blocked {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
 func (s *fakeStore) CountReferrals(_ context.Context, ref int64) (int, error) {
 	n := 0
 	for _, u := range s.users {

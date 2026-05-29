@@ -16,6 +16,8 @@ type uiState struct {
 
 	inputBack string
 
+	broadcastText string
+
 	p2pSubmitMsgID int
 	p2pShotMsgID   int
 }

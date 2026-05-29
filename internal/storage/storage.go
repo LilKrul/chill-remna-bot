@@ -32,6 +32,7 @@ type Storage interface {
 	ListUsers(ctx context.Context, limit, offset int) ([]model.User, int, error)
 	SetBlocked(ctx context.Context, telegramID int64, blocked bool) error
 	DeleteUser(ctx context.Context, telegramID int64) error
+	AllUserIDs(ctx context.Context) ([]int64, error)
 
 	DeletePaymentsByUser(ctx context.Context, telegramID int64) error
 	DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) error
@@ -760,4 +761,21 @@ func (b *base) CountReferrals(ctx context.Context, referrerID int64) (int, error
 	err := b.db.QueryRowContext(ctx,
 		"SELECT COUNT(1) FROM users WHERE referred_by = "+b.ph(1), referrerID).Scan(&n)
 	return n, err
+}
+
+func (b *base) AllUserIDs(ctx context.Context) ([]int64, error) {
+	rows, err := b.db.QueryContext(ctx, "SELECT telegram_id FROM users WHERE blocked = 0")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

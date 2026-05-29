@@ -428,4 +428,13 @@ var en = map[string]string{
 	"refadm.btn_value":           "✏️ Bonus amount",
 	"refadm.btn_when":            "🔁 When to grant",
 	"refadm.ask_value":           "Enter the bonus amount as a number (₽ or days — per the selected type):",
+	"btn.broadcast":              "📣 Broadcast",
+	"bcast.title":                "📣 <b>Broadcast</b>\n\nThe message will be sent to all bot users (except blocked).\nRecipients: <b>%d</b>",
+	"bcast.btn_new":              "✍️ New broadcast",
+	"bcast.ask":                  "Send the broadcast text (Telegram HTML is supported). Cancel with the button below.",
+	"bcast.preview":              "👀 Preview (recipients: %d). Review and confirm sending:",
+	"bcast.btn_send":             "📤 Send to all (%d)",
+	"bcast.started":              "🚀 Broadcast started in background. A report will arrive when done.",
+	"bcast.done":                 "✅ Broadcast finished.\nSent: <b>%d</b>\nFailed: <b>%d</b>",
+	"bcast.failed":               "❌ Failed to load the user list.",
 }
