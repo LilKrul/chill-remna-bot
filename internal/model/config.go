@@ -44,8 +44,10 @@ type BotConfig struct {
 	Reminders RemindersConfig `json:"reminders"`
 	Referral  ReferralConfig  `json:"referral"`
 	MoyNalog  MoyNalogConfig  `json:"moynalog"`
-	Pricing   Pricing         `json:"pricing"`
-	Welcome   WelcomeConfig   `json:"welcome"`
+
+	WhitelistMode bool          `json:"whitelist_mode"`
+	Pricing       Pricing       `json:"pricing"`
+	Welcome       WelcomeConfig `json:"welcome"`
 
 	PremiumEmoji map[string]string `json:"premium_emoji"`
 
@@ -176,6 +178,7 @@ type User struct {
 
 	ReferredBy   int64
 	RefBonusPaid bool
+	Whitelisted  bool
 }
 
 type P2PRequest struct {

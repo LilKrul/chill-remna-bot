@@ -229,8 +229,7 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 	text := strings.TrimSpace(m.Text)
 	isAdmin := userID == a.cfg.AdminID
 	a.rememberUser(ctx, chatID, username, firstName)
-	if !isAdmin && a.userBlocked(ctx, chatID) {
-		a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.you_blocked"))
+	if a.denyAccess(ctx, chatID, isAdmin) {
 		return
 	}
 

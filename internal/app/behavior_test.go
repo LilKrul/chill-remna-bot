@@ -400,6 +400,12 @@ func (s *fakeStore) RedeemPromo(_ context.Context, code string, id int64) error 
 	}
 	return nil
 }
+func (s *fakeStore) SetWhitelisted(_ context.Context, id int64, on bool) error {
+	if s.users != nil && s.users[id] != nil {
+		s.users[id].Whitelisted = on
+	}
+	return nil
+}
 func (s *fakeStore) AllUserIDs(_ context.Context) ([]int64, error) {
 	var ids []int64
 	for id, u := range s.users {

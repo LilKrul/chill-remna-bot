@@ -47,8 +47,7 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	chatID := cq.From.ID
 	isAdmin := chatID == a.cfg.AdminID
 	a.rememberUser(ctx, chatID, cq.From.Username, cq.From.FirstName)
-	if !isAdmin && a.userBlocked(ctx, chatID) {
-		a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.you_blocked"))
+	if a.denyAccess(ctx, chatID, isAdmin) {
 		return
 	}
 	key, val, _ := strings.Cut(cq.Data, ":")

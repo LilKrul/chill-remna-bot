@@ -469,4 +469,9 @@ var en = map[string]string{
 	"mn.ask_login":               "Send the login for lknpd.nalog.ru (INN or phone):",
 	"mn.ask_pass":                "Send the password for the MyTax account:",
 	"mn.ask_name":                "Send the service name for the receipt (e.g. VPN access):",
+	"btn.whitelist_add":          "➕ Whitelist",
+	"btn.whitelist_del":          "➖ Unwhitelist",
+	"users.wl_on":                "🛡 Whitelist: ON (tap to disable)",
+	"users.wl_off":               "🛡 Whitelist: off (tap to enable)",
+	"user.not_whitelisted":       "⛔️ Access to the bot is restricted. Contact support.",
 }

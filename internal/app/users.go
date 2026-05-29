@@ -29,6 +29,27 @@ func (a *App) userBlocked(ctx context.Context, chatID int64) bool {
 	return err == nil && u != nil && u.Blocked
 }
 
+func (a *App) denyAccess(ctx context.Context, chatID int64, isAdmin bool) bool {
+	if isAdmin {
+		return false
+	}
+	if a.userBlocked(ctx, chatID) {
+		a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.you_blocked"))
+		return true
+	}
+	a.mu.Lock()
+	wl := a.botCfg != nil && a.botCfg.WhitelistMode
+	a.mu.Unlock()
+	if wl && a.store != nil {
+		u, _ := a.store.GetUser(ctx, chatID)
+		if u == nil || !u.Whitelisted {
+			a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.not_whitelisted"))
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	lang := a.lang(chatID)
 	if a.store == nil {
@@ -49,7 +70,14 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	}
 	pages := (total + usersPageSize - 1) / usersPageSize
 
-	var rows [][]models.InlineKeyboardButton
+	a.mu.Lock()
+	wlMode := a.botCfg != nil && a.botCfg.WhitelistMode
+	a.mu.Unlock()
+	wlLabel := i18n.T(lang, "users.wl_off")
+	if wlMode {
+		wlLabel = i18n.T(lang, "users.wl_on")
+	}
+	rows := [][]models.InlineKeyboardButton{{btn(wlLabel, "usr:wlmode")}}
 	for _, u := range users {
 		label := "👤 " + userLabel(&u)
 		if u.Blocked {
@@ -110,6 +138,12 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	} else {
 		toggle = btn(i18n.T(lang, "btn.block"), "usr:block:"+id)
 	}
+	var wlBtn models.InlineKeyboardButton
+	if u.Whitelisted {
+		wlBtn = btn(i18n.T(lang, "btn.whitelist_del"), "usr:wloff:"+id)
+	} else {
+		wlBtn = btn(i18n.T(lang, "btn.whitelist_add"), "usr:wlon:"+id)
+	}
 	var p2pBtn models.InlineKeyboardButton
 	if u.P2PApproved {
 		p2pBtn = btn(i18n.T(lang, "btn.p2p_deny"), "usr:p2poff:"+id)
@@ -126,7 +160,7 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 		}
 	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status, subBlock), [][]models.InlineKeyboardButton{
-		{p2pBtn},
+		{p2pBtn, wlBtn},
 		{toggle, btn(i18n.T(lang, "btn.delete"), "usr:del:"+id)},
 		{btn(i18n.T(lang, "btn.back"), "usr:list"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
@@ -149,6 +183,20 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
 			_ = a.store.SetBlocked(ctx, uid, action == "block")
 		}
 		a.showUser(ctx, chatID, uid)
+	case "wlon", "wloff":
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		if a.store != nil {
+			_ = a.store.SetWhitelisted(ctx, uid, action == "wlon")
+		}
+		a.showUser(ctx, chatID, uid)
+	case "wlmode":
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.WhitelistMode = !a.botCfg.WhitelistMode
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showUsers(ctx, chatID, 0)
 	case "p2pon", "p2poff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		allow := action == "p2pon"
