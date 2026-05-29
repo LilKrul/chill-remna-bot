@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -9,21 +10,37 @@ import (
 	"remnabot/internal/i18n"
 )
 
+func (a *App) webhookListenPort() string {
+	addr := ":8080"
+	a.mu.Lock()
+	if a.botCfg != nil && a.botCfg.Webhook.ListenAddr != "" {
+		addr = a.botCfg.Webhook.ListenAddr
+	}
+	a.mu.Unlock()
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		return addr[i+1:]
+	}
+	return "8080"
+}
+
+func (a *App) selfContainerName() string {
+	if a.ctl != nil {
+		if n := a.ctl.SelfContainer(); n != "" {
+			return n
+		}
+	}
+	return "remnabot"
+}
+
 func (a *App) showWebhooksAdmin(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 
 	a.mu.Lock()
-	enabled := false
-	addr := ":8080"
 	base := ""
 	rwSecret := ""
 	domain := ""
 	tls := false
 	if a.botCfg != nil {
-		enabled = a.botCfg.Webhook.Enabled
-		if a.botCfg.Webhook.ListenAddr != "" {
-			addr = a.botCfg.Webhook.ListenAddr
-		}
 		base = a.botCfg.Webhook.PublicBaseURL
 		rwSecret = a.botCfg.Webhook.RemnawaveSecret
 		domain = a.botCfg.Webhook.Domain
@@ -34,29 +51,10 @@ func (a *App) showWebhooksAdmin(ctx context.Context, chatID int64) {
 		base = "https://" + domain
 	}
 
-	status := i18n.T(lang, "admin.off")
-	if enabled {
-		status = i18n.T(lang, "admin.on")
-	}
-	baseDisp := base
-	if baseDisp == "" {
-		baseDisp = i18n.T(lang, "admin.none")
-	}
 	secretDisp := i18n.T(lang, "admin.no")
 	if rwSecret != "" {
 		secretDisp = i18n.T(lang, "admin.yes")
 	}
-
-	urls := i18n.T(lang, "admin.none")
-	if base != "" {
-		urls = "<code>" + base + "/webhook/yookassa</code>\n" +
-			"<code>" + base + "/webhook/cryptobot</code>\n" +
-			"<code>" + base + "/webhook/remnawave</code>\n" +
-			"<code>" + base + "/healthz</code>"
-	}
-
-	text := i18n.T(lang, "admin.webhooks_title", status, addr, baseDisp, secretDisp) + "\n\n" + urls
-
 	pubLabel := i18n.T(lang, "wh.public_off")
 	if tls {
 		pubLabel = i18n.T(lang, "wh.public_on")
@@ -65,13 +63,37 @@ func (a *App) showWebhooksAdmin(ctx context.Context, chatID int64) {
 	if domainDisp == "" {
 		domainDisp = i18n.T(lang, "admin.none")
 	}
-	text += "\n\n" + i18n.T(lang, "wh.tls_block", pubLabel, domainDisp)
+
+	urls := ""
+	if base != "" {
+		urls = "\n\n" + i18n.T(lang, "wh.urls",
+			base+"/webhook/yookassa", base+"/webhook/cryptobot",
+			base+"/webhook/platega", base+"/webhook/tribute")
+	}
+
+	text := i18n.T(lang, "wh.screen", a.selfContainerName(), a.webhookListenPort(), pubLabel, domainDisp, secretDisp) + urls
+
 	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "admin.btn_toggle"), "wh:toggle"), btn(i18n.T(lang, "admin.wh_btn_secret"), "wh:secret")},
+		{btn(i18n.T(lang, "wh.btn_guide"), "wh:guide")},
 		{btn(i18n.T(lang, "wh.btn_public"), "wh:public"), btn(i18n.T(lang, "wh.btn_domain"), "wh:domain")},
 		{btn(i18n.T(lang, "wh.btn_apply"), "wh:apply")},
-		{btn(i18n.T(lang, "admin.wh_btn_addr"), "wh:addr"), btn(i18n.T(lang, "admin.wh_btn_base"), "wh:base")},
+		{btn(i18n.T(lang, "wh.btn_base"), "wh:base"), btn(i18n.T(lang, "admin.wh_btn_secret"), "wh:secret")},
 		{btn(i18n.T(lang, "btn.back"), "menu:manage"), btn(i18n.T(lang, "btn.home"), "menu:home")},
+	})
+}
+
+func (a *App) showWebhookGuide(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	c := a.selfContainerName()
+	p := a.webhookListenPort()
+	caddy := fmt.Sprintf("handle /webhook/* {\n    reverse_proxy %s:%s\n}", c, p)
+	nginx := fmt.Sprintf("location /webhook/ {\n    proxy_pass http://%s:%s;\n    proxy_set_header Host $host;\n}", c, p)
+	text := i18n.T(lang, "wh.guide_intro", c, p) +
+		"\n\n<b>Caddy</b>\n<pre>" + caddy + "</pre>" +
+		"\n<b>nginx</b>\n<pre>" + nginx + "</pre>\n\n" +
+		i18n.T(lang, "wh.guide_after")
+	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.back"), "menu:webhooks"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
 
@@ -79,17 +101,8 @@ func (a *App) onWebhooksAdmin(ctx context.Context, chatID int64, val string) {
 	action, _, _ := strings.Cut(val, ":")
 	lang := a.lang(chatID)
 	switch action {
-	case "toggle":
-		a.mu.Lock()
-		if a.botCfg != nil {
-			a.botCfg.Webhook.Enabled = !a.botCfg.Webhook.Enabled
-		}
-		a.mu.Unlock()
-		_ = a.saveBotConfig(ctx)
-		a.showWebhooksAdmin(ctx, chatID)
-	case "addr":
-		a.getUI(chatID).adminInput = "wh_addr"
-		a.askInput(ctx, chatID, i18n.T(lang, "admin.wh_ask_addr"), "menu:webhooks")
+	case "guide":
+		a.showWebhookGuide(ctx, chatID)
 	case "base":
 		a.getUI(chatID).adminInput = "wh_base"
 		a.askInput(ctx, chatID, i18n.T(lang, "admin.wh_ask_base"), "menu:webhooks")

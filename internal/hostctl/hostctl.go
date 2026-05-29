@@ -39,6 +39,8 @@ func env(k, def string) string {
 	return def
 }
 
+func (c *Controller) SelfContainer() string { return c.selfContainer }
+
 func (c *Controller) Available() bool {
 	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
 		return false

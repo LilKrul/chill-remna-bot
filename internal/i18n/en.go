@@ -518,4 +518,10 @@ var en = map[string]string{
 	"wh.apply_unavailable":       "Docker self-management unavailable (no docker.sock/compose). Open ports 80/443 manually.",
 	"wh.applying":                "🚀 Opening ports 80/443 and restarting the bot… ~10–20s, then the cert is fetched on first request.",
 	"wh.apply_fail":              "❌ Failed to apply: %s",
+	"wh.screen":                  "🔌 <b>Webhooks</b>\n\nThe bot receives payments via webhooks. Pick the option for your setup:\n\n<b>A. Behind the panel proxy</b> — default if the bot is on the SAME server as the panel. Built-in HTTPS not needed: the panel proxy forwards to the bot by name <code>%s:%s</code>. Tap “📋 Guide”.\n\n<b>B. Built-in HTTPS</b> — if the bot is on a SEPARATE server (needs free ports 80/443).\nStatus: %s · Domain: <code>%s</code>\n\n🔑 Panel secret (for /webhook/remnawave): %s",
+	"wh.urls":                    "🔗 <b>Webhook URLs</b>\n<code>%s</code>\n<code>%s</code>\n<code>%s</code>\n<code>%s</code>",
+	"wh.btn_guide":               "📋 Guide (panel proxy)",
+	"wh.btn_base":                "🔗 Base URL (for proxy)",
+	"wh.guide_intro":             "📋 <b>Connect via the panel proxy</b>\n\nBot on the same server as the panel? Don't enable built-in HTTPS — ports 80/443 are already taken by the panel. The bot is on the panel's docker network, so the panel's Caddy/nginx can reach it by name <code>%s:%s</code>. Add one block to the panel config:",
+	"wh.guide_after":             "Restart the panel proxy. Webhook URL for payment providers: <code>https://panel-domain/webhook/yookassa</code> (same for cryptobot/platega/tribute). If the container has a different name, substitute it (set via SELF_CONTAINER).",
 }
