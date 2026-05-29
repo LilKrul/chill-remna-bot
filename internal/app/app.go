@@ -291,6 +291,12 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		return
 	}
 
+	if a.getUI(chatID).awaitPromo {
+		a.getUI(chatID).awaitPromo = false
+		a.msg.Delete(ctx, chatID, m.ID)
+		a.applyPromo(ctx, chatID, text)
+		return
+	}
 	if a.getUI(chatID).awaitTopUp {
 		a.msg.Delete(ctx, chatID, m.ID)
 		a.setTopUpCustom(ctx, chatID, text)
@@ -521,6 +527,7 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 	ui.adminInput = ""
 	ui.priceMonths = 0
 	ui.inputBack = ""
+	ui.awaitPromo = false
 	if back == "" {
 		a.enterHome(ctx, chatID, isAdmin, fname, uname)
 		return

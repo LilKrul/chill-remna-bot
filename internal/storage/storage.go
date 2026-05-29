@@ -34,6 +34,13 @@ type Storage interface {
 	DeleteUser(ctx context.Context, telegramID int64) error
 	AllUserIDs(ctx context.Context) ([]int64, error)
 
+	CreatePromo(ctx context.Context, p *model.PromoCode) error
+	GetPromo(ctx context.Context, code string) (*model.PromoCode, error)
+	ListPromos(ctx context.Context) ([]model.PromoCode, error)
+	DeletePromo(ctx context.Context, code string) error
+	PromoRedeemedBy(ctx context.Context, code string, telegramID int64) (bool, error)
+	RedeemPromo(ctx context.Context, code string, telegramID int64) error
+
 	DeletePaymentsByUser(ctx context.Context, telegramID int64) error
 	DeleteP2PRequestsByUser(ctx context.Context, telegramID int64) error
 
@@ -527,11 +534,19 @@ func (b *base) DeleteMediaFileID(ctx context.Context, section string) error {
 }
 
 type Snapshot struct {
-	Config   *model.BotConfig
-	Users    []model.User
-	Payments []model.Payment
-	P2P      []model.P2PRequest
-	Media    []MediaItem
+	Config    *model.BotConfig
+	Users     []model.User
+	Payments  []model.Payment
+	P2P       []model.P2PRequest
+	Media     []MediaItem
+	Promos    []model.PromoCode
+	PromoUses []PromoUse
+}
+
+type PromoUse struct {
+	Code       string
+	TelegramID int64
+	CreatedAt  string
 }
 
 type MediaItem struct {
@@ -629,6 +644,29 @@ func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 	}
 	mrows.Close()
 
+	if promos, err := b.ListPromos(ctx); err == nil {
+		snap.Promos = promos
+	} else {
+		return nil, err
+	}
+	urows2, err := b.db.QueryContext(ctx, "SELECT code, telegram_id, created_at FROM promo_redemptions")
+	if err != nil {
+		return nil, err
+	}
+	for urows2.Next() {
+		var u PromoUse
+		if err := urows2.Scan(&u.Code, &u.TelegramID, &u.CreatedAt); err != nil {
+			urows2.Close()
+			return nil, err
+		}
+		snap.PromoUses = append(snap.PromoUses, u)
+	}
+	if err := urows2.Err(); err != nil {
+		urows2.Close()
+		return nil, err
+	}
+	urows2.Close()
+
 	return snap, nil
 }
 
@@ -653,6 +691,18 @@ func (b *base) Import(ctx context.Context, s *Snapshot) error {
 	}
 	for i := range s.Media {
 		if err := b.SaveMediaFileID(ctx, s.Media[i].Section, s.Media[i].FileID); err != nil {
+			return err
+		}
+	}
+	for i := range s.Promos {
+		if err := b.CreatePromo(ctx, &s.Promos[i]); err != nil {
+			return err
+		}
+	}
+	for i := range s.PromoUses {
+		if _, err := b.db.ExecContext(ctx,
+			"INSERT INTO promo_redemptions (code, telegram_id, created_at) VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+")",
+			s.PromoUses[i].Code, s.PromoUses[i].TelegramID, s.PromoUses[i].CreatedAt); err != nil && !isUniqueViolation(err) {
 			return err
 		}
 	}
@@ -778,4 +828,73 @@ func (b *base) AllUserIDs(ctx context.Context) ([]int64, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+func (b *base) CreatePromo(ctx context.Context, p *model.PromoCode) error {
+	if p.CreatedAt == "" {
+		p.CreatedAt = nowStr()
+	}
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO promo_codes (code, kind, value, max_uses, used, expires_at, created_at) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+") "+
+			"ON CONFLICT (code) DO UPDATE SET kind = excluded.kind, value = excluded.value, "+
+			"max_uses = excluded.max_uses, expires_at = excluded.expires_at",
+		p.Code, p.Kind, p.Value, p.MaxUses, p.Used, p.ExpiresAt, p.CreatedAt)
+	return err
+}
+
+func (b *base) GetPromo(ctx context.Context, code string) (*model.PromoCode, error) {
+	var p model.PromoCode
+	err := b.db.QueryRowContext(ctx,
+		"SELECT code, kind, value, max_uses, used, expires_at, created_at FROM promo_codes WHERE code = "+b.ph(1), code).
+		Scan(&p.Code, &p.Kind, &p.Value, &p.MaxUses, &p.Used, &p.ExpiresAt, &p.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (b *base) ListPromos(ctx context.Context) ([]model.PromoCode, error) {
+	rows, err := b.db.QueryContext(ctx,
+		"SELECT code, kind, value, max_uses, used, expires_at, created_at FROM promo_codes ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.PromoCode
+	for rows.Next() {
+		var p model.PromoCode
+		if err := rows.Scan(&p.Code, &p.Kind, &p.Value, &p.MaxUses, &p.Used, &p.ExpiresAt, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (b *base) DeletePromo(ctx context.Context, code string) error {
+	_, err := b.db.ExecContext(ctx, "DELETE FROM promo_codes WHERE code = "+b.ph(1), code)
+	return err
+}
+
+func (b *base) PromoRedeemedBy(ctx context.Context, code string, telegramID int64) (bool, error) {
+	var n int
+	err := b.db.QueryRowContext(ctx,
+		"SELECT COUNT(1) FROM promo_redemptions WHERE code = "+b.ph(1)+" AND telegram_id = "+b.ph(2),
+		code, telegramID).Scan(&n)
+	return n > 0, err
+}
+
+func (b *base) RedeemPromo(ctx context.Context, code string, telegramID int64) error {
+	if _, err := b.db.ExecContext(ctx,
+		"INSERT INTO promo_redemptions (code, telegram_id, created_at) VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+")",
+		code, telegramID, nowStr()); err != nil {
+		return err
+	}
+	_, err := b.db.ExecContext(ctx,
+		"UPDATE promo_codes SET used = used + 1 WHERE code = "+b.ph(1), code)
+	return err
 }

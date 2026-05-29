@@ -264,3 +264,18 @@ const (
 	ReferralBonusBalance = "balance"
 	ReferralBonusDays    = "days"
 )
+
+type PromoCode struct {
+	Code      string
+	Kind      string
+	Value     int
+	MaxUses   int
+	Used      int
+	ExpiresAt string
+	CreatedAt string
+}
+
+const (
+	PromoKindBalance = "balance"
+	PromoKindDays    = "days"
+)

@@ -674,6 +674,9 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 	case "bcast":
 		ui.adminInput = ""
 		a.previewBroadcast(ctx, chatID, text)
+	case "promo_create":
+		ui.adminInput = ""
+		a.createPromoFromText(ctx, chatID, text)
 	case "ref_value":
 		ui.adminInput = ""
 		n, _ := strconv.Atoi(strings.TrimSpace(text))

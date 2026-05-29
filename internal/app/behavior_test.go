@@ -85,13 +85,15 @@ func (f *fakeMsg) joined() string {
 }
 
 type fakeStore struct {
-	cfg     *model.BotConfig
-	users   map[int64]*model.User
-	reqs    map[int64]*model.P2PRequest
-	pays    map[int64]*model.Payment
-	media   map[string]string
-	pending map[int64]*model.PendingInvoice
-	seq     int64
+	cfg       *model.BotConfig
+	users     map[int64]*model.User
+	reqs      map[int64]*model.P2PRequest
+	pays      map[int64]*model.Payment
+	media     map[string]string
+	pending   map[int64]*model.PendingInvoice
+	promos    map[string]*model.PromoCode
+	promoUses map[string]bool
+	seq       int64
 }
 
 func (s *fakeStore) Migrate(context.Context) error { return nil }
@@ -359,6 +361,45 @@ func (s *fakeStore) SetRefBonusPaid(_ context.Context, id int64) error {
 	}
 	return nil
 }
+func (s *fakeStore) CreatePromo(_ context.Context, p *model.PromoCode) error {
+	if s.promos == nil {
+		s.promos = map[string]*model.PromoCode{}
+	}
+	cp := *p
+	s.promos[p.Code] = &cp
+	return nil
+}
+func (s *fakeStore) GetPromo(_ context.Context, code string) (*model.PromoCode, error) {
+	if s.promos == nil || s.promos[code] == nil {
+		return nil, nil
+	}
+	cp := *s.promos[code]
+	return &cp, nil
+}
+func (s *fakeStore) ListPromos(_ context.Context) ([]model.PromoCode, error) {
+	var out []model.PromoCode
+	for _, p := range s.promos {
+		out = append(out, *p)
+	}
+	return out, nil
+}
+func (s *fakeStore) DeletePromo(_ context.Context, code string) error {
+	delete(s.promos, code)
+	return nil
+}
+func (s *fakeStore) PromoRedeemedBy(_ context.Context, code string, id int64) (bool, error) {
+	return s.promoUses[code+"|"+itoa64(id)], nil
+}
+func (s *fakeStore) RedeemPromo(_ context.Context, code string, id int64) error {
+	if s.promoUses == nil {
+		s.promoUses = map[string]bool{}
+	}
+	s.promoUses[code+"|"+itoa64(id)] = true
+	if s.promos != nil && s.promos[code] != nil {
+		s.promos[code].Used++
+	}
+	return nil
+}
 func (s *fakeStore) AllUserIDs(_ context.Context) ([]int64, error) {
 	var ids []int64
 	for id, u := range s.users {
@@ -511,6 +552,7 @@ func panelStub(users int) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 	}))
 }
+func itoa64(n int64) string { return strconv.FormatInt(n, 10) }
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

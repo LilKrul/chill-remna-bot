@@ -4,6 +4,7 @@ type uiState struct {
 	buyMonths    int
 	topUpKopecks int64
 	awaitTopUp   bool
+	awaitPromo   bool
 	awaitShotReq int64
 	rejectReq    int64
 
