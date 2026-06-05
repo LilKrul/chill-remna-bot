@@ -406,6 +406,8 @@ func (a *App) verify(ctx context.Context, chatID int64, w *wizard) {
 	delete(a.wiz, chatID)
 	a.mu.Unlock()
 
-	a.send(ctx, chatID, i18n.T(lang, "step.verify.ok", count))
+	a.sendKB(ctx, chatID, i18n.T(lang, "step.verify.ok", count), [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "step.verify.btn_admin"), "menu:home")},
+	})
 	a.log.Info("установка завершена", "db", a.store.Kind(), "mode", saved.Panel.Mode)
 }

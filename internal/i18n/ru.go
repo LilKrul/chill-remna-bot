@@ -66,9 +66,10 @@ var ru = map[string]string{
 	"step.apikey.no":            "🔓 Нет, открыт",
 	"step.apikey.ask":           "🔐 Введите X-API-Key от caddy-security (раздел apikeys в портале).",
 
-	"step.verify.checking": "⏳ Проверяю связь с панелью…",
-	"step.verify.ok":       "✅ Панель на связи! Пользователей в панели: %d.\n\nУстановка завершена. Команды: /status, /update",
-	"step.verify.fail":     "❌ Не удалось подключиться: %s\n\nИсправьте данные и попробуйте снова: /setup",
+	"step.verify.checking":  "⏳ Проверяю связь с панелью…",
+	"step.verify.ok":        "✅ Панель на связи! Пользователей в панели: %d.\n\nУстановка завершена. Команды: /status, /update",
+	"step.verify.btn_admin": "🛠 Открыть админ-панель",
+	"step.verify.fail":      "❌ Не удалось подключиться: %s\n\nИсправьте данные и попробуйте снова: /setup",
 
 	"installed.hint":   "Бот уже установлен. Доступно: /status, /update. Переустановка: /setup.",
 	"status.res_title": "📊 <b>Ресурсы</b>",

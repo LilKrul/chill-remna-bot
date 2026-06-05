@@ -66,9 +66,10 @@ var en = map[string]string{
 	"step.apikey.no":            "🔓 No, open",
 	"step.apikey.ask":           "🔐 Enter the caddy-security X-API-Key (apikeys section in the portal).",
 
-	"step.verify.checking": "⏳ Checking the panel connection…",
-	"step.verify.ok":       "✅ Panel is reachable! Users in panel: %d.\n\nSetup complete. Commands: /status, /update",
-	"step.verify.fail":     "❌ Could not connect: %s\n\nFix the details and try again: /setup",
+	"step.verify.checking":  "⏳ Checking the panel connection…",
+	"step.verify.ok":        "✅ Panel is reachable! Users in panel: %d.\n\nSetup complete. Commands: /status, /update",
+	"step.verify.btn_admin": "🛠 Open admin panel",
+	"step.verify.fail":      "❌ Could not connect: %s\n\nFix the details and try again: /setup",
 
 	"installed.hint":   "The bot is already set up. Available: /status, /update. Reinstall: /setup.",
 	"status.res_title": "📊 <b>Resources</b>",
