@@ -148,7 +148,7 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 		}
 	case "usr":
 		if isAdmin {
-			a.onUsers(ctx, chatID, val)
+			a.onUsers(ctx, chatID, val, cqMsgID(cq))
 		}
 	case "sq":
 		if isAdmin {

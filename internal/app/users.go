@@ -167,7 +167,7 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	})
 }
 
-func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
+func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID int) {
 	action, arg, _ := strings.Cut(val, ":")
 	switch action {
 	case "list":
@@ -182,6 +182,9 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		if a.store != nil {
 			_ = a.store.SetBlocked(ctx, uid, action == "block")
+		}
+		if srcMsgID != 0 {
+			a.msg.Delete(ctx, chatID, srcMsgID)
 		}
 		if action == "unblock" && uid != 0 {
 			ulang := a.lang(uid)

@@ -600,7 +600,7 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 	case "cbc":
 		a.onCBCheck(ctx, chatID, val)
 	case "usr":
-		a.onUsers(ctx, chatID, val)
+		a.onUsers(ctx, chatID, val, 0)
 	default:
 		a.enterHome(ctx, chatID, isAdmin, fname, uname)
 	}
