@@ -1,8 +1,5 @@
 name: build-and-push
 
-# Собирает Docker-образ и публикует его в GitHub Container Registry (GHCR)
-# при каждом пуше в main и по тегам vX.Y.Z. После этого на сервере достаточно
-# `docker compose pull` готового образа — без клонирования и сборки.
 
 on:
   push:
@@ -33,7 +30,6 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # имя приводится к нижнему регистру автоматически
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
