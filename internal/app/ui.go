@@ -53,10 +53,10 @@ func (a *App) botLang() string {
 
 func displayName(first, username string) string {
 	if first != "" {
-		return first
+		return escapeName(first)
 	}
 	if username != "" {
-		return "@" + username
+		return "@" + escapeName(username)
 	}
 	return "друг"
 }
@@ -66,9 +66,9 @@ func userLabel(u *model.User) string {
 	nick := ""
 	switch {
 	case u.Username != "":
-		nick = "@" + u.Username
+		nick = "@" + escapeName(u.Username)
 	case u.FirstName != "":
-		nick = u.FirstName
+		nick = escapeName(u.FirstName)
 	}
 	if nick == "" {
 		return id
@@ -409,6 +409,7 @@ func (a *App) registerUser(ctx context.Context, chatID int64, firstName, usernam
 		_ = a.store.UpsertUser(ctx, chatID)
 		_ = a.store.SetUserInfo(ctx, chatID, username, firstName)
 	}
+	a.guardNewUser(ctx, chatID, firstName, username)
 	if a.syncPanelAccount(ctx, chatID) {
 		if u, _ := a.store.GetUser(ctx, chatID); u != nil && u.SubExpireAt != "" {
 			lang := a.lang(chatID)

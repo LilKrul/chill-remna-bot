@@ -270,7 +270,9 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 		a.enterHome(ctx, chatID, isAdmin, firstName, username)
 		return
 	case strings.HasPrefix(text, "/status"):
-		a.handleStatus(ctx, chatID)
+		if isAdmin {
+			a.handleStatus(ctx, chatID)
+		}
 		return
 	case strings.HasPrefix(text, "/update"):
 		if isAdmin {
