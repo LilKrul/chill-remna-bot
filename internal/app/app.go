@@ -700,10 +700,11 @@ func (m botMessenger) Send(ctx context.Context, chatID int64, text string) int {
 }
 
 func (m botMessenger) SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) int {
-	msg, err := m.b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML,
-		ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: rows},
-	})
+	params := &bot.SendMessageParams{ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML}
+	if len(rows) > 0 {
+		params.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	}
+	msg, err := m.b.SendMessage(ctx, params)
 	if err != nil {
 		m.log.Error("send keyboard", "err", err)
 		return 0
