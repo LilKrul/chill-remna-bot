@@ -128,16 +128,11 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	if u.P2PApproved {
 		p2p = i18n.T(lang, "user.yes")
 	}
-	status := i18n.T(lang, "user.active")
-	if u.Blocked {
-		status = i18n.T(lang, "user.blocked")
-	}
 	id := strconv.FormatInt(uid, 10)
-	var toggle models.InlineKeyboardButton
-	if u.Blocked {
-		toggle = btn(i18n.T(lang, "btn.unblock"), "usr:unblock:"+id)
-	} else {
-		toggle = btn(i18n.T(lang, "btn.block"), "usr:block:"+id)
+	botBlocked := u.Blocked
+	status := i18n.T(lang, "user.active")
+	if botBlocked {
+		status = i18n.T(lang, "user.blocked")
 	}
 	var wlBtn models.InlineKeyboardButton
 	if u.Whitelisted {
@@ -152,20 +147,56 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 		p2pBtn = btn(i18n.T(lang, "btn.p2p_allow"), "usr:p2pon:"+id)
 	}
 	subBlock := i18n.T(lang, "user.no_sub")
+	subExists, subBlocked := false, false
 	a.mu.Lock()
 	panel := a.panel
 	a.mu.Unlock()
 	if panel != nil {
-		if url, exp, ok := panel.Subscription(ctx, uid); ok {
-			subBlock = i18n.T(lang, "user.sub_active", formatExpire(exp, lang), a.rewriteSub(url))
+		if url, exp, st, ok := panel.SubscriptionFull(ctx, uid); ok {
+			subExists = true
+			subBlocked = st == remnawave.StatusDisabled
+			if subBlocked {
+				subBlock = i18n.T(lang, "user.sub_blocked", a.rewriteSub(url))
+			} else {
+				subBlock = i18n.T(lang, "user.sub_active", formatExpire(exp, lang), a.rewriteSub(url))
+			}
 		}
 	}
-	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status, subBlock), [][]models.InlineKeyboardButton{
-		{p2pBtn, wlBtn},
-		{toggle, btn(i18n.T(lang, "btn.delete"), "usr:del:"+id)},
-		{btn(i18n.T(lang, "btn.link_panel"), "usr:link:"+id)},
-		{btn(i18n.T(lang, "btn.back"), "usr:list"), btn(i18n.T(lang, "btn.home"), "menu:home")},
-	})
+	var actions []models.InlineKeyboardButton
+	if !botBlocked || (subExists && !subBlocked) {
+		actions = append(actions, btn(i18n.T(lang, "btn.block"), "usr:block:"+id))
+	}
+	if botBlocked || (subExists && subBlocked) {
+		actions = append(actions, btn(i18n.T(lang, "btn.unblock"), "usr:unblock:"+id))
+	}
+	rows := [][]models.InlineKeyboardButton{{p2pBtn, wlBtn}}
+	if len(actions) > 0 {
+		rows = append(rows, actions)
+	}
+	rows = append(rows,
+		[]models.InlineKeyboardButton{btn(i18n.T(lang, "btn.delete"), "usr:del:"+id)},
+		[]models.InlineKeyboardButton{btn(i18n.T(lang, "btn.link_panel"), "usr:link:"+id)},
+		[]models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "usr:list"), btn(i18n.T(lang, "btn.home"), "menu:home")},
+	)
+	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status, subBlock), rows)
+}
+
+func (a *App) userBlockState(ctx context.Context, uid int64) (botBlocked, subExists, subBlocked bool) {
+	if a.store != nil {
+		if u, _ := a.store.GetUser(ctx, uid); u != nil {
+			botBlocked = u.Blocked
+		}
+	}
+	a.mu.Lock()
+	panel := a.panel
+	a.mu.Unlock()
+	if panel != nil {
+		if _, _, st, ok := panel.SubscriptionFull(ctx, uid); ok {
+			subExists = true
+			subBlocked = st == remnawave.StatusDisabled
+		}
+	}
+	return
 }
 
 func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID int) {
@@ -181,20 +212,36 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 		a.showUser(ctx, chatID, uid)
 	case "block":
 		lang := a.lang(chatID)
-		a.sendKB(ctx, chatID, i18n.T(lang, "block.ask", arg), [][]models.InlineKeyboardButton{
-			{btn(i18n.T(lang, "block.btn_both"), "usr:blockboth:"+arg)},
-			{btn(i18n.T(lang, "block.btn_sub"), "usr:blocksub:"+arg)},
-			{btn(i18n.T(lang, "block.btn_bot"), "usr:blockbot:"+arg)},
-			{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)},
-		})
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		botBlocked, subExists, subBlocked := a.userBlockState(ctx, uid)
+		var rows [][]models.InlineKeyboardButton
+		if !botBlocked && subExists && !subBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "block.btn_both"), "usr:blockboth:"+arg)})
+		}
+		if subExists && !subBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "block.btn_sub"), "usr:blocksub:"+arg)})
+		}
+		if !botBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "block.btn_bot"), "usr:blockbot:"+arg)})
+		}
+		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)})
+		a.sendKB(ctx, chatID, i18n.T(lang, "block.ask", arg), rows)
 	case "unblock":
 		lang := a.lang(chatID)
-		a.sendKB(ctx, chatID, i18n.T(lang, "unblock.ask", arg), [][]models.InlineKeyboardButton{
-			{btn(i18n.T(lang, "unblock.btn_both"), "usr:unblockboth:"+arg)},
-			{btn(i18n.T(lang, "unblock.btn_sub"), "usr:unblocksub:"+arg)},
-			{btn(i18n.T(lang, "unblock.btn_bot"), "usr:unblockbot:"+arg)},
-			{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)},
-		})
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		botBlocked, subExists, subBlocked := a.userBlockState(ctx, uid)
+		var rows [][]models.InlineKeyboardButton
+		if botBlocked && subExists && subBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "unblock.btn_both"), "usr:unblockboth:"+arg)})
+		}
+		if subExists && subBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "unblock.btn_sub"), "usr:unblocksub:"+arg)})
+		}
+		if botBlocked {
+			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "unblock.btn_bot"), "usr:unblockbot:"+arg)})
+		}
+		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)})
+		a.sendKB(ctx, chatID, i18n.T(lang, "unblock.ask", arg), rows)
 	case "blockboth", "blocksub", "blockbot":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		a.applyBlock(ctx, chatID, uid, action, srcMsgID)

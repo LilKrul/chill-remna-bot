@@ -215,10 +215,11 @@ var en = map[string]string{
 	"users.empty": "👥 No users yet.",
 	"user.card": "👤 <b>%s</b>\nRegistered: %s\nP2P access: %s\nStatus: %s\n\n%s\n\n" +
 		"🗑 «Delete» will ask whether to remove from the bot only or together with the panel subscription (only this user's account is deleted).",
-	"user.active":     "active ✅",
-	"user.sub_active": "📦 Subscription active until <b>%s</b>\nLink (tap to copy):\n<code>%s</code>",
-	"user.no_sub":     "📭 No active subscription in the panel.",
-	"btn.link_panel":  "🔗 Link panel account",
+	"user.active":      "active ✅",
+	"user.sub_active":  "📦 Subscription active until <b>%s</b>\nLink (tap to copy):\n<code>%s</code>",
+	"user.sub_blocked": "🛑 Subscription is blocked in the panel (DISABLED).\nLink:\n<code>%s</code>",
+	"user.no_sub":      "📭 No active subscription in the panel.",
+	"btn.link_panel":   "🔗 Link panel account",
 	"user.link_ask": "🔗 <b>Link to a panel account</b>\n\nEnter the <b>username</b> or <b>UUID</b> of the panel account to bind to TG ID <code>%d</code>.\n\n" +
 		"Linking sets telegramId and the bot tag on the account — the user will manage it from the bot, and the trial becomes unavailable for them.",
 	"user.link_not_found": "❌ Panel account not found.",
