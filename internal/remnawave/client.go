@@ -163,6 +163,7 @@ type panelUser struct {
 	Tag             string `json:"tag"`
 	Username        string `json:"username"`
 	TelegramID      int64  `json:"telegramId"`
+	Status          string `json:"status"`
 }
 
 type PanelUser struct {
@@ -191,7 +192,10 @@ func toPanelUser(u *panelUser) *PanelUser {
 const BotTag = "CHILLBOT"
 
 func ownedByBot(u *panelUser, telegramID int64) bool {
-	return u.Tag == BotTag || u.Username == fmt.Sprintf("tg_%d", telegramID)
+	if u == nil || telegramID == 0 {
+		return false
+	}
+	return u.TelegramID == telegramID || u.Username == fmt.Sprintf("tg_%d", telegramID)
 }
 
 type UserLimits struct {
@@ -389,16 +393,17 @@ func (c *Client) setSubEnabled(ctx context.Context, telegramID int64, enable boo
 	if !ownedByBot(u, telegramID) {
 		return false, fmt.Errorf("аккаунт <code>%d</code> создан НЕ через бота — управлять им запрещено", telegramID)
 	}
-	action := "disable"
+	status := "DISABLED"
 	if enable {
-		action = "enable"
+		status = "ACTIVE"
 	}
-	resp, err := c.do(ctx, http.MethodPost, "/api/users/"+u.Uuid+"/actions/"+action, nil)
+	body := map[string]any{"uuid": u.Uuid, "status": status}
+	resp, err := c.do(ctx, http.MethodPatch, "/api/users", body)
 	if err != nil {
 		return false, fmt.Errorf("нет связи с панелью: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return false, classifyHTTP(resp)
 	}
 	return true, nil
@@ -418,6 +423,16 @@ func (c *Client) Subscription(ctx context.Context, telegramID int64) (string, st
 		return "", "", false
 	}
 	return u.SubscriptionURL, u.ExpireAt, true
+}
+
+const StatusDisabled = "DISABLED"
+
+func (c *Client) SubscriptionFull(ctx context.Context, telegramID int64) (url, expireAt, status string, ok bool) {
+	u, err := c.findByTelegram(ctx, telegramID)
+	if err != nil || u == nil || u.SubscriptionURL == "" {
+		return "", "", "", false
+	}
+	return u.SubscriptionURL, u.ExpireAt, u.Status, true
 }
 
 func (c *Client) findByTelegram(ctx context.Context, telegramID int64) (*panelUser, error) {

@@ -499,6 +499,10 @@ func (a *App) send(ctx context.Context, chatID int64, text string) {
 	a.emit(ctx, chatID, func() int { return a.msg.Send(ctx, chatID, t) })
 }
 
+func (a *App) sendHome(ctx context.Context, chatID int64, text string) {
+	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{homeRow(a.lang(chatID))})
+}
+
 func (a *App) sendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
 	t := a.applyPremium(text)
 	a.emit(ctx, chatID, func() int { return a.msg.SendKB(ctx, chatID, t, rows) })

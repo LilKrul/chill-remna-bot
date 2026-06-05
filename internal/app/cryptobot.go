@@ -58,12 +58,12 @@ func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	cfg := a.cbConfig()
 	price := a.pricing().Base[months]
 	if !cfg.Enabled || price == "" {
-		a.send(ctx, chatID, i18n.T(lang, "cb.no_price"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "cb.no_price"))
 		return
 	}
 	client := a.cbClient()
 	if client == nil {
-		a.send(ctx, chatID, i18n.T(lang, "cb.not_configured"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "cb.not_configured"))
 		return
 	}
 	if a.store != nil {
@@ -72,7 +72,7 @@ func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	inv, err := client.CreateInvoice(ctx, price, cfg.Asset, chatID, months)
 	if err != nil {
 		a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
-		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodCryptoBot, "cb:"+strconv.FormatInt(inv.InvoiceID, 10), chatID, "invoice_created", "purchase months=%d price=%s RUB assets=%s", months, price, cfg.Asset)
@@ -116,7 +116,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 		if p, _ := a.store.PendingByExtID(ctx, extID); p != nil && p.Purpose == "topup" {
 			inv, err := client.GetInvoice(ctx, invoiceID)
 			if err != nil {
-				a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+				a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 				return
 			}
 			a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "manual_check", "topup status=%s", inv.Status)
@@ -135,7 +135,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 	}
 	inv, err := client.GetInvoice(ctx, invoiceID)
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "manual_check", "status=%s", inv.Status)
@@ -158,7 +158,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 			a.showMySubs(ctx, chatID)
 			return
 		}
-		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
 	a.sendSubActive(ctx, payChat, link, expireAt)

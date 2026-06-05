@@ -29,7 +29,7 @@ func (a *App) startStars(ctx context.Context, chatID int64) {
 	}
 	amount := a.pricing().StarPrice(months)
 	if !a.starsConfig().Enabled || amount <= 0 {
-		a.send(ctx, chatID, i18n.T(lang, "stars.no_price"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "stars.no_price"))
 		return
 	}
 	if a.store != nil {

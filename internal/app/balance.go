@@ -254,7 +254,7 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 	case "yk":
 		client := a.ykClient()
 		if client == nil {
-			a.send(ctx, chatID, i18n.T(lang, "yk.not_configured"))
+			a.sendHome(ctx, chatID, i18n.T(lang, "yk.not_configured"))
 			return
 		}
 		ret := a.ykConfig().ReturnURL
@@ -264,7 +264,7 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 		pay, err := client.CreatePayment(ctx, rub, "RUB", i18n.T(lang, "topup.invoice_desc"), ret, chatID, 0)
 		if err != nil {
 			a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
-			a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
+			a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 			return
 		}
 		a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "topup kopecks=%d", k)
@@ -281,13 +281,13 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 	case "cb":
 		client := a.cbClient()
 		if client == nil {
-			a.send(ctx, chatID, i18n.T(lang, "cb.not_configured"))
+			a.sendHome(ctx, chatID, i18n.T(lang, "cb.not_configured"))
 			return
 		}
 		inv, err := client.CreateInvoice(ctx, rub, a.cbConfig().Asset, chatID, 0)
 		if err != nil {
 			a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
-			a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
+			a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 			return
 		}
 		extID := "cb:" + strconv.FormatInt(inv.InvoiceID, 10)
@@ -344,12 +344,12 @@ func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 	priceStr := a.pricing().Base[months]
 	kopecks, ok := rubToKopecks(priceStr)
 	if priceStr == "" || !ok || kopecks <= 0 {
-		a.send(ctx, chatID, i18n.T(lang, "buy.no_plans"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "buy.no_plans"))
 		return
 	}
 	deducted, err := a.store.DeductBalance(ctx, chatID, kopecks)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	if deducted {
@@ -364,7 +364,7 @@ func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 	if err != nil {
 		_ = a.store.AddBalance(ctx, chatID, kopecks)
 		a.payLog(ctx, "balance", "", chatID, "balance_refund", "kopecks=%d возвращены после ошибки выдачи", kopecks)
-		a.send(ctx, chatID, i18n.T(lang, "balance.pay_fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "balance.pay_fail", err.Error()))
 		return
 	}
 	a.sendSubActive(ctx, chatID, link, expireAt)

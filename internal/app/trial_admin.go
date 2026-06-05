@@ -246,7 +246,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		}
 	}
 	if !a.trialAvailable(ctx, chatID) {
-		a.send(ctx, chatID, i18n.T(lang, "trial.not_available"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "trial.not_available"))
 		return
 	}
 	a.mu.Lock()
@@ -255,7 +255,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 	strategy := a.botCfg.Pricing.ResetStrategy()
 	a.mu.Unlock()
 	if panel == nil {
-		a.send(ctx, chatID, i18n.T(lang, "trial.fail", "panel offline"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "trial.fail", "panel offline"))
 		return
 	}
 	link, expireAt, err := panel.CreateOrUpdateUserDays(ctx, chatID, tr.Days, remnawave.UserLimits{
@@ -266,7 +266,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		Strategy:       strategy,
 	})
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "trial.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "trial.fail", err.Error()))
 		return
 	}
 	link = a.rewriteSub(link)

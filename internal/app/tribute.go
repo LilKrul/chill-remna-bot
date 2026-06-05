@@ -29,7 +29,7 @@ func (a *App) startTribute(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	cfg := a.tributeCfg()
 	if !cfg.Enabled || cfg.PayURL == "" {
-		a.send(ctx, chatID, i18n.T(lang, "trb.not_configured"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "trb.not_configured"))
 		return
 	}
 	if a.store != nil {

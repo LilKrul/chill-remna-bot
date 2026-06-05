@@ -174,11 +174,11 @@ func (a *App) startP2P(ctx context.Context, chatID int64) {
 	_ = a.store.UpsertUser(ctx, chatID)
 	u, err := a.store.GetUser(ctx, chatID)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	if u == nil || !u.P2PApproved {
-		a.send(ctx, chatID, i18n.T(lang, "p2p.need_approval"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "p2p.need_approval"))
 		a.notifyAdminUserRequest(ctx, chatID)
 		return
 	}
@@ -208,7 +208,7 @@ func (a *App) issueCard(ctx context.Context, chatID int64) {
 	pr := a.botCfg.Pricing
 	if len(p2p.Cards) == 0 {
 		a.mu.Unlock()
-		a.send(ctx, chatID, i18n.T(lang, "p2p.no_cards"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "p2p.no_cards"))
 		return
 	}
 	idx := 0
@@ -224,7 +224,7 @@ func (a *App) issueCard(ctx context.Context, chatID int64) {
 
 	req := &model.P2PRequest{TelegramID: chatID, Months: months, Price: price, Status: model.P2PAwaiting}
 	if err := a.store.CreateP2PRequest(ctx, req); err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "request_created", "months=%d price=%s", months, price)
@@ -269,7 +269,7 @@ func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 	req.Screenshot = fileID
 	req.Status = model.P2PSubmitted
 	if err := a.store.UpdateP2PRequest(ctx, req); err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "screenshot_submitted", "ожидает проверки админом")

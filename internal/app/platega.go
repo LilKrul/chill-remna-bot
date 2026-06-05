@@ -68,12 +68,12 @@ func (a *App) startPlatega(ctx context.Context, chatID int64) {
 	pr := a.pricing()
 	value := pr.Fiat(model.PayMethodPlatega, months)
 	if !cfg.Enabled || value == "" {
-		a.send(ctx, chatID, i18n.T(lang, "pl.no_price"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "pl.no_price"))
 		return
 	}
 	client := a.plClient()
 	if client == nil {
-		a.send(ctx, chatID, i18n.T(lang, "pl.not_configured"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "pl.not_configured"))
 		return
 	}
 	if a.store != nil {
@@ -88,7 +88,7 @@ func (a *App) startPlatega(ctx context.Context, chatID int64) {
 	tx, err := client.CreateTransaction(ctx, a.plMethod(), amount, "RUB", desc, returnURL, plPayload(chatID, months))
 	if err != nil {
 		a.payLog(ctx, model.PayMethodPlatega, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
-		a.send(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodPlatega, tx.ID, chatID, "invoice_created", "purchase months=%d amount=%.2f RUB method=%d", months, amount, a.plMethod())
@@ -118,7 +118,7 @@ func (a *App) onPLCheck(ctx context.Context, chatID int64, txID string) {
 	}
 	tx, err := client.GetTransaction(ctx, txID)
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodPlatega, txID, chatID, "manual_check", "status=%s", tx.Status)

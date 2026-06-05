@@ -10,6 +10,7 @@ import (
 	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
+	"remnabot/internal/remnawave"
 )
 
 const usersPageSize = 8
@@ -256,18 +257,23 @@ func (a *App) applyBlock(ctx context.Context, adminChat, uid int64, mode string,
 		return
 	}
 	alang := a.lang(adminChat)
-	bot := mode == "blockboth" || mode == "blockbot"
-	sub := mode == "blockboth" || mode == "blocksub"
-	if bot {
-		_ = a.store.SetBlocked(ctx, uid, true)
+	wantBot := mode == "blockboth" || mode == "blockbot"
+	wantSub := mode == "blockboth" || mode == "blocksub"
+	didBot, didSub := false, false
+	if wantBot {
+		if err := a.store.SetBlocked(ctx, uid, true); err == nil {
+			didBot = true
+		}
 	}
-	if sub {
+	if wantSub {
 		a.mu.Lock()
 		panel := a.panel
 		a.mu.Unlock()
 		if panel != nil {
 			if _, err := panel.DisableByTelegramID(ctx, uid); err != nil {
 				a.notify(ctx, adminChat, "⚠️ "+err.Error())
+			} else {
+				didSub = true
 			}
 		}
 		a.invalidateSubCache(uid)
@@ -275,8 +281,12 @@ func (a *App) applyBlock(ctx context.Context, adminChat, uid int64, mode string,
 	if srcMsgID != 0 {
 		a.msg.Delete(ctx, adminChat, srcMsgID)
 	}
-	a.notifyBlockState(ctx, uid, mode)
-	a.send(ctx, adminChat, i18n.T(alang, "block.done"))
+	if eff := effMode("block", didBot, didSub); eff != "" {
+		a.notifyBlockState(ctx, uid, eff)
+		a.send(ctx, adminChat, i18n.T(alang, "block.done"))
+	} else {
+		a.send(ctx, adminChat, i18n.T(alang, "block.fail"))
+	}
 	a.showUser(ctx, adminChat, uid)
 }
 
@@ -285,18 +295,23 @@ func (a *App) applyUnblock(ctx context.Context, adminChat, uid int64, mode strin
 		return
 	}
 	alang := a.lang(adminChat)
-	bot := mode == "unblockboth" || mode == "unblockbot"
-	sub := mode == "unblockboth" || mode == "unblocksub"
-	if bot {
-		_ = a.store.SetBlocked(ctx, uid, false)
+	wantBot := mode == "unblockboth" || mode == "unblockbot"
+	wantSub := mode == "unblockboth" || mode == "unblocksub"
+	didBot, didSub := false, false
+	if wantBot {
+		if err := a.store.SetBlocked(ctx, uid, false); err == nil {
+			didBot = true
+		}
 	}
-	if sub {
+	if wantSub {
 		a.mu.Lock()
 		panel := a.panel
 		a.mu.Unlock()
 		if panel != nil {
 			if _, err := panel.EnableByTelegramID(ctx, uid); err != nil {
 				a.notify(ctx, adminChat, "⚠️ "+err.Error())
+			} else {
+				didSub = true
 			}
 		}
 		a.invalidateSubCache(uid)
@@ -304,19 +319,36 @@ func (a *App) applyUnblock(ctx context.Context, adminChat, uid int64, mode strin
 	if srcMsgID != 0 {
 		a.msg.Delete(ctx, adminChat, srcMsgID)
 	}
-	a.notifyUnblockState(ctx, uid, mode)
-	a.send(ctx, adminChat, i18n.T(alang, "unblock.done"))
+	if eff := effMode("unblock", didBot, didSub); eff != "" {
+		a.notifyUnblockState(ctx, uid, eff)
+		a.send(ctx, adminChat, i18n.T(alang, "unblock.done"))
+	} else {
+		a.send(ctx, adminChat, i18n.T(alang, "unblock.fail"))
+	}
 	a.showUser(ctx, adminChat, uid)
+}
+
+func effMode(prefix string, bot, sub bool) string {
+	switch {
+	case bot && sub:
+		return prefix + "both"
+	case sub:
+		return prefix + "sub"
+	case bot:
+		return prefix + "bot"
+	}
+	return ""
 }
 
 func (a *App) notifyBlockState(ctx context.Context, uid int64, mode string) {
 	ulang := a.lang(uid)
+	if mode == "blocksub" {
+		a.notify(ctx, uid, i18n.T(ulang, "block.user_sub"))
+		return
+	}
 	key := "block.user_bot"
-	switch mode {
-	case "blockboth":
+	if mode == "blockboth" {
 		key = "block.user_both"
-	case "blocksub":
-		key = "block.user_sub"
 	}
 	a.msg.SendKB(ctx, uid, a.applyPremium(i18n.T(ulang, key)), nil)
 }
@@ -330,7 +362,7 @@ func (a *App) notifyUnblockState(ctx context.Context, uid int64, mode string) {
 	case "unblocksub":
 		key = "unblock.user_sub"
 	}
-	a.sendKB(ctx, uid, i18n.T(ulang, key), [][]models.InlineKeyboardButton{homeRow(ulang)})
+	a.notify(ctx, uid, i18n.T(ulang, key))
 }
 
 func (a *App) adminDeleteUser(ctx context.Context, adminChat, uid int64, deleteSub bool) {
@@ -523,10 +555,10 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	panel := a.panel
 	a.mu.Unlock()
 	home := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
-	var url, expireAt string
+	var url, expireAt, status string
 	ok := false
 	if panel != nil {
-		url, expireAt, ok = panel.Subscription(ctx, chatID)
+		url, expireAt, status, ok = panel.SubscriptionFull(ctx, chatID)
 		if ok {
 			url = a.rewriteSub(url)
 		}
@@ -542,6 +574,10 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.support"), URL: sup}})
 	}
 	rows = append(rows, home)
+	if status == remnawave.StatusDisabled {
+		a.sendKBSection(ctx, chatID, assets.SectionMySubscription, i18n.T(lang, "subs.blocked"), rows)
+		return
+	}
 	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, a.subActiveText(ctx, chatID, url, expireAt), rows)
 }
 
