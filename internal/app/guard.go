@@ -85,7 +85,7 @@ func (a *App) guardNewUser(ctx context.Context, chatID int64, firstName, usernam
 	if sup := a.supportURL(); sup != "" {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.support"), URL: sup}})
 	}
-	a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "guard.user_blocked")), rows)
+	a.sendKB(ctx, chatID, i18n.T(lang, "guard.user_blocked"), rows)
 
 	alang := a.lang(a.cfg.AdminID)
 	id := strconv.FormatInt(chatID, 10)
