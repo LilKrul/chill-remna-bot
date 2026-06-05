@@ -92,7 +92,7 @@ func (a *App) guardNewUser(ctx context.Context, chatID int64, firstName, usernam
 	a.notifyKB(ctx, a.cfg.AdminID,
 		i18n.T(alang, "guard.suspicious", a.userLabelByID(ctx, chatID), pat),
 		[][]models.InlineKeyboardButton{{
-			btn(i18n.T(alang, "btn.unblock"), "usr:unblock:"+id),
+			btn(i18n.T(alang, "btn.unblock"), "usr:unblockbot:"+id),
 			btn(i18n.T(alang, "guard.btn_card"), "usr:view:"+id),
 		}})
 	return true

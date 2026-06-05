@@ -794,7 +794,7 @@ func TestUsersAdmin_BlockEnforceDelete(t *testing.T) {
 
 	_ = fs.UpsertUser(ctx, user)
 
-	a.handleCallback(ctx, cb(100, "usr:block:555"))
+	a.handleCallback(ctx, cb(100, "usr:blockbot:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || !u.Blocked {
 		t.Fatalf("юзер должен быть заблокирован: %+v", u)
 	}
@@ -811,7 +811,7 @@ func TestUsersAdmin_BlockEnforceDelete(t *testing.T) {
 		t.Fatalf("callback заблокированного должен быть отклонён, got:\n%s", fm.joined())
 	}
 
-	a.handleCallback(ctx, cb(100, "usr:unblock:555"))
+	a.handleCallback(ctx, cb(100, "usr:unblockbot:555"))
 	if u, _ := fs.GetUser(ctx, user); u == nil || u.Blocked {
 		t.Fatalf("юзер должен быть разблокирован: %+v", u)
 	}
@@ -856,7 +856,7 @@ func TestUsersAdmin_DeleteDisablesInPanel(t *testing.T) {
 
 	_ = fs.UpsertUser(ctx, 555)
 
-	a.handleCallback(ctx, cb(100, "usr:block:555"))
+	a.handleCallback(ctx, cb(100, "usr:blockbot:555"))
 	if blockHits != 0 {
 		t.Fatalf("блокировка не должна обращаться к панели, hits=%d", blockHits)
 	}

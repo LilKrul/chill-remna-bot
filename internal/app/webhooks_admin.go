@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -142,9 +145,33 @@ func (a *App) applyWebhookServer(ctx context.Context, chatID int64) {
 		a.send(ctx, chatID, i18n.T(lang, "wh.apply_unavailable"))
 		return
 	}
-	a.send(ctx, chatID, i18n.T(lang, "wh.applying"))
+	msgID := a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "wh.applying")), nil)
+	marker := filepath.Join(a.cfg.DataDir, "webhook.pending")
+	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(msgID)), 0o600)
 	if err := a.ctl.PublishWebhookPorts(ctx); err != nil {
+		_ = os.Remove(marker)
 		a.send(ctx, chatID, i18n.T(lang, "wh.apply_fail", err.Error()))
 		return
+	}
+}
+
+func (a *App) cleanupWebhookApplyMsg(ctx context.Context) {
+	marker := filepath.Join(a.cfg.DataDir, "webhook.pending")
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return
+	}
+	_ = os.Remove(marker)
+	parts := strings.SplitN(strings.TrimSpace(string(data)), ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	chatID, _ := strconv.ParseInt(parts[0], 10, 64)
+	msgID, _ := strconv.Atoi(parts[1])
+	if chatID != 0 && msgID != 0 && a.msg != nil {
+		a.msg.Delete(ctx, chatID, msgID)
+	}
+	if chatID != 0 {
+		a.send(ctx, chatID, i18n.T(a.lang(chatID), "wh.applied"))
 	}
 }

@@ -197,6 +197,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.b = b
 	a.msg = botMessenger{b: b, log: a.log}
 	a.notifyUpdated(ctx)
+	a.cleanupWebhookApplyMsg(ctx)
 	a.log.Info("бот запущен")
 	b.Start(ctx)
 	return nil

@@ -378,6 +378,40 @@ func (c *Client) DeleteByTelegramID(ctx context.Context, telegramID int64) (bool
 	return true, nil
 }
 
+func (c *Client) setSubEnabled(ctx context.Context, telegramID int64, enable bool) (bool, error) {
+	u, err := c.findByTelegram(ctx, telegramID)
+	if err != nil {
+		return false, err
+	}
+	if u == nil || u.Uuid == "" {
+		return false, nil
+	}
+	if !ownedByBot(u, telegramID) {
+		return false, fmt.Errorf("аккаунт <code>%d</code> создан НЕ через бота — управлять им запрещено", telegramID)
+	}
+	action := "disable"
+	if enable {
+		action = "enable"
+	}
+	resp, err := c.do(ctx, http.MethodPost, "/api/users/"+u.Uuid+"/actions/"+action, nil)
+	if err != nil {
+		return false, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		return false, classifyHTTP(resp)
+	}
+	return true, nil
+}
+
+func (c *Client) DisableByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
+	return c.setSubEnabled(ctx, telegramID, false)
+}
+
+func (c *Client) EnableByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
+	return c.setSubEnabled(ctx, telegramID, true)
+}
+
 func (c *Client) Subscription(ctx context.Context, telegramID int64) (string, string, bool) {
 	u, err := c.findByTelegram(ctx, telegramID)
 	if err != nil || u == nil || u.SubscriptionURL == "" {

@@ -178,20 +178,28 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 	case "view":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		a.showUser(ctx, chatID, uid)
-	case "block", "unblock":
+	case "block":
+		lang := a.lang(chatID)
+		a.sendKB(ctx, chatID, i18n.T(lang, "block.ask", arg), [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "block.btn_both"), "usr:blockboth:"+arg)},
+			{btn(i18n.T(lang, "block.btn_sub"), "usr:blocksub:"+arg)},
+			{btn(i18n.T(lang, "block.btn_bot"), "usr:blockbot:"+arg)},
+			{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)},
+		})
+	case "unblock":
+		lang := a.lang(chatID)
+		a.sendKB(ctx, chatID, i18n.T(lang, "unblock.ask", arg), [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "unblock.btn_both"), "usr:unblockboth:"+arg)},
+			{btn(i18n.T(lang, "unblock.btn_sub"), "usr:unblocksub:"+arg)},
+			{btn(i18n.T(lang, "unblock.btn_bot"), "usr:unblockbot:"+arg)},
+			{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)},
+		})
+	case "blockboth", "blocksub", "blockbot":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
-		if a.store != nil {
-			_ = a.store.SetBlocked(ctx, uid, action == "block")
-		}
-		if srcMsgID != 0 {
-			a.msg.Delete(ctx, chatID, srcMsgID)
-		}
-		if action == "unblock" && uid != 0 {
-			ulang := a.lang(uid)
-			a.sendKB(ctx, uid, i18n.T(ulang, "guard.user_unblocked"),
-				[][]models.InlineKeyboardButton{homeRow(ulang)})
-		}
-		a.showUser(ctx, chatID, uid)
+		a.applyBlock(ctx, chatID, uid, action, srcMsgID)
+	case "unblockboth", "unblocksub", "unblockbot":
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		a.applyUnblock(ctx, chatID, uid, action, srcMsgID)
 	case "wlon", "wloff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		if a.store != nil {
@@ -241,6 +249,88 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 		a.adminDeleteUser(ctx, chatID, uid, false)
 		a.showUsers(ctx, chatID, 0)
 	}
+}
+
+func (a *App) applyBlock(ctx context.Context, adminChat, uid int64, mode string, srcMsgID int) {
+	if uid == 0 || a.store == nil {
+		return
+	}
+	alang := a.lang(adminChat)
+	bot := mode == "blockboth" || mode == "blockbot"
+	sub := mode == "blockboth" || mode == "blocksub"
+	if bot {
+		_ = a.store.SetBlocked(ctx, uid, true)
+	}
+	if sub {
+		a.mu.Lock()
+		panel := a.panel
+		a.mu.Unlock()
+		if panel != nil {
+			if _, err := panel.DisableByTelegramID(ctx, uid); err != nil {
+				a.notify(ctx, adminChat, "⚠️ "+err.Error())
+			}
+		}
+		a.invalidateSubCache(uid)
+	}
+	if srcMsgID != 0 {
+		a.msg.Delete(ctx, adminChat, srcMsgID)
+	}
+	a.notifyBlockState(ctx, uid, mode)
+	a.send(ctx, adminChat, i18n.T(alang, "block.done"))
+	a.showUser(ctx, adminChat, uid)
+}
+
+func (a *App) applyUnblock(ctx context.Context, adminChat, uid int64, mode string, srcMsgID int) {
+	if uid == 0 || a.store == nil {
+		return
+	}
+	alang := a.lang(adminChat)
+	bot := mode == "unblockboth" || mode == "unblockbot"
+	sub := mode == "unblockboth" || mode == "unblocksub"
+	if bot {
+		_ = a.store.SetBlocked(ctx, uid, false)
+	}
+	if sub {
+		a.mu.Lock()
+		panel := a.panel
+		a.mu.Unlock()
+		if panel != nil {
+			if _, err := panel.EnableByTelegramID(ctx, uid); err != nil {
+				a.notify(ctx, adminChat, "⚠️ "+err.Error())
+			}
+		}
+		a.invalidateSubCache(uid)
+	}
+	if srcMsgID != 0 {
+		a.msg.Delete(ctx, adminChat, srcMsgID)
+	}
+	a.notifyUnblockState(ctx, uid, mode)
+	a.send(ctx, adminChat, i18n.T(alang, "unblock.done"))
+	a.showUser(ctx, adminChat, uid)
+}
+
+func (a *App) notifyBlockState(ctx context.Context, uid int64, mode string) {
+	ulang := a.lang(uid)
+	key := "block.user_bot"
+	switch mode {
+	case "blockboth":
+		key = "block.user_both"
+	case "blocksub":
+		key = "block.user_sub"
+	}
+	a.msg.SendKB(ctx, uid, a.applyPremium(i18n.T(ulang, key)), nil)
+}
+
+func (a *App) notifyUnblockState(ctx context.Context, uid int64, mode string) {
+	ulang := a.lang(uid)
+	key := "unblock.user_bot"
+	switch mode {
+	case "unblockboth":
+		key = "unblock.user_both"
+	case "unblocksub":
+		key = "unblock.user_sub"
+	}
+	a.sendKB(ctx, uid, i18n.T(ulang, key), [][]models.InlineKeyboardButton{homeRow(ulang)})
 }
 
 func (a *App) adminDeleteUser(ctx context.Context, adminChat, uid int64, deleteSub bool) {
