@@ -79,6 +79,11 @@ func (a *App) runBroadcast(adminChat int64, text string) {
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
-		a.send(ctx, adminChat, i18n.T(lang, "bcast.done", sent, failed))
+		id := a.msg.Send(ctx, adminChat, a.applyPremium(i18n.T(lang, "bcast.done", sent, failed)))
+		if id != 0 {
+			time.AfterFunc(60*time.Second, func() {
+				a.msg.Delete(context.Background(), adminChat, id)
+			})
+		}
 	}()
 }
