@@ -367,8 +367,7 @@ func (a *App) welcomeContent(name string) (models.InputFile, string, []models.Me
 	case w.ImageURL != "":
 		photo = &models.InputFileString{Data: w.ImageURL}
 	default:
-
-		photo = bannerInputFor(assets.SectionMainMenu)
+		photo = &models.InputFileUpload{Filename: "welcome.jpg", Data: bytes.NewReader(defaultBanner)}
 	}
 
 	caption := w.Text
