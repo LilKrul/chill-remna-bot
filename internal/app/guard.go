@@ -43,7 +43,10 @@ func suspiciousName(parts ...string) string {
 	return ""
 }
 
-func (a *App) guardNewUser(ctx context.Context, chatID int64, firstName, username string) {
+func (a *App) guardNewUser(ctx context.Context, chatID int64, firstName, username string) bool {
+	if a.store == nil {
+		return false
+	}
 	pat := suspiciousName(username, firstName)
 	if pat == "" {
 		if bn := a.botUsername(ctx); bn != "" && suspiciousName(bn) == "" &&
@@ -51,16 +54,26 @@ func (a *App) guardNewUser(ctx context.Context, chatID int64, firstName, usernam
 			pat = bn
 		}
 		if pat == "" {
-			return
+			return false
 		}
 	}
-	a.log.Warn("guard: suspicious registration", "tg_id", chatID, "username", username, "first_name", firstName, "pattern", pat)
+	_ = a.store.SetBlocked(ctx, chatID, true)
+	a.log.Warn("guard: suspicious registration auto-blocked", "tg_id", chatID, "username", username, "first_name", firstName, "pattern", pat)
+
+	lang := a.lang(chatID)
+	var rows [][]models.InlineKeyboardButton
+	if sup := a.supportURL(); sup != "" {
+		rows = append(rows, []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.support"), URL: sup}})
+	}
+	a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "guard.user_blocked")), rows)
+
 	alang := a.lang(a.cfg.AdminID)
 	id := strconv.FormatInt(chatID, 10)
 	a.notifyKB(ctx, a.cfg.AdminID,
 		i18n.T(alang, "guard.suspicious", a.userLabelByID(ctx, chatID), pat),
 		[][]models.InlineKeyboardButton{{
-			btn(i18n.T(alang, "btn.block"), "usr:block:"+id),
+			btn(i18n.T(alang, "btn.unblock"), "usr:unblock:"+id),
 			btn(i18n.T(alang, "guard.btn_card"), "usr:view:"+id),
 		}})
+	return true
 }

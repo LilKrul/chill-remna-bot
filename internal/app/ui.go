@@ -409,7 +409,9 @@ func (a *App) registerUser(ctx context.Context, chatID int64, firstName, usernam
 		_ = a.store.UpsertUser(ctx, chatID)
 		_ = a.store.SetUserInfo(ctx, chatID, username, firstName)
 	}
-	a.guardNewUser(ctx, chatID, firstName, username)
+	if a.guardNewUser(ctx, chatID, firstName, username) {
+		return
+	}
 	if a.syncPanelAccount(ctx, chatID) {
 		if u, _ := a.store.GetUser(ctx, chatID); u != nil && u.SubExpireAt != "" {
 			lang := a.lang(chatID)

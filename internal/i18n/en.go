@@ -231,8 +231,10 @@ var en = map[string]string{
 	"user.unblocked_done": "✅ User unblocked.",
 	"user.deleted":        "🗑 User deleted from the bot (panel account untouched).",
 	"user.you_blocked":    "🚫 Your access to the bot is restricted. Contact the administrator.",
-	"guard.suspicious": "⚠️ <b>Suspicious registration</b>\n\nUser: %s\nMatched pattern: <code>%s</code>\n\n" +
-		"The name/username looks scam-like (support/admin/verification). Check the profile — such accounts often DM your clients pretending to be the service.",
+	"guard.suspicious": "⚠️ <b>Suspicious registration — blocked automatically</b>\n\nUser: %s\nMatched pattern: <code>%s</code>\n\n" +
+		"The name/username looks scam-like (support/admin/verification) — such accounts often DM your clients pretending to be the service. If it is a real person — unblock below.",
+	"guard.user_blocked": "🛑 <b>You did not pass the automatic anti-spam and bot check</b> — access to the bot is restricted.\n\n" +
+		"If you believe this is a mistake, contact support — you will be reviewed and unblocked.",
 	"guard.btn_card":        "👤 Profile card",
 	"btn.p2p_allow":         "✅ Allow P2P",
 	"btn.p2p_deny":          "🚫 Revoke P2P",
