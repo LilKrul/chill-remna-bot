@@ -57,7 +57,12 @@ func (a *App) applyPromo(ctx context.Context, chatID int64, raw string) {
 	}
 	switch p.Kind {
 	case model.PromoKindDays:
-		if !a.addReferralDays(ctx, chatID, p.Value) {
+		ok, found := a.addReferralDays(ctx, chatID, p.Value)
+		if !found {
+			a.notify(ctx, chatID, i18n.T(lang, "promo.need_sub"))
+			return
+		}
+		if !ok {
 			a.notify(ctx, chatID, i18n.T(lang, "promo.grant_fail"))
 			return
 		}
@@ -102,7 +107,7 @@ func (a *App) showPromoAdmin(ctx context.Context, chatID int64) {
 		body = strings.Join(lines, "\n")
 	}
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "promoadm.btn_add"), "pr:add")})
-	rows = append(rows, navBack(lang, "menu:pay"))
+	rows = append(rows, navBack(lang, "menu:marketing"))
 	a.sendKBSection(ctx, chatID, assets.SectionPromoCode, i18n.T(lang, "promoadm.title", body), rows)
 }
 

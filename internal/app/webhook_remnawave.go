@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -79,7 +80,7 @@ func (a *App) HandleRemnawaveWebhook(ctx context.Context, signature string, body
 	case ev.Event == "user.expired":
 		a.pushExpired(ctx, u)
 		return true, nil
-	case ev.Event == "user.limited" || ev.Event == "user.traffic_used":
+	case ev.Event == "user.limited" || ev.Event == "user.bandwidth_usage_threshold_reached":
 		a.pushTrafficLimited(ctx, u)
 		return true, nil
 	default:
@@ -93,10 +94,20 @@ func (a *App) pushExpiryWarning(ctx context.Context, u rwUserPayload, event stri
 		return
 	}
 	lang := a.lang(u.TelegramID)
-	a.notifyKB(ctx, u.TelegramID, i18n.T(lang, "rw.warn_expiring", event), [][]models.InlineKeyboardButton{
+	text := i18n.T(lang, "rw.warn_expiring")
+	if h := expiresInHours(event); h > 0 {
+		text = i18n.T(lang, "rw.warn_expiring_hours", h)
+	}
+	a.notifyKB(ctx, u.TelegramID, text, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.buy"), "menu:buy")},
 	})
 	a.log.Info("remnawave webhook: warn sent", "event", event, "tg_id", u.TelegramID)
+}
+
+func expiresInHours(event string) int {
+	s := strings.TrimSuffix(strings.TrimPrefix(event, "user.expires_in_"), "_hours")
+	n, _ := strconv.Atoi(s)
+	return n
 }
 
 func (a *App) pushExpired(ctx context.Context, u rwUserPayload) {

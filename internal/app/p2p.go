@@ -2,11 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
 
@@ -14,6 +14,7 @@ import (
 	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 	"remnabot/internal/remnawave"
+	"remnabot/internal/storage"
 )
 
 func (a *App) saveBotConfig(ctx context.Context) error {
@@ -226,6 +227,7 @@ func (a *App) issueCard(ctx context.Context, chatID int64) {
 		a.send(ctx, chatID, "❌ "+err.Error())
 		return
 	}
+	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "request_created", "months=%d price=%s", months, price)
 	a.sendKB(ctx, chatID, i18n.T(lang, "p2p.card", months, price+curSuffix(cur), card),
 		[][]models.InlineKeyboardButton{{btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+strconv.FormatInt(req.ID, 10))}})
 }
@@ -270,6 +272,7 @@ func (a *App) handlePhoto(ctx context.Context, m *models.Message) {
 		a.send(ctx, chatID, "❌ "+err.Error())
 		return
 	}
+	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "screenshot_submitted", "ожидает проверки админом")
 	ui.awaitShotReq = 0
 
 	ui.p2pShotMsgID = m.ID
@@ -410,14 +413,25 @@ func (a *App) adminApprovePayment(ctx context.Context, adminChat int64, arg stri
 		return
 	}
 	amount := req.Price + curSuffix(a.curFor(model.PayMethodP2P))
-	link, expireAt, err := a.finalizePurchase(ctx, req.TelegramID, req.Months, model.PayMethodP2P, amount, "")
+	req.Status = model.P2PApproved
+	req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := a.store.UpdateP2PRequest(ctx, req); err != nil {
+		a.send(ctx, adminChat, "❌ "+err.Error())
+		return
+	}
+	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), req.TelegramID, "approved", "подтверждено администратором")
+	link, expireAt, err := a.finalizePurchase(ctx, req.TelegramID, req.Months, model.PayMethodP2P, amount, p2pExt(req.ID))
 	if err != nil {
+		if errors.Is(err, storage.ErrDuplicateExtID) {
+			a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
+			return
+		}
+		req.Status = model.P2PSubmitted
+		req.DecidedAt = ""
+		_ = a.store.UpdateP2PRequest(ctx, req)
 		a.send(ctx, adminChat, i18n.T(alang, "admin.provision_fail", err.Error()))
 		return
 	}
-	req.Status = model.P2PApproved
-	req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
-	_ = a.store.UpdateP2PRequest(ctx, req)
 	a.cleanupP2PUser(ctx, req.TelegramID)
 	a.sendSubActive(ctx, req.TelegramID, link, expireAt)
 	a.send(ctx, adminChat, i18n.T(alang, "admin.done"))
@@ -440,21 +454,32 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 		limits.Strategy = a.botCfg.Pricing.ResetStrategy()
 	}
 	a.mu.Unlock()
+	a.payLog(ctx, method, extID, telegramID, "finalize", "months=%d amount=%s", months, amount)
 	if panel == nil {
+		a.payLog(ctx, method, extID, telegramID, "error", "панель не подключена")
 		return "", "", fmt.Errorf("панель не подключена")
 	}
 	link, expireAt, err := panel.CreateOrUpdateUser(ctx, telegramID, months, limits)
 	if err != nil {
+		a.payLog(ctx, method, extID, telegramID, "panel_error", "%v", err)
 		return "", "", err
 	}
+	a.payLog(ctx, method, extID, telegramID, "panel_ok", "expire=%s", expireAt)
 	link = a.rewriteSub(link)
 	a.invalidateSubCache(telegramID)
 	if a.store != nil {
-		_ = a.store.AddPayment(ctx, &model.Payment{
+		if err := a.store.AddPayment(ctx, &model.Payment{
 			TelegramID: telegramID, Method: method, Months: months, Amount: amount, Status: model.PaymentPaid, ExtID: extID,
-		})
+		}); err != nil {
+			if errors.Is(err, storage.ErrDuplicateExtID) && extID != "" {
+				a.payLog(ctx, method, extID, telegramID, "duplicate", "платёж с этим ext_id уже записан")
+				return "", "", err
+			}
+			a.log.Warn("add payment", "err", err)
+		}
 		_ = a.store.SetSubExpiry(ctx, telegramID, expireAt, "paid")
 	}
+	a.payLog(ctx, method, extID, telegramID, "done", "подписка выдана, ссылка отправляется")
 	a.grantReferralBonus(ctx, telegramID)
 	if method != "balance" && method != model.PayMethodStars && method != model.PayMethodTribute {
 		a.fiscalize(parseAmountRub(amount), fmt.Sprintf("Подписка %d мес.", months))
@@ -478,6 +503,7 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		req.Comment = text
 		req.DecidedAt = time.Now().UTC().Format(time.RFC3339)
 		_ = a.store.UpdateP2PRequest(ctx, req)
+		a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), req.TelegramID, "rejected", "%s", text)
 		_ = a.store.AddPayment(ctx, &model.Payment{
 			TelegramID: req.TelegramID, Method: model.PayMethodP2P, Months: req.Months,
 			Amount: req.Price + curSuffix(a.curFor(model.PayMethodP2P)), Status: model.PaymentRejected, Comment: text,
@@ -650,20 +676,6 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		ui.adminInput = ""
 		_ = a.saveBotConfig(ctx)
 		a.showCryptoBotAdmin(ctx, chatID)
-	case "cbprice":
-		mo := ui.priceMonths
-		ui.adminInput = ""
-		ui.priceMonths = 0
-		a.mu.Lock()
-		if a.botCfg != nil {
-			if a.botCfg.CryptoBot.Prices == nil {
-				a.botCfg.CryptoBot.Prices = map[int]string{}
-			}
-			a.botCfg.CryptoBot.Prices[mo] = strings.TrimSpace(text)
-		}
-		a.mu.Unlock()
-		_ = a.saveBotConfig(ctx)
-		a.showCryptoBotAdmin(ctx, chatID)
 	case "ctc_group":
 		a.setContact(ctx, chatID, "group", text)
 	case "ctc_support":
@@ -703,6 +715,14 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		field := ui.adminInput
 		ui.adminInput = ""
 		a.setTributeField(ctx, chatID, field, text)
+	case "paylog":
+		ui.adminInput = ""
+		a.adminSendPayLog(ctx, chatID, text)
+	case "link_panel":
+		uid := ui.linkUID
+		ui.adminInput = ""
+		ui.linkUID = 0
+		a.adminLinkPanel(ctx, chatID, uid, text)
 	case "wh_domain":
 		ui.adminInput = ""
 		d := strings.TrimSpace(text)
@@ -829,6 +849,8 @@ func curSuffix(cur string) string {
 
 const curRUB = "₽"
 
+func p2pExt(id int64) string { return "p2p:" + strconv.FormatInt(id, 10) }
+
 func (a *App) curFor(string) string { return curRUB }
 
 func splitTrim(s, sep string) []string {
@@ -898,34 +920,6 @@ func (a *App) setStarPrice(months, val int) {
 	}
 	a.botCfg.NormalizePricing()
 	a.botCfg.Pricing.Stars[months] = val
-}
-
-func (a *App) collectEmoji(ctx context.Context, chatID int64, m *models.Message) {
-	a.getUI(chatID).adminInput = ""
-	u16 := utf16.Encode([]rune(m.Text))
-	added := 0
-	a.mu.Lock()
-	if a.botCfg != nil {
-		if a.botCfg.PremiumEmoji == nil {
-			a.botCfg.PremiumEmoji = map[string]string{}
-		}
-		for _, e := range m.Entities {
-			if e.Type != models.MessageEntityTypeCustomEmoji || e.CustomEmojiID == "" {
-				continue
-			}
-			if e.Offset < 0 || e.Offset+e.Length > len(u16) {
-				continue
-			}
-			emoji := string(utf16.Decode(u16[e.Offset : e.Offset+e.Length]))
-			a.botCfg.PremiumEmoji[emoji] = e.CustomEmojiID
-			added++
-		}
-	}
-	a.mu.Unlock()
-	if added > 0 {
-		_ = a.saveBotConfig(ctx)
-	}
-	a.send(ctx, chatID, i18n.T(a.lang(chatID), "admin.emoji_saved", added))
 }
 
 func (a *App) cleanupP2PUser(ctx context.Context, userChatID int64) {

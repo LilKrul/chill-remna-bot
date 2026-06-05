@@ -105,7 +105,6 @@ type incomeResponse struct {
 	ID                  string `json:"id"`
 }
 
-// CreateIncome регистрирует доход (чек самозанятого) и возвращает идентификатор чека.
 func (c *Client) CreateIncome(ctx context.Context, amount float64, name string) (string, error) {
 	c.mu.Lock()
 	tok := c.token

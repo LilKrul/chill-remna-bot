@@ -38,7 +38,6 @@ func (a *App) mnClientGet() (*moynalog.Client, model.MoyNalogConfig) {
 	return a.mnClient, cfg
 }
 
-// fiscalize регистрирует доход в МойНалог (best-effort, в фоне).
 func (a *App) fiscalize(amountRub float64, detail string) {
 	client, cfg := a.mnClientGet()
 	if client == nil || amountRub <= 0 {
@@ -60,7 +59,6 @@ func (a *App) fiscalize(amountRub float64, detail string) {
 	}()
 }
 
-// parseAmountRub извлекает число рублей из строки вида "150.00 RUB" / "150 ₽".
 func parseAmountRub(s string) float64 {
 	f := strings.Fields(strings.TrimSpace(s))
 	if len(f) == 0 {

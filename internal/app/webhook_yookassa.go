@@ -31,6 +31,10 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 	if err := json.Unmarshal(body, &n); err != nil {
 		return false, fmt.Errorf("yookassa webhook: bad json: %w", err)
 	}
+	hintTG, _ := strconv.ParseInt(n.Object.Metadata["telegram_id"], 10, 64)
+	if n.Object.ID != "" {
+		a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "webhook", "event=%s status=%s", n.Event, n.Object.Status)
+	}
 	if n.Event != "payment.succeeded" {
 		a.log.Info("yookassa webhook: skipping event", "event", n.Event, "id", n.Object.ID)
 		return false, nil
@@ -41,19 +45,22 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 	}
 	if a.store != nil {
 		if done, _ := a.store.PaymentByExtID(ctx, n.Object.ID); done {
-			a.log.Info("yookassa webhook: duplicate (already finalized)", "id", n.Object.ID)
+			a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "duplicate", "уже финализирован, вебхук пропущен")
 			return true, nil
 		}
 	}
 	client := a.ykClient()
 	if client == nil {
+		a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "error", "клиент ЮKassa не настроен — вебхук нельзя верифицировать")
 		a.log.Error("yookassa webhook: client not configured, cannot verify", "id", n.Object.ID)
 		return true, nil
 	}
 	pay, err := client.GetPayment(ctx, n.Object.ID)
 	if err != nil {
+		a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "verify_error", "%v", err)
 		return false, fmt.Errorf("yookassa webhook: verify %s: %w", n.Object.ID, err)
 	}
+	a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "verified", "API: status=%s paid=%v amount=%s %s", pay.Status, pay.Paid, pay.Amount.Value, pay.Amount.Currency)
 	if pay.Status != "succeeded" || !pay.Paid {
 		a.log.Warn("yookassa webhook: payment not confirmed by API", "id", n.Object.ID, "status", pay.Status, "paid", pay.Paid)
 		return true, nil
@@ -71,6 +78,7 @@ func (a *App) HandleYooKassaWebhook(ctx context.Context, body []byte) (bool, err
 	chatID, _ := strconv.ParseInt(pay.Metadata["telegram_id"], 10, 64)
 	months, _ := strconv.Atoi(pay.Metadata["months"])
 	if chatID == 0 || months == 0 {
+		a.payLog(ctx, model.PayMethodYooKassa, n.Object.ID, hintTG, "error", "в metadata платежа нет telegram_id/months — получатель неизвестен")
 		a.log.Error("yookassa webhook: missing metadata", "id", n.Object.ID)
 		return true, nil
 	}

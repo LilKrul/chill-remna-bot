@@ -25,7 +25,7 @@ func (a *App) showSubdomain(ctx context.Context, chatID int64) {
 		})
 	}
 	rows = append(rows, []models.InlineKeyboardButton{
-		btn(i18n.T(lang, "btn.back"), "menu:manage"),
+		btn(i18n.T(lang, "btn.back"), "menu:system"),
 		btn(i18n.T(lang, "btn.home"), "menu:home"),
 	})
 

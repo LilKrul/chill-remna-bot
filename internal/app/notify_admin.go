@@ -46,7 +46,7 @@ func (a *App) showNotifyAdmin(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "notify.btn_trial"), "ntf:trial"), btn(i18n.T(lang, "notify.btn_trial_days"), "ntf:trialdays")},
 		{btn(i18n.T(lang, "notify.btn_sub"), "ntf:sub")},
 		win,
-		{btn(i18n.T(lang, "btn.back"), "menu:manage"), btn(i18n.T(lang, "btn.home"), "menu:home")},
+		{btn(i18n.T(lang, "btn.back"), "menu:marketing"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	}
 	a.sendKB(ctx, chatID, body, rows)
 }

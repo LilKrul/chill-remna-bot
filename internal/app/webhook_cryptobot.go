@@ -20,12 +20,15 @@ type cryptoBotUpdate struct {
 	UpdateType  string `json:"update_type"`
 	RequestDate string `json:"request_date"`
 	Payload     struct {
-		InvoiceID int64  `json:"invoice_id"`
-		Status    string `json:"status"`
-		Asset     string `json:"asset"`
-		Amount    string `json:"amount"`
-		Payload   string `json:"payload"`
-		Hash      string `json:"hash"`
+		InvoiceID  int64  `json:"invoice_id"`
+		Status     string `json:"status"`
+		Asset      string `json:"asset"`
+		Amount     string `json:"amount"`
+		Fiat       string `json:"fiat"`
+		PaidAsset  string `json:"paid_asset"`
+		PaidAmount string `json:"paid_amount"`
+		Payload    string `json:"payload"`
+		Hash       string `json:"hash"`
 	} `json:"payload"`
 }
 
@@ -75,13 +78,17 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 	}
 
 	extID := "cb:" + strconv.FormatInt(up.Payload.InvoiceID, 10)
+	hintTG, hintMo, _ := parseCryptoBotPayload(up.Payload.Payload)
+	_ = hintMo
+	a.payLog(ctx, model.PayMethodCryptoBot, extID, hintTG, "webhook", "invoice_paid status=%s amount=%s", up.Payload.Status,
+		cbAmount(up.Payload.Asset, up.Payload.Amount, up.Payload.PaidAsset, up.Payload.PaidAmount, up.Payload.Fiat))
 	if a.store != nil {
 		if done, _ := a.store.PaymentByExtID(ctx, extID); done {
-			a.log.Info("cryptobot webhook: duplicate", "id", up.Payload.InvoiceID)
+			a.payLog(ctx, model.PayMethodCryptoBot, extID, hintTG, "duplicate", "уже финализирован, вебхук пропущен")
 			return true, nil
 		}
 		if p, _ := a.store.PendingByExtID(ctx, extID); p != nil && p.Purpose == "topup" {
-			amount := up.Payload.Amount + " " + up.Payload.Asset
+			amount := cbAmount(up.Payload.Asset, up.Payload.Amount, up.Payload.PaidAsset, up.Payload.PaidAmount, up.Payload.Fiat)
 			if err := a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodCryptoBot, amount, extID); err != nil {
 				return false, fmt.Errorf("topup cryptobot %d: %w", up.Payload.InvoiceID, err)
 			}
@@ -92,11 +99,12 @@ func (a *App) HandleCryptoBotWebhook(ctx context.Context, signature string, body
 
 	chatID, months, err := parseCryptoBotPayload(up.Payload.Payload)
 	if err != nil {
+		a.payLog(ctx, model.PayMethodCryptoBot, extID, hintTG, "error", "битый payload инвойса (%q) — получатель неизвестен: %v", up.Payload.Payload, err)
 		a.log.Error("cryptobot webhook: bad payload", "raw", up.Payload.Payload, "err", err)
 		return true, nil
 	}
 
-	amount := a.cryptoAmount(months, up.Payload.Amount+" "+up.Payload.Asset)
+	amount := a.cryptoAmount(months, cbAmount(up.Payload.Asset, up.Payload.Amount, up.Payload.PaidAsset, up.Payload.PaidAmount, up.Payload.Fiat))
 	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
 	if err != nil {
 		if errors.Is(err, storage.ErrDuplicateExtID) {

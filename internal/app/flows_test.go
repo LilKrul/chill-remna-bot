@@ -43,7 +43,7 @@ func fullyConfigured() *model.BotConfig {
 		P2P:       model.P2PConfig{Enabled: true, Cards: []string{"CARD-1"}, Prices: map[int]string{1: "100"}},
 		Stars:     model.StarsConfig{Enabled: true, Prices: map[int]int{1: 100}},
 		YooKassa:  model.YooKassaConfig{Enabled: true, ShopID: "s", SecretKey: "k", Prices: map[int]string{1: "150.00"}},
-		CryptoBot: model.CryptoBotConfig{Enabled: true, Token: "t", Asset: "USDT", Prices: map[int]string{1: "1.5"}},
+		CryptoBot: model.CryptoBotConfig{Enabled: true, Token: "t", Asset: "USDT"},
 		Trial:     model.TrialConfig{Enabled: true, Days: 3},
 		Pricing:   model.Pricing{Currency: "RUB", Base: map[int]string{1: "150"}},
 	}
@@ -99,7 +99,7 @@ func TestAdminButtonWalk(t *testing.T) {
 		"menu:p2p", "adm:toggle", "adm:rotate", "adm:cards", "adm:prices", "adm:price:1", "sq:pick",
 		"menu:stars", "star:toggle", "star:prices", "star:price:1",
 		"menu:yookassa", "yk:toggle", "yk:shop", "yk:secret", "yk:return", "yk:prices", "yk:price:1",
-		"menu:cryptobot", "cb:toggle", "cb:token", "cb:asset", "cb:prices", "cb:price:1",
+		"menu:cryptobot", "cb:toggle", "cb:token", "cb:asset",
 
 		"menu:manage", "menu:users", "usr:view:555", "usr:block:555", "usr:unblock:555",
 		"usr:del:555", "usr:list",

@@ -18,7 +18,7 @@ func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
 	panel := a.panel
 	a.mu.Unlock()
 	back := []models.InlineKeyboardButton{
-		btn(i18n.T(lang, "btn.back"), "menu:manage"),
+		btn(i18n.T(lang, "btn.back"), "menu:system"),
 		btn(i18n.T(lang, "btn.home"), "menu:home"),
 	}
 	if panel == nil {

@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Надёжный прогон проверок проекта в песочнице Cowork (ограниченный диск ~600 МБ).
-#
-# Почему так:
-#   • Go-кэш НЕЛЬЗЯ класть на virtiofs-маунт (папка проекта/outputs): там запрещён
-#     unlink, и `go` падает на удалении .partial при скачивании модулей.
-#   • Корневой / почти полон (OS в /usr). Поэтому кэши держим в tmpfs /dev/shm
-#     (есть unlink, быстро, очищается сам между вызовами).
-#   • Полная сборка с modernc/sqlite (internal/storage-тесты, cmd/bot) НЕ влезает
-#     по диску — её и контракт-тесты против SQLite+PostgreSQL гоняет CI
-#     (.github/workflows/test.yml: postgres:17-alpine + `go test ./...`).
-#
-# Использование:  bash scripts/sandbox-test.sh
 set -uo pipefail
 
 GOROOT=/tmp/go
@@ -29,7 +17,6 @@ mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOTMPDIR"
 
 cd "$(dirname "$0")/.." || exit 1
 
-# Лёгкие пакеты = всё, кроме тех, что тянут драйвер modernc/sqlite.
 LIGHT="./internal/app/ ./internal/web/ ./internal/yookassa/ ./internal/cryptobot/ ./internal/i18n/ ./internal/model/ ./internal/remnawave/ ./internal/crypto/ ./internal/config/ ./internal/hostctl/"
 
 rc=0

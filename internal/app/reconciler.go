@@ -39,6 +39,10 @@ func (a *App) reconcileOnce(ctx context.Context) {
 	if st == nil {
 		return
 	}
+	if time.Since(a.payLogPurgedAt) > 24*time.Hour {
+		a.payLogPurgedAt = time.Now()
+		_ = st.PurgePayLogs(ctx, time.Now().UTC().AddDate(0, 0, -90).Format(time.RFC3339))
+	}
 	cutoff := time.Now().UTC().Add(-reconcileGrace).Format(time.RFC3339)
 	list, err := st.ListUnresolvedPending(ctx, cutoff, reconcileBatch)
 	if err != nil {
@@ -53,6 +57,7 @@ func (a *App) reconcileOnce(ctx context.Context) {
 func (a *App) reconcileInvoice(ctx context.Context, st storage.Storage, pi *model.PendingInvoice) {
 
 	if t, err := time.Parse(time.RFC3339, pi.CreatedAt); err == nil && time.Since(t) > reconcileGiveUp {
+		a.payLog(ctx, pi.Method, pi.ExtID, pi.TelegramID, "reconcile_giveup", "счёт старше 24ч, снят с проверки")
 		_ = st.ResolvePending(ctx, pi.ID)
 		return
 	}
@@ -82,6 +87,7 @@ func (a *App) reconcileYooKassa(ctx context.Context, st storage.Storage, pi *mod
 	if err != nil {
 		return
 	}
+	a.payLog(ctx, pi.Method, pi.ExtID, pi.TelegramID, "reconcile", "status=%s paid=%v", pay.Status, pay.Paid)
 	switch {
 	case pay.Status == "succeeded" && pay.Paid:
 		a.reconcileFinalize(ctx, st, pi, pay.Amount.Value+" "+pay.Amount.Currency)
@@ -105,6 +111,7 @@ func (a *App) reconcileCryptoBot(ctx context.Context, st storage.Storage, pi *mo
 	if err != nil {
 		return
 	}
+	a.payLog(ctx, pi.Method, pi.ExtID, pi.TelegramID, "reconcile", "status=%s", inv.Status)
 	switch inv.Status {
 	case "paid":
 		a.reconcileFinalize(ctx, st, pi, a.cryptoAmount(pi.Months, inv.Amount+" "+inv.Asset))
@@ -122,6 +129,7 @@ func (a *App) reconcilePlatega(ctx context.Context, st storage.Storage, pi *mode
 	if err != nil {
 		return
 	}
+	a.payLog(ctx, pi.Method, pi.ExtID, pi.TelegramID, "reconcile", "status=%s", tx.Status)
 	switch {
 	case strings.EqualFold(tx.Status, "CONFIRMED"):
 		a.reconcileFinalize(ctx, st, pi, fmt.Sprintf("%.2f %s", tx.Amount, tx.Currency))

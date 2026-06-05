@@ -1,5 +1,3 @@
--- Рабочий список реконсилятора: выставленные, но не подтверждённые инвойсы
--- (YooKassa/CryptoBot). Фоновый проход добивает выдачу, если вебхук не дошёл.
 CREATE TABLE IF NOT EXISTS pending_invoices (
     id          BIGINT PRIMARY KEY,
     method      TEXT NOT NULL,

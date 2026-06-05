@@ -67,17 +67,16 @@ type tributeWebhook struct {
 	} `json:"payload"`
 }
 
-// HandleTributeWebhook проверяет HMAC-подпись (trbt-signature) и выдаёт подписку
-// при событии new_subscription.
 func (a *App) HandleTributeWebhook(ctx context.Context, signatureHex string, body []byte) (bool, error) {
 	cfg := a.tributeCfg()
 	if !cfg.Enabled || cfg.APIKey == "" {
+		a.log.Warn("tribute webhook: ignored — tribute disabled or api key not set")
 		return true, nil
 	}
 	mac := hmac.New(sha256.New, []byte(cfg.APIKey))
 	mac.Write(body)
-	expected := hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(expected), []byte(signatureHex)) {
+	got, err := hex.DecodeString(strings.TrimSpace(signatureHex))
+	if err != nil || !hmac.Equal(got, mac.Sum(nil)) {
 		a.log.Warn("tribute webhook: bad signature")
 		return false, fmt.Errorf("tribute webhook: invalid signature")
 	}
@@ -85,7 +84,7 @@ func (a *App) HandleTributeWebhook(ctx context.Context, signatureHex string, bod
 	if err := json.Unmarshal(body, &wh); err != nil {
 		return false, fmt.Errorf("tribute webhook: bad json: %w", err)
 	}
-	if wh.Name != "new_subscription" {
+	if wh.Name != "new_subscription" && wh.Name != "renewed_subscription" {
 		a.log.Info("tribute webhook: ignored", "event", wh.Name)
 		return true, nil
 	}
@@ -96,8 +95,10 @@ func (a *App) HandleTributeWebhook(ctx context.Context, signatureHex string, bod
 	}
 	months := tributePeriodToMonths(wh.Payload.Period)
 	extID := fmt.Sprintf("trb_%d_%d", wh.Payload.SubscriptionID, wh.Payload.ExpiresAt.Unix())
+	a.payLog(ctx, model.PayMethodTribute, extID, chatID, "webhook", "%s period=%s amount=%d %s", wh.Name, wh.Payload.Period, wh.Payload.Amount, wh.Payload.Currency)
 	if a.store != nil {
 		if done, _ := a.store.PaymentByExtID(ctx, extID); done {
+			a.payLog(ctx, model.PayMethodTribute, extID, chatID, "duplicate", "уже финализирован, вебхук пропущен")
 			return true, nil
 		}
 	}

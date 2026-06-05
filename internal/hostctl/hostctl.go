@@ -202,8 +202,6 @@ func (c *Controller) SelfUpdate(ctx context.Context) error {
 	return c.runComposeDetached(ctx, fmt.Sprintf("docker compose -p %s pull && docker compose -p %s up -d", c.project, c.project))
 }
 
-// PublishWebhookPorts добавляет порты 80/443 сервису bot и пересоздаёт его (detached),
-// чтобы встроенный HTTPS-сервер (autocert) стал доступен снаружи.
 func (c *Controller) PublishWebhookPorts(ctx context.Context) error {
 	if err := c.addWebhookPortsToCompose(); err != nil {
 		return fmt.Errorf("правка compose: %w", err)

@@ -199,10 +199,10 @@ func navBack(lang, backCB string) []models.InlineKeyboardButton {
 
 func (a *App) adminMenuRows(lang string) [][]models.InlineKeyboardButton {
 	return [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.buy"), "menu:buy")},
-		{btn(i18n.T(lang, "menu.cat_iface"), "menu:iface"), btn(i18n.T(lang, "menu.cat_pay"), "menu:pay")},
-		{btn(i18n.T(lang, "menu.cat_manage"), "menu:manage")},
-		homeRow(lang),
+		{btn(i18n.T(lang, "menu.cat_pay"), "menu:pay"), btn(i18n.T(lang, "menu.cat_marketing"), "menu:marketing")},
+		{btn(i18n.T(lang, "menu.cat_iface"), "menu:iface"), btn(i18n.T(lang, "btn.users"), "menu:users")},
+		{btn(i18n.T(lang, "menu.cat_system"), "menu:system")},
+		{btn(i18n.T(lang, "btn.storefront"), "menu:buy")},
 	}
 }
 
@@ -248,20 +248,27 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
 		{btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa"), btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
 		{btn(i18n.T(lang, "btn.platega"), "menu:platega"), btn(i18n.T(lang, "btn.tribute"), "menu:tribute")},
-		{btn(i18n.T(lang, "btn.promo_admin"), "menu:promoadmin"), btn(i18n.T(lang, "btn.moynalog"), "menu:moynalog")},
+		{btn(i18n.T(lang, "btn.payments"), "menu:payments"), btn(i18n.T(lang, "btn.analytics"), "menu:analytics")},
+		{btn(i18n.T(lang, "btn.moynalog"), "menu:moynalog")},
 		homeRow(lang),
 	})
 }
 
-func (a *App) showManage(ctx context.Context, chatID int64) {
+func (a *App) showMarketing(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, i18n.T(lang, "menu.manage_title"), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.users"), "menu:users"), btn(i18n.T(lang, "btn.payments"), "menu:payments")},
-		{btn(i18n.T(lang, "btn.analytics"), "menu:analytics")},
+	a.sendKBSection(ctx, chatID, assets.SectionPromoCode, i18n.T(lang, "menu.marketing_title"), [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.promo_admin"), "menu:promoadmin"), btn(i18n.T(lang, "btn.referral_admin"), "menu:refadmin")},
+		{btn(i18n.T(lang, "btn.broadcast"), "menu:broadcast"), btn(i18n.T(lang, "btn.notify"), "menu:notify")},
+		homeRow(lang),
+	})
+}
+
+func (a *App) showSystem(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, i18n.T(lang, "menu.system_title"), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.update"), "menu:update")},
-		{btn(i18n.T(lang, "btn.subdomain"), "menu:subdomain"), btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
-		{btn(i18n.T(lang, "btn.webhooks"), "menu:webhooks"), btn(i18n.T(lang, "btn.notify"), "menu:notify")},
-		{btn(i18n.T(lang, "btn.referral_admin"), "menu:refadmin"), btn(i18n.T(lang, "btn.broadcast"), "menu:broadcast")},
+		{btn(i18n.T(lang, "btn.webhooks"), "menu:webhooks"), btn(i18n.T(lang, "btn.subdomain"), "menu:subdomain")},
+		{btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
 		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
 		homeRow(lang),
 	})
@@ -390,8 +397,6 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 		if a.referralCfg().Enabled {
 			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.referral"), "menu:ref")})
 		}
-		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.promo"), "menu:promo")})
-		rows = append(rows, homeRow(lang))
 	}
 	if len(ents) == 0 {
 		caption = a.applyPremium(caption)
@@ -399,18 +404,16 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 	a.sendBanner(ctx, chatID, photo, caption, ents, models.InlineKeyboardMarkup{InlineKeyboard: rows})
 }
 
-func (a *App) showRegister(ctx context.Context, chatID int64, name string) {
-	a.ensureHomeKey(ctx, chatID)
-	lang := a.botLang()
-	a.sendKB(ctx, chatID, i18n.T(lang, "register.prompt", name), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.register"), "menu:register")},
-	})
-}
-
 func (a *App) registerUser(ctx context.Context, chatID int64, firstName, username string) {
 	if a.store != nil {
 		_ = a.store.UpsertUser(ctx, chatID)
 		_ = a.store.SetUserInfo(ctx, chatID, username, firstName)
+	}
+	if a.syncPanelAccount(ctx, chatID) {
+		if u, _ := a.store.GetUser(ctx, chatID); u != nil && u.SubExpireAt != "" {
+			lang := a.lang(chatID)
+			a.notify(ctx, chatID, i18n.T(lang, "sync.linked", formatExpire(u.SubExpireAt, lang)))
+		}
 	}
 	a.showMenu(ctx, chatID, false, displayName(firstName, username))
 }
@@ -532,7 +535,15 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 		}
 	case "manage":
 		if isAdmin {
-			a.showManage(ctx, chatID)
+			a.showMenu(ctx, chatID, true, name)
+		}
+	case "marketing":
+		if isAdmin {
+			a.showMarketing(ctx, chatID)
+		}
+	case "system":
+		if isAdmin {
+			a.showSystem(ctx, chatID)
 		}
 	case "reconf":
 		if isAdmin {

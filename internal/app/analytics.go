@@ -95,6 +95,6 @@ func (a *App) showAnalytics(ctx context.Context, chatID int64) {
 		popMonths, popCount, methodsStr)
 	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, text, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "stats.btn_reload"), "menu:analytics")},
-		navBack(lang, "menu:manage"),
+		navBack(lang, "menu:pay"),
 	})
 }

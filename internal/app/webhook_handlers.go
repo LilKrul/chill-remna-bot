@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 )
 
@@ -46,17 +45,4 @@ func (a *App) WebhookConfig() (addr string, enabled bool, publicURL string) {
 		addr = ":8080"
 	}
 	return addr, a.botCfg.Webhook.Enabled, a.botCfg.Webhook.PublicBaseURL
-}
-
-func (a *App) PublicWebhookURL(path string) string {
-	a.mu.Lock()
-	base := ""
-	if a.botCfg != nil {
-		base = a.botCfg.Webhook.PublicBaseURL
-	}
-	a.mu.Unlock()
-	if base == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", base, path)
 }

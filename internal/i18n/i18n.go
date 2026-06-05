@@ -9,8 +9,6 @@ var bundles = map[string]map[string]string{
 	"en": en,
 }
 
-func Supported() []string { return []string{"ru", "en"} }
-
 func T(lang, key string, args ...any) string {
 	tmpl := lookup(lang, key)
 	if tmpl == "" {

@@ -65,7 +65,7 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	}
 	if total == 0 {
 		a.sendKB(ctx, chatID, i18n.T(lang, "users.empty"),
-			[][]models.InlineKeyboardButton{{btn(i18n.T(lang, "btn.back"), "menu:manage")}, homeRow(lang)})
+			[][]models.InlineKeyboardButton{homeRow(lang)})
 		return
 	}
 	pages := (total + usersPageSize - 1) / usersPageSize
@@ -97,7 +97,7 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	if len(nav) > 0 {
 		rows = append(rows, nav)
 	}
-	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:manage")}, homeRow(lang))
+	rows = append(rows, homeRow(lang))
 
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, i18n.T(lang, "users.title", total, page+1, pages), rows)
 }
@@ -162,6 +162,7 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	a.sendKB(ctx, chatID, i18n.T(lang, "user.card", userLabel(u), created, p2p, status, subBlock), [][]models.InlineKeyboardButton{
 		{p2pBtn, wlBtn},
 		{toggle, btn(i18n.T(lang, "btn.delete"), "usr:del:"+id)},
+		{btn(i18n.T(lang, "btn.link_panel"), "usr:link:"+id)},
 		{btn(i18n.T(lang, "btn.back"), "usr:list"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
@@ -214,6 +215,15 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string) {
 			{btn(i18n.T(lang, "btn.del_bot_only"), "usr:delbot:"+arg)},
 			{btn(i18n.T(lang, "btn.back"), "usr:view:"+arg)},
 		})
+	case "link":
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		if uid == 0 {
+			return
+		}
+		ui := a.getUI(chatID)
+		ui.linkUID = uid
+		ui.adminInput = "link_panel"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "user.link_ask", uid), "usr:view:"+arg)
 	case "delfull":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		a.adminDeleteUser(ctx, chatID, uid, true)
@@ -298,7 +308,7 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 		a.send(ctx, chatID, "❌ "+err.Error())
 		return
 	}
-	back := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:manage"), btn(i18n.T(lang, "btn.home"), "menu:home")}
+	back := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:pay"), btn(i18n.T(lang, "btn.home"), "menu:home")}
 	if total == 0 {
 		a.sendKB(ctx, chatID, i18n.T(lang, "payments.empty"), [][]models.InlineKeyboardButton{back})
 		return
@@ -376,6 +386,7 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 	if len(nav) > 0 {
 		kbRows = append(kbRows, nav)
 	}
+	kbRows = append(kbRows, []models.InlineKeyboardButton{btn(i18n.T(lang, "paylog.btn"), "pay:log")})
 	kbRows = append(kbRows, back)
 	a.sendKB(ctx, chatID, sb.String(), kbRows)
 }
@@ -398,9 +409,13 @@ func visualWidth(s string) int {
 
 func (a *App) onPayments(ctx context.Context, chatID int64, val string) {
 	action, arg, _ := strings.Cut(val, ":")
-	if action == "page" {
+	switch action {
+	case "page":
 		page, _ := strconv.Atoi(arg)
 		a.showPayments(ctx, chatID, page)
+	case "log":
+		a.getUI(chatID).adminInput = "paylog"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "paylog.ask"), "menu:payments")
 	}
 }
 

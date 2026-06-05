@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"remnabot/internal/model"
 )
 
 type plNotification struct {
@@ -12,7 +14,6 @@ type plNotification struct {
 	TransactionID string `json:"transactionId"`
 }
 
-// HandlePlategaWebhook не доверяет телу: подтверждает статус через GetTransaction.
 func (a *App) HandlePlategaWebhook(ctx context.Context, body []byte) (bool, error) {
 	var n plNotification
 	if err := json.Unmarshal(body, &n); err != nil {
@@ -33,13 +34,17 @@ func (a *App) HandlePlategaWebhook(ctx context.Context, body []byte) (bool, erro
 	}
 	client := a.plClient()
 	if client == nil {
+		a.payLog(ctx, model.PayMethodPlatega, id, 0, "error", "клиент Platega не настроен — вебхук нельзя верифицировать")
 		a.log.Error("platega webhook: client not configured")
 		return true, nil
 	}
 	tx, err := client.GetTransaction(ctx, id)
 	if err != nil {
+		a.payLog(ctx, model.PayMethodPlatega, id, 0, "verify_error", "%v", err)
 		return false, fmt.Errorf("platega webhook: verify %s: %w", id, err)
 	}
+	hintTG, _ := parsePlPayload(tx.Payload)
+	a.payLog(ctx, model.PayMethodPlatega, id, hintTG, "webhook", "verified via API: status=%s amount=%.2f %s", tx.Status, tx.Amount, tx.Currency)
 	if !strings.EqualFold(tx.Status, "CONFIRMED") {
 		a.log.Info("platega webhook: not confirmed", "id", id, "status", tx.Status)
 		return true, nil

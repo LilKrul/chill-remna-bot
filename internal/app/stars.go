@@ -38,9 +38,23 @@ func (a *App) startStars(ctx context.Context, chatID int64) {
 	title := i18n.T(lang, "stars.invoice_title", months)
 	desc := i18n.T(lang, "stars.invoice_desc", months)
 	a.msg.SendInvoice(ctx, chatID, title, desc, "stars:"+strconv.Itoa(months), "XTR", amount)
+	a.payLog(ctx, model.PayMethodStars, "", chatID, "invoice_sent", "purchase months=%d stars=%d", months, amount)
 }
 
 func (a *App) handlePreCheckout(ctx context.Context, q *models.PreCheckoutQuery) {
+	months := 0
+	if _, after, ok := strings.Cut(q.InvoicePayload, ":"); ok {
+		months, _ = strconv.Atoi(after)
+	}
+	if !a.starsConfig().Enabled || months <= 0 || a.pricing().StarPrice(months) != q.TotalAmount {
+		var fromID int64
+		if q.From != nil {
+			fromID = q.From.ID
+		}
+		a.payLog(ctx, model.PayMethodStars, "", fromID, "precheckout_rejected", "payload=%s total=%d enabled=%v", q.InvoicePayload, q.TotalAmount, a.starsConfig().Enabled)
+		a.msg.AnswerPreCheckout(ctx, q.ID, false, i18n.T(a.lang(fromID), "stars.no_price"))
+		return
+	}
 	a.msg.AnswerPreCheckout(ctx, q.ID, true, "")
 }
 
@@ -55,6 +69,7 @@ func (a *App) handleSuccessfulPayment(ctx context.Context, m *models.Message) {
 		months = model.PlanMonths[0]
 	}
 	amount := strconv.Itoa(sp.TotalAmount) + " ⭐"
+	a.payLog(ctx, model.PayMethodStars, sp.TelegramPaymentChargeID, chatID, "payment_received", "total=%d payload=%s", sp.TotalAmount, sp.InvoicePayload)
 	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodStars, amount, sp.TelegramPaymentChargeID)
 	if err != nil {
 		a.notify(ctx, chatID, i18n.T(a.lang(chatID), "stars.fail", err.Error()))

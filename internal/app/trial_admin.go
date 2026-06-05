@@ -235,11 +235,16 @@ func (a *App) trialAvailable(ctx context.Context, chatID int64) bool {
 	if u == nil {
 		return true
 	}
-	return u.TrialUsedAt == ""
+	return u.TrialUsedAt == "" && u.SubExpireAt == ""
 }
 
 func (a *App) activateTrial(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
+	if a.syncPanelAccount(ctx, chatID) {
+		if u, _ := a.store.GetUser(ctx, chatID); u != nil && u.SubExpireAt != "" {
+			a.notify(ctx, chatID, i18n.T(lang, "sync.linked", formatExpire(u.SubExpireAt, lang)))
+		}
+	}
 	if !a.trialAvailable(ctx, chatID) {
 		a.send(ctx, chatID, i18n.T(lang, "trial.not_available"))
 		return

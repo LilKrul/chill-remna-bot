@@ -91,6 +91,10 @@ type Storage interface {
 
 	PendingByExtID(ctx context.Context, extID string) (*model.PendingInvoice, error)
 
+	AddPayLog(ctx context.Context, e *model.PayLogEntry) error
+	PayLogs(ctx context.Context, extID string, telegramID int64, limit int) ([]model.PayLogEntry, error)
+	PurgePayLogs(ctx context.Context, before string) error
+
 	Kind() string
 	Close() error
 }
@@ -542,6 +546,7 @@ type Snapshot struct {
 	Media     []MediaItem
 	Promos    []model.PromoCode
 	PromoUses []PromoUse
+	PayLogs   []model.PayLogEntry
 }
 
 type PromoUse struct {
@@ -669,6 +674,25 @@ func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 	}
 	urows2.Close()
 
+	lrows, err := b.db.QueryContext(ctx,
+		"SELECT id, ext_id, telegram_id, method, stage, detail, created_at FROM payment_log")
+	if err != nil {
+		return nil, err
+	}
+	for lrows.Next() {
+		var e model.PayLogEntry
+		if err := lrows.Scan(&e.ID, &e.ExtID, &e.TelegramID, &e.Method, &e.Stage, &e.Detail, &e.CreatedAt); err != nil {
+			lrows.Close()
+			return nil, err
+		}
+		snap.PayLogs = append(snap.PayLogs, e)
+	}
+	if err := lrows.Err(); err != nil {
+		lrows.Close()
+		return nil, err
+	}
+	lrows.Close()
+
 	return snap, nil
 }
 
@@ -708,6 +732,11 @@ func (b *base) Import(ctx context.Context, s *Snapshot) error {
 			return err
 		}
 	}
+	for i := range s.PayLogs {
+		if err := b.AddPayLog(ctx, &s.PayLogs[i]); err != nil && !isUniqueViolation(err) {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -736,6 +765,50 @@ func (b *base) importUser(ctx context.Context, u *model.User) error {
 		}
 	}
 	return nil
+}
+
+func (b *base) AddPayLog(ctx context.Context, e *model.PayLogEntry) error {
+	if e.ID == 0 {
+		e.ID = time.Now().UnixNano()
+	}
+	if e.CreatedAt == "" {
+		e.CreatedAt = nowStr()
+	}
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO payment_log (id, ext_id, telegram_id, method, stage, detail, created_at) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+")",
+		e.ID, e.ExtID, e.TelegramID, e.Method, e.Stage, e.Detail, e.CreatedAt)
+	return err
+}
+
+func (b *base) PayLogs(ctx context.Context, extID string, telegramID int64, limit int) ([]model.PayLogEntry, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	rows, err := b.db.QueryContext(ctx,
+		"SELECT id, ext_id, telegram_id, method, stage, detail, created_at FROM payment_log "+
+			"WHERE (ext_id <> '' AND ext_id = "+b.ph(1)+") OR ("+b.ph(2)+" > 0 AND telegram_id = "+b.ph(3)+") "+
+			"ORDER BY id ASC LIMIT "+b.ph(4),
+		extID, telegramID, telegramID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.PayLogEntry
+	for rows.Next() {
+		var e model.PayLogEntry
+		if err := rows.Scan(&e.ID, &e.ExtID, &e.TelegramID, &e.Method, &e.Stage, &e.Detail, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (b *base) PurgePayLogs(ctx context.Context, before string) error {
+	_, err := b.db.ExecContext(ctx,
+		"DELETE FROM payment_log WHERE created_at < "+b.ph(1), before)
+	return err
 }
 
 func (b *base) AddPendingInvoice(ctx context.Context, p *model.PendingInvoice) error {

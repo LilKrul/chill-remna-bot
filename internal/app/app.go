@@ -40,6 +40,8 @@ type messenger interface {
 
 	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
 	AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string)
+
+	SendDocument(ctx context.Context, chatID int64, filename string, data []byte, caption string)
 }
 
 type App struct {
@@ -73,6 +75,8 @@ type App struct {
 	mnMu     sync.Mutex
 	mnClient *moynalog.Client
 	mnKey    string
+
+	payLogPurgedAt time.Time
 }
 
 type subCacheEntry struct {
@@ -278,6 +282,12 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 			a.showPlans(ctx, chatID)
 		}
 		return
+	case strings.HasPrefix(text, "/paysupport") || strings.HasPrefix(text, "/support"):
+		a.handleSupportCmd(ctx, chatID)
+		return
+	case strings.HasPrefix(text, "/terms"):
+		a.handleTermsCmd(ctx, chatID)
+		return
 	case strings.HasPrefix(text, "/p2p"):
 		if isAdmin {
 			a.showP2PAdmin(ctx, chatID)
@@ -334,6 +344,32 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 	a.handleAdminText(ctx, chatID, text)
 }
 
+func (a *App) handleSupportCmd(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	if sup := a.supportURL(); sup != "" {
+		a.notifyKB(ctx, chatID, i18n.T(lang, "cmd.support"), [][]models.InlineKeyboardButton{
+			{{Text: i18n.T(lang, "btn.support"), URL: sup}},
+		})
+		return
+	}
+	a.notify(ctx, chatID, i18n.T(lang, "cmd.support_none"))
+}
+
+func (a *App) handleTermsCmd(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	a.mu.Lock()
+	text := ""
+	if a.botCfg != nil {
+		text = a.botCfg.Contact.TermsText
+	}
+	a.mu.Unlock()
+	if text == "" {
+		a.notify(ctx, chatID, i18n.T(lang, "cmd.terms_none"))
+		return
+	}
+	a.notify(ctx, chatID, i18n.T(lang, "terms.intro")+"\n\n"+text)
+}
+
 func (a *App) handleStatus(ctx context.Context, chatID int64) {
 	a.mu.Lock()
 	installed := a.installed()
@@ -369,7 +405,7 @@ func (a *App) handleStatus(ctx context.Context, chatID int64) {
 func (a *App) statusNavRows(lang string, isAdmin bool) [][]models.InlineKeyboardButton {
 	if isAdmin {
 		return [][]models.InlineKeyboardButton{{
-			btn(i18n.T(lang, "btn.back"), "menu:manage"),
+			btn(i18n.T(lang, "btn.back"), "menu:system"),
 			btn(i18n.T(lang, "btn.home"), "menu:home"),
 		}}
 	}
@@ -530,6 +566,7 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 	back := ui.inputBack
 	ui.adminInput = ""
 	ui.priceMonths = 0
+	ui.linkUID = 0
 	ui.inputBack = ""
 	ui.awaitPromo = false
 	if back == "" {
@@ -560,6 +597,8 @@ func (a *App) cancelInput(ctx context.Context, chatID int64, isAdmin bool, fname
 		a.onCBAdmin(ctx, chatID, val)
 	case "cbc":
 		a.onCBCheck(ctx, chatID, val)
+	case "usr":
+		a.onUsers(ctx, chatID, val)
 	default:
 		a.enterHome(ctx, chatID, isAdmin, fname, uname)
 	}
@@ -573,7 +612,8 @@ func (a *App) enterHome(ctx context.Context, chatID int64, isAdmin bool, firstNa
 	}
 	if a.store != nil {
 		if u, _ := a.store.GetUser(ctx, chatID); u == nil {
-			a.showRegister(ctx, chatID, name)
+			a.ensureHomeKey(ctx, chatID)
+			a.registerUser(ctx, chatID, firstName, username)
 			return
 		}
 	}
@@ -700,6 +740,17 @@ func (m botMessenger) SendBanner(ctx context.Context, chatID int64, photo models
 		return 0
 	}
 	return msg.ID
+}
+
+func (m botMessenger) SendDocument(ctx context.Context, chatID int64, filename string, data []byte, caption string) {
+	_, err := m.b.SendDocument(ctx, &bot.SendDocumentParams{
+		ChatID:   chatID,
+		Document: &models.InputFileUpload{Filename: filename, Data: bytes.NewReader(data)},
+		Caption:  caption,
+	})
+	if err != nil {
+		m.log.Error("send document", "err", err)
+	}
 }
 
 func (m botMessenger) Delete(ctx context.Context, chatID int64, msgID int) {

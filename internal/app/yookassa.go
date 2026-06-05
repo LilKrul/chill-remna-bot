@@ -61,9 +61,11 @@ func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 	desc := i18n.T(lang, "yk.invoice_desc", months)
 	pay, err := client.CreatePayment(ctx, value, currency, desc, returnURL, chatID, months)
 	if err != nil {
+		a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "purchase months=%d amount=%s %s", months, value, currency)
 	if a.store != nil {
 		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
 			Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Months: months,
@@ -94,6 +96,7 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodYooKassa, payID, chatID, "manual_check", "status=%s paid=%v", pay.Status, pay.Paid)
 	if pay.Status != "succeeded" {
 		a.sendKB(ctx, chatID, i18n.T(lang, "yk.pending"), [][]models.InlineKeyboardButton{
 			{btn(i18n.T(lang, "yk.btn_check"), "ykc:"+payID)},
@@ -109,17 +112,21 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 			return
 		}
 	}
+	payChat, _ := strconv.ParseInt(pay.Metadata["telegram_id"], 10, 64)
+	if payChat == 0 {
+		payChat = chatID
+	}
 	months, _ := strconv.Atoi(pay.Metadata["months"])
 	if months == 0 {
 		months = model.PlanMonths[0]
 	}
 	amount := pay.Amount.Value + " " + pay.Amount.Currency
-	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodYooKassa, amount, payID)
+	link, expireAt, err := a.finalizePurchase(ctx, payChat, months, model.PayMethodYooKassa, amount, payID)
 	if err != nil {
 		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
-	a.sendSubActive(ctx, chatID, link, expireAt)
+	a.sendSubActive(ctx, payChat, link, expireAt)
 }
 
 func (a *App) showYooKassaAdmin(ctx context.Context, chatID int64) {

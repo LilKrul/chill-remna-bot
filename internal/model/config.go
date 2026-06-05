@@ -207,11 +207,20 @@ type WebhookConfig struct {
 }
 
 type CryptoBotConfig struct {
-	Enabled  bool           `json:"enabled"`
-	Token    string         `json:"token"`
-	Currency string         `json:"currency"`
-	Asset    string         `json:"asset"`
-	Prices   map[int]string `json:"prices"`
+	Enabled  bool   `json:"enabled"`
+	Token    string `json:"token"`
+	Currency string `json:"currency"`
+	Asset    string `json:"asset"`
+}
+
+type PayLogEntry struct {
+	ID         int64
+	ExtID      string
+	TelegramID int64
+	Method     string
+	Stage      string
+	Detail     string
+	CreatedAt  string
 }
 
 type RemindersConfig struct {

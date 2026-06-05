@@ -29,6 +29,18 @@ func (a *App) cryptoAmount(months int, fallback string) string {
 	return fallback
 }
 
+func cbAmount(asset, amount, paidAsset, paidAmount, fiat string) string {
+	switch {
+	case asset != "":
+		return amount + " " + asset
+	case paidAsset != "":
+		return paidAmount + " " + paidAsset
+	case fiat != "":
+		return amount + " " + fiat
+	}
+	return amount
+}
+
 func (a *App) cbClient() *cryptobot.Client {
 	cfg := a.cbConfig()
 	if !cfg.Enabled || cfg.Token == "" {
@@ -59,9 +71,11 @@ func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	}
 	inv, err := client.CreateInvoice(ctx, price, cfg.Asset, chatID, months)
 	if err != nil {
+		a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodCryptoBot, "cb:"+strconv.FormatInt(inv.InvoiceID, 10), chatID, "invoice_created", "purchase months=%d price=%s RUB assets=%s", months, price, cfg.Asset)
 	if a.store != nil {
 		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
 			Method: model.PayMethodCryptoBot, ExtID: "cb:" + strconv.FormatInt(inv.InvoiceID, 10),
@@ -105,6 +119,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 				a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 				return
 			}
+			a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "manual_check", "topup status=%s", inv.Status)
 			if inv.Status != "paid" {
 				a.sendKB(ctx, chatID, i18n.T(lang, "cb.pending"), [][]models.InlineKeyboardButton{
 					{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+idStr+":"+mosStr)},
@@ -112,20 +127,18 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 				})
 				return
 			}
-			_ = a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodCryptoBot, inv.Amount+" "+inv.Asset, extID)
+			_ = a.finalizeTopUp(ctx, p.TelegramID, p.Kopecks, model.PayMethodCryptoBot,
+				cbAmount(inv.Asset, inv.Amount, inv.PaidAsset, inv.PaidAmount, inv.Fiat), extID)
 			_ = a.store.ResolvePending(ctx, p.ID)
 			return
 		}
-	}
-	months, _ := strconv.Atoi(mosStr)
-	if months == 0 {
-		return
 	}
 	inv, err := client.GetInvoice(ctx, invoiceID)
 	if err != nil {
 		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "manual_check", "status=%s", inv.Status)
 	if inv.Status != "paid" {
 		a.sendKB(ctx, chatID, i18n.T(lang, "cb.pending"), [][]models.InlineKeyboardButton{
 			{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+idStr+":"+mosStr)},
@@ -133,8 +146,13 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 		})
 		return
 	}
-	amount := a.cryptoAmount(months, inv.Amount+" "+inv.Asset)
-	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodCryptoBot, amount, extID)
+	payChat, months, perr := parseCryptoBotPayload(inv.Payload)
+	if perr != nil {
+		a.log.Error("cryptobot check: bad invoice payload", "invoice", invoiceID, "err", perr)
+		return
+	}
+	amount := a.cryptoAmount(months, cbAmount(inv.Asset, inv.Amount, inv.PaidAsset, inv.PaidAmount, inv.Fiat))
+	link, expireAt, err := a.finalizePurchase(ctx, payChat, months, model.PayMethodCryptoBot, amount, extID)
 	if err != nil {
 		if err == storage.ErrDuplicateExtID {
 			a.showMySubs(ctx, chatID)
@@ -143,7 +161,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 		a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
-	a.sendSubActive(ctx, chatID, link, expireAt)
+	a.sendSubActive(ctx, payChat, link, expireAt)
 }
 
 func (a *App) showCryptoBotAdmin(ctx context.Context, chatID int64) {
@@ -169,7 +187,7 @@ func (a *App) showCryptoBotAdmin(ctx context.Context, chatID int64) {
 }
 
 func (a *App) onCBAdmin(ctx context.Context, chatID int64, val string) {
-	action, arg, _ := strings.Cut(val, ":")
+	action, _, _ := strings.Cut(val, ":")
 	lang := a.lang(chatID)
 	switch action {
 	case "toggle":
@@ -186,27 +204,5 @@ func (a *App) onCBAdmin(ctx context.Context, chatID int64, val string) {
 	case "asset":
 		a.getUI(chatID).adminInput = "cb_asset"
 		a.askInput(ctx, chatID, i18n.T(lang, "admin.cb_ask_asset"), "menu:cryptobot")
-	case "prices":
-		a.askPriceMonth(ctx, chatID, "cb")
-	case "price":
-		mo, _ := strconv.Atoi(arg)
-		ui := a.getUI(chatID)
-		ui.adminInput = "cbprice"
-		ui.priceMonths = mo
-		a.askInput(ctx, chatID, i18n.T(lang, "admin.cb_ask_price", mo), "menu:cryptobot")
 	}
-}
-
-func (a *App) formatCBPrices() string {
-	cfg := a.cbConfig()
-	var parts []string
-	for _, mo := range model.PlanMonths {
-		if v := cfg.Prices[mo]; v != "" {
-			parts = append(parts, strconv.Itoa(mo)+"м="+v)
-		}
-	}
-	if len(parts) == 0 {
-		return "—"
-	}
-	return strings.Join(parts, " ")
 }

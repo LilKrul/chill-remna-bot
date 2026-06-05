@@ -27,6 +27,9 @@ type Invoice struct {
 	Hash              string `json:"hash"`
 	Asset             string `json:"asset"`
 	Amount            string `json:"amount"`
+	Fiat              string `json:"fiat"`
+	PaidAsset         string `json:"paid_asset"`
+	PaidAmount        string `json:"paid_amount"`
 	BotInvoiceURL     string `json:"bot_invoice_url"`
 	MiniAppInvoiceURL string `json:"mini_app_invoice_url"`
 	WebAppInvoiceURL  string `json:"web_app_invoice_url"`

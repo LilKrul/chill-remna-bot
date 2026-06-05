@@ -72,6 +72,7 @@ func (a *App) showBalance(ctx context.Context, chatID int64) {
 	caption += "\n\n" + i18n.T(lang, "balance.autopay_note")
 	a.sendKB(ctx, chatID, caption, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup"), btn(i18n.T(lang, "btn.buy"), "menu:buy")},
+		{btn(i18n.T(lang, "btn.promo"), "pr:enter")},
 		{btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
@@ -215,9 +216,11 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 		}
 		pay, err := client.CreatePayment(ctx, rub, "RUB", i18n.T(lang, "topup.invoice_desc"), ret, chatID, 0)
 		if err != nil {
+			a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
 			a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 			return
 		}
+		a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "topup kopecks=%d", k)
 		if a.store != nil {
 			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
 				Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Purpose: "topup", Kopecks: k,
@@ -236,10 +239,12 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 		}
 		inv, err := client.CreateInvoice(ctx, rub, a.cbConfig().Asset, chatID, 0)
 		if err != nil {
+			a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
 			a.send(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 			return
 		}
 		extID := "cb:" + strconv.FormatInt(inv.InvoiceID, 10)
+		a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "invoice_created", "topup kopecks=%d", k)
 		if a.store != nil {
 			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
 				Method: model.PayMethodCryptoBot, ExtID: extID, TelegramID: chatID, Purpose: "topup", Kopecks: k,
@@ -265,13 +270,17 @@ func (a *App) finalizeTopUp(ctx context.Context, chatID int64, kopecks int64, me
 		TelegramID: chatID, Method: method, Amount: amount, Status: model.PaymentPaid, ExtID: extID, Comment: "topup",
 	}); err != nil {
 		if errors.Is(err, storage.ErrDuplicateExtID) {
+			a.payLog(ctx, method, extID, chatID, "duplicate", "пополнение уже зачислено")
 			return nil
 		}
+		a.payLog(ctx, method, extID, chatID, "error", "запись пополнения: %v", err)
 		return err
 	}
 	if err := a.store.AddBalance(ctx, chatID, kopecks); err != nil {
+		a.payLog(ctx, method, extID, chatID, "error", "зачисление баланса: %v", err)
 		return err
 	}
+	a.payLog(ctx, method, extID, chatID, "topup_credited", "kopecks=%d amount=%s", kopecks, amount)
 	a.fiscalize(float64(kopecks)/100, "Пополнение баланса")
 	lang := a.lang(chatID)
 	a.notifyKB(ctx, chatID, i18n.T(lang, "topup.done", kopecksToRub(kopecks), kopecksToRub(a.userBalance(ctx, chatID))),
@@ -296,6 +305,9 @@ func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 		a.send(ctx, chatID, "❌ "+err.Error())
 		return
 	}
+	if deducted {
+		a.payLog(ctx, "balance", "", chatID, "balance_deducted", "kopecks=%d months=%d", kopecks, months)
+	}
 	if !deducted {
 		a.sendKB(ctx, chatID, i18n.T(lang, "balance.not_enough", kopecksToRub(kopecks), kopecksToRub(a.userBalance(ctx, chatID))),
 			[][]models.InlineKeyboardButton{{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup")}, homeRow(lang)})
@@ -303,8 +315,8 @@ func (a *App) payFromBalance(ctx context.Context, chatID int64) {
 	}
 	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, "balance", priceStr+curSuffix(curRUB), "")
 	if err != nil {
-
 		_ = a.store.AddBalance(ctx, chatID, kopecks)
+		a.payLog(ctx, "balance", "", chatID, "balance_refund", "kopecks=%d возвращены после ошибки выдачи", kopecks)
 		a.send(ctx, chatID, i18n.T(lang, "balance.pay_fail", err.Error()))
 		return
 	}

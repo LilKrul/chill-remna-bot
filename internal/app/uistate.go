@@ -10,6 +10,9 @@ type uiState struct {
 
 	adminInput  string
 	priceMonths int
+	linkUID     int64
+
+	panelSyncDone bool
 
 	welcomeAwait       string
 	awaitSectionBanner string

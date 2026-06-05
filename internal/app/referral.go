@@ -102,7 +102,7 @@ func (a *App) payReferralBonus(ctx context.Context, telegramID int64) {
 	ref := u.ReferredBy
 	switch cfg.BonusKind {
 	case model.ReferralBonusDays:
-		if !a.addReferralDays(ctx, ref, cfg.BonusValue) {
+		if ok, _ := a.addReferralDays(ctx, ref, cfg.BonusValue); !ok {
 			return
 		}
 		a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.bonus_days", cfg.BonusValue))
@@ -115,7 +115,7 @@ func (a *App) payReferralBonus(ctx context.Context, telegramID int64) {
 	_ = a.store.SetRefBonusPaid(ctx, telegramID)
 }
 
-func (a *App) addReferralDays(ctx context.Context, ref int64, days int) bool {
+func (a *App) addReferralDays(ctx context.Context, ref int64, days int) (ok, found bool) {
 	a.mu.Lock()
 	panel := a.panel
 	limits := remnawave.UserLimits{}
@@ -126,17 +126,24 @@ func (a *App) addReferralDays(ctx context.Context, ref int64, days int) bool {
 	}
 	a.mu.Unlock()
 	if panel == nil {
-		return false
+		return false, false
+	}
+	pu, err := panel.FindByTelegramID(ctx, ref)
+	if err != nil {
+		return false, true
+	}
+	if pu == nil {
+		return false, false
 	}
 	_, expireAt, err := panel.CreateOrUpdateUserDays(ctx, ref, days, limits)
 	if err != nil {
-		return false
+		return false, true
 	}
 	a.invalidateSubCache(ref)
 	if a.store != nil {
 		_ = a.store.SetSubExpiry(ctx, ref, expireAt, "paid")
 	}
-	return true
+	return true, true
 }
 
 func (a *App) showReferral(ctx context.Context, chatID int64) {
@@ -185,7 +192,7 @@ func (a *App) showReferralAdmin(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "refadm.btn_toggle"), "ref:toggle")},
 		{btn(i18n.T(lang, "refadm.btn_kind"), "ref:kind"), btn(i18n.T(lang, "refadm.btn_value"), "ref:value")},
 		{btn(i18n.T(lang, "refadm.btn_when"), "ref:when")},
-		navBack(lang, "menu:manage"),
+		navBack(lang, "menu:marketing"),
 	})
 }
 

@@ -87,9 +87,11 @@ func (a *App) startPlatega(ctx context.Context, chatID int64) {
 	desc := i18n.T(lang, "pl.invoice_desc", months)
 	tx, err := client.CreateTransaction(ctx, a.plMethod(), amount, "RUB", desc, returnURL, plPayload(chatID, months))
 	if err != nil {
+		a.payLog(ctx, model.PayMethodPlatega, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.send(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodPlatega, tx.ID, chatID, "invoice_created", "purchase months=%d amount=%.2f RUB method=%d", months, amount, a.plMethod())
 	if a.store != nil {
 		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
 			Method: model.PayMethodPlatega, ExtID: tx.ID, TelegramID: chatID, Months: months,
@@ -119,6 +121,7 @@ func (a *App) onPLCheck(ctx context.Context, chatID int64, txID string) {
 		a.send(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
 		return
 	}
+	a.payLog(ctx, model.PayMethodPlatega, txID, chatID, "manual_check", "status=%s", tx.Status)
 	if !strings.EqualFold(tx.Status, "CONFIRMED") {
 		a.sendKB(ctx, chatID, i18n.T(lang, "pl.pending"), [][]models.InlineKeyboardButton{
 			{btn(i18n.T(lang, "pl.btn_check"), "plc:"+txID)},
@@ -129,7 +132,6 @@ func (a *App) onPLCheck(ctx context.Context, chatID int64, txID string) {
 	a.finalizePlatega(ctx, txID, tx)
 }
 
-// finalizePlatega завершает оплату Platega после подтверждения статуса CONFIRMED.
 func (a *App) finalizePlatega(ctx context.Context, txID string, tx *platega.Transaction) {
 	if a.store == nil {
 		return
@@ -150,6 +152,7 @@ func (a *App) finalizePlatega(ctx context.Context, txID string, tx *platega.Tran
 		months = model.PlanMonths[0]
 	}
 	if chatID == 0 {
+		a.payLog(ctx, model.PayMethodPlatega, txID, 0, "error", "оплата подтверждена, но получатель неизвестен: нет payload и pending-счёта")
 		return
 	}
 	link, expireAt, err := a.finalizePurchase(ctx, chatID, months, model.PayMethodPlatega, amount, txID)

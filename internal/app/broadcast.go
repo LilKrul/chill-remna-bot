@@ -20,7 +20,7 @@ func (a *App) showBroadcast(ctx context.Context, chatID int64) {
 	}
 	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, i18n.T(lang, "bcast.title", count), [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "bcast.btn_new"), "bc:new")},
-		navBack(lang, "menu:manage"),
+		navBack(lang, "menu:marketing"),
 	})
 }
 
@@ -39,7 +39,7 @@ func (a *App) onBroadcast(ctx context.Context, chatID int64, val string) {
 			return
 		}
 		a.runBroadcast(chatID, text)
-		a.sendKB(ctx, chatID, i18n.T(lang, "bcast.started"), [][]models.InlineKeyboardButton{navBack(lang, "menu:manage")})
+		a.sendKB(ctx, chatID, i18n.T(lang, "bcast.started"), [][]models.InlineKeyboardButton{navBack(lang, "menu:marketing")})
 	}
 }
 

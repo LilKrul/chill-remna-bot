@@ -13,7 +13,6 @@ import (
 
 var BaseURL = "https://app.platega.io"
 
-// Методы оплаты Platega.
 const (
 	MethodSBP   = 2
 	MethodCards = 10
@@ -60,7 +59,6 @@ type statusResponse struct {
 	Payload        string         `json:"payload"`
 }
 
-// Transaction — нормализованный результат для вызывающего кода.
 type Transaction struct {
 	ID       string
 	Redirect string

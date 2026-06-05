@@ -58,6 +58,9 @@ func (f *fakeMsg) SendInvoice(_ context.Context, _ int64, title, _, payload, cur
 	f.mu.Unlock()
 }
 func (f *fakeMsg) AnswerPreCheckout(_ context.Context, _ string, _ bool, _ string) {}
+func (f *fakeMsg) SendDocument(_ context.Context, _ int64, filename string, _ []byte, _ string) {
+	f.add("DOC:" + filename)
+}
 func (f *fakeMsg) add(s string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -93,10 +96,28 @@ type fakeStore struct {
 	pending   map[int64]*model.PendingInvoice
 	promos    map[string]*model.PromoCode
 	promoUses map[string]bool
+	paylogs   []model.PayLogEntry
 	seq       int64
 }
 
 func (s *fakeStore) Migrate(context.Context) error { return nil }
+
+func (s *fakeStore) AddPayLog(_ context.Context, e *model.PayLogEntry) error {
+	s.paylogs = append(s.paylogs, *e)
+	return nil
+}
+
+func (s *fakeStore) PayLogs(_ context.Context, extID string, telegramID int64, _ int) ([]model.PayLogEntry, error) {
+	var out []model.PayLogEntry
+	for _, e := range s.paylogs {
+		if (extID != "" && e.ExtID == extID) || (telegramID > 0 && e.TelegramID == telegramID) {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (s *fakeStore) PurgePayLogs(_ context.Context, _ string) error { return nil }
 func (s *fakeStore) LoadConfig(context.Context) (*model.BotConfig, bool, error) {
 	if s.cfg == nil {
 		return nil, false, nil

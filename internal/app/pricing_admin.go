@@ -18,27 +18,10 @@ func (a *App) askPriceMonth(ctx context.Context, chatID int64, prefix string) {
 		row = append(row, btn(strconv.Itoa(mo)+"м", prefix+":price:"+strconv.Itoa(mo)))
 	}
 	back := "menu:pricing"
-	switch prefix {
-	case "yk":
+	if prefix == "yk" {
 		back = "menu:yookassa"
-	case "cb":
-		back = "menu:cryptobot"
 	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "admin.ask_price_month"), [][]models.InlineKeyboardButton{row, navBack(lang, back)})
-}
-
-func (a *App) formatBasePrices() string {
-	pr := a.pricing()
-	var parts []string
-	for _, mo := range model.PlanMonths {
-		if v := pr.Base[mo]; v != "" {
-			parts = append(parts, strconv.Itoa(mo)+"м="+v)
-		}
-	}
-	if len(parts) == 0 {
-		return "—"
-	}
-	return strings.Join(parts, " ")
 }
 
 func (a *App) formatTrafficLimits() string {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -161,6 +162,30 @@ type panelUser struct {
 	SubscriptionURL string `json:"subscriptionUrl"`
 	Tag             string `json:"tag"`
 	Username        string `json:"username"`
+	TelegramID      int64  `json:"telegramId"`
+}
+
+type PanelUser struct {
+	UUID            string
+	Username        string
+	TelegramID      int64
+	ExpireAt        string
+	SubscriptionURL string
+	Tag             string
+}
+
+func toPanelUser(u *panelUser) *PanelUser {
+	if u == nil || u.Uuid == "" {
+		return nil
+	}
+	return &PanelUser{
+		UUID:            u.Uuid,
+		Username:        u.Username,
+		TelegramID:      u.TelegramID,
+		ExpireAt:        u.ExpireAt,
+		SubscriptionURL: u.SubscriptionURL,
+		Tag:             u.Tag,
+	}
 }
 
 const BotTag = "CHILLBOT"
@@ -193,7 +218,11 @@ func (c *Client) CreateOrUpdateUser(ctx context.Context, telegramID int64, month
 			"expireAt": expire,
 		}
 		applyLimits(patch, limits)
-		return c.upsertCall(ctx, http.MethodPatch, "/api/users", patch)
+		link, expireAt, err := c.upsertCall(ctx, http.MethodPatch, "/api/users", patch)
+		if err == nil {
+			_ = c.ResetTraffic(ctx, existing.Uuid)
+		}
+		return link, expireAt, err
 	}
 
 	body := map[string]any{
@@ -315,26 +344,16 @@ func (c *Client) ListExternalSquads(ctx context.Context) ([]ExternalSquad, error
 	return env.Response.ExternalSquads, nil
 }
 
-func (c *Client) DisableByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
-	u, err := c.findByTelegram(ctx, telegramID)
+func (c *Client) ResetTraffic(ctx context.Context, uuid string) error {
+	resp, err := c.do(ctx, http.MethodPost, "/api/users/"+url.PathEscape(uuid)+"/actions/reset-traffic", nil)
 	if err != nil {
-		return false, err
-	}
-	if u == nil || u.Uuid == "" {
-		return false, nil
-	}
-	if !ownedByBot(u, telegramID) {
-		return false, fmt.Errorf("аккаунт <code>%d</code> создан НЕ через бота — отключать его запрещено", telegramID)
-	}
-	resp, err := c.do(ctx, http.MethodPost, "/api/users/"+u.Uuid+"/actions/disable", nil)
-	if err != nil {
-		return false, fmt.Errorf("нет связи с панелью: %w", err)
+		return fmt.Errorf("нет связи с панелью: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
-		return false, classifyHTTP(resp)
+	if resp.StatusCode != http.StatusOK {
+		return classifyHTTP(resp)
 	}
-	return true, nil
+	return nil
 }
 
 func (c *Client) DeleteByTelegramID(ctx context.Context, telegramID int64) (bool, error) {
@@ -394,6 +413,86 @@ func (c *Client) findByTelegram(ctx context.Context, telegramID int64) (*panelUs
 		return &one, nil
 	}
 	return nil, nil
+}
+
+func (c *Client) FindByTelegramID(ctx context.Context, telegramID int64) (*PanelUser, error) {
+	u, err := c.findByTelegram(ctx, telegramID)
+	if err != nil {
+		return nil, err
+	}
+	return toPanelUser(u), nil
+}
+
+func (c *Client) FindByUsername(ctx context.Context, username string) (*PanelUser, error) {
+	return c.fetchOne(ctx, "/api/users/by-username/"+url.PathEscape(username))
+}
+
+func (c *Client) FindByUUID(ctx context.Context, uuid string) (*PanelUser, error) {
+	return c.fetchOne(ctx, "/api/users/"+url.PathEscape(uuid))
+}
+
+func (c *Client) fetchOne(ctx context.Context, path string) (*PanelUser, error) {
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTP(resp)
+	}
+	var env struct {
+		Response panelUser `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("разбор ответа панели: %w", err)
+	}
+	return toPanelUser(&env.Response), nil
+}
+
+func (c *Client) ListUsersPage(ctx context.Context, start, size int) ([]PanelUser, int, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/users?start="+strconv.Itoa(start)+"&size="+strconv.Itoa(size), nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, classifyHTTP(resp)
+	}
+	var env struct {
+		Response struct {
+			Users []panelUser `json:"users"`
+			Total int         `json:"total"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, 0, fmt.Errorf("разбор ответа панели: %w", err)
+	}
+	out := make([]PanelUser, 0, len(env.Response.Users))
+	for i := range env.Response.Users {
+		if pu := toPanelUser(&env.Response.Users[i]); pu != nil {
+			out = append(out, *pu)
+		}
+	}
+	return out, env.Response.Total, nil
+}
+
+func (c *Client) LinkTelegramID(ctx context.Context, uuid string, telegramID int64, setTag bool) error {
+	body := map[string]any{"uuid": uuid, "telegramId": telegramID}
+	if setTag {
+		body["tag"] = BotTag
+	}
+	resp, err := c.do(ctx, http.MethodPatch, "/api/users", body)
+	if err != nil {
+		return fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return classifyHTTP(resp)
+	}
+	return nil
 }
 
 func (c *Client) upsertCall(ctx context.Context, method, path string, body any) (string, string, error) {
