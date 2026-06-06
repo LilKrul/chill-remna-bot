@@ -436,7 +436,7 @@ func enabledMethods(cfg *model.BotConfig) string {
 func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	if a.ctl == nil || !a.ctl.Available() {
-		a.send(ctx, chatID, i18n.T(lang, "update.not_available"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "update.not_available"))
 		return
 	}
 	startMsgID := a.msg.SendKB(ctx, chatID,
@@ -446,7 +446,7 @@ func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(startMsgID)), 0o600)
 	if err := a.ctl.SelfUpdate(ctx); err != nil {
 		_ = os.Remove(marker)
-		a.send(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
 	}
 }
 

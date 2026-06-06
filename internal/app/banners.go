@@ -97,7 +97,7 @@ func (a *App) setSectionBannerFile(ctx context.Context, chatID int64, section, f
 		return
 	}
 	if err := a.store.SaveMediaFileID(ctx, section, fileID); err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 
@@ -109,7 +109,7 @@ func (a *App) resetSectionBanner(ctx context.Context, chatID int64, section stri
 		return
 	}
 	if err := a.store.DeleteMediaFileID(ctx, section); err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	a.showSectionBanner(ctx, chatID, section)

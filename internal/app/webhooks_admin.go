@@ -138,11 +138,11 @@ func (a *App) applyWebhookServer(ctx context.Context, chatID int64) {
 	}
 	a.mu.Unlock()
 	if !tls || domain == "" {
-		a.send(ctx, chatID, i18n.T(lang, "wh.apply_need_domain"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_need_domain"))
 		return
 	}
 	if a.ctl == nil || !a.ctl.Available() {
-		a.send(ctx, chatID, i18n.T(lang, "wh.apply_unavailable"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_unavailable"))
 		return
 	}
 	msgID := a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "wh.applying")), nil)
@@ -150,7 +150,7 @@ func (a *App) applyWebhookServer(ctx context.Context, chatID int64) {
 	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(msgID)), 0o600)
 	if err := a.ctl.PublishWebhookPorts(ctx); err != nil {
 		_ = os.Remove(marker)
-		a.send(ctx, chatID, i18n.T(lang, "wh.apply_fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_fail", err.Error()))
 		return
 	}
 }
@@ -172,6 +172,6 @@ func (a *App) cleanupWebhookApplyMsg(ctx context.Context) {
 		a.msg.Delete(ctx, chatID, msgID)
 	}
 	if chatID != 0 {
-		a.send(ctx, chatID, i18n.T(a.lang(chatID), "wh.applied"))
+		a.sendHome(ctx, chatID, i18n.T(a.lang(chatID), "wh.applied"))
 	}
 }

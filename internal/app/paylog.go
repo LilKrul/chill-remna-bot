@@ -30,7 +30,7 @@ func (a *App) adminSendPayLog(ctx context.Context, chatID int64, query string) {
 	lang := a.lang(chatID)
 	query = strings.TrimSpace(query)
 	if query == "" || a.store == nil {
-		a.send(ctx, chatID, i18n.T(lang, "paylog.empty", query))
+		a.sendHome(ctx, chatID, i18n.T(lang, "paylog.empty", query))
 		return
 	}
 	var tg int64
@@ -39,11 +39,11 @@ func (a *App) adminSendPayLog(ctx context.Context, chatID int64, query string) {
 	}
 	entries, err := a.store.PayLogs(ctx, query, tg, 2000)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	if len(entries) == 0 {
-		a.send(ctx, chatID, i18n.T(lang, "paylog.empty", query))
+		a.sendHome(ctx, chatID, i18n.T(lang, "paylog.empty", query))
 		return
 	}
 	var sb strings.Builder

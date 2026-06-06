@@ -61,7 +61,7 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	}
 	users, total, err := a.store.ListUsers(ctx, usersPageSize, page*usersPageSize)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	if total == 0 {
@@ -110,7 +110,7 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	}
 	u, err := a.store.GetUser(ctx, uid)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	if u == nil {
@@ -482,7 +482,7 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 	}
 	items, total, err := a.store.ListPayments(ctx, usersPageSize, page*usersPageSize)
 	if err != nil {
-		a.send(ctx, chatID, "❌ "+err.Error())
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
 		return
 	}
 	back := []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:pay"), btn(i18n.T(lang, "btn.home"), "menu:home")}

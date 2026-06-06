@@ -39,12 +39,12 @@ func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 	pr := a.pricing()
 	value := pr.Fiat(model.PayMethodYooKassa, months)
 	if !cfg.Enabled || value == "" {
-		a.send(ctx, chatID, i18n.T(lang, "yk.no_price"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "yk.no_price"))
 		return
 	}
 	client := a.ykClient()
 	if client == nil {
-		a.send(ctx, chatID, i18n.T(lang, "yk.not_configured"))
+		a.sendHome(ctx, chatID, i18n.T(lang, "yk.not_configured"))
 		return
 	}
 	if a.store != nil {
@@ -62,7 +62,7 @@ func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 	pay, err := client.CreatePayment(ctx, value, currency, desc, returnURL, chatID, months)
 	if err != nil {
 		a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
-		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "purchase months=%d amount=%s %s", months, value, currency)
@@ -93,7 +93,7 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 	}
 	pay, err := client.GetPayment(ctx, payID)
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
 	a.payLog(ctx, model.PayMethodYooKassa, payID, chatID, "manual_check", "status=%s paid=%v", pay.Status, pay.Paid)
@@ -123,7 +123,7 @@ func (a *App) onYKCheck(ctx context.Context, chatID int64, payID string) {
 	amount := pay.Amount.Value + " " + pay.Amount.Currency
 	link, expireAt, err := a.finalizePurchase(ctx, payChat, months, model.PayMethodYooKassa, amount, payID)
 	if err != nil {
-		a.send(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
+		a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
 	a.sendSubActive(ctx, payChat, link, expireAt)

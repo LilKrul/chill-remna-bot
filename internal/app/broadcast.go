@@ -67,7 +67,7 @@ func (a *App) runBroadcast(adminChat int64, text string) {
 		ctx := context.Background()
 		ids, err := a.store.AllUserIDs(ctx)
 		if err != nil {
-			a.send(ctx, adminChat, i18n.T(lang, "bcast.failed"))
+			a.sendHome(ctx, adminChat, i18n.T(lang, "bcast.failed"))
 			return
 		}
 		var sent, failed int
