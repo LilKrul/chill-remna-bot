@@ -67,7 +67,7 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	case "menu":
 		a.onMenu(ctx, chatID, val, isAdmin, cq.From.FirstName, cq.From.Username)
 	case "upd":
-		a.onUpdateCheck(ctx, chatID, val, isAdmin)
+		a.onUpdateCheck(ctx, chatID, val, isAdmin, cqMsgID(cq))
 	case "buy":
 		a.onBuyPlan(ctx, chatID, val)
 	case "method":

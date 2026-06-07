@@ -220,23 +220,35 @@ func (a *App) checkUpdateOnce(ctx context.Context, adminChat int64, manual bool)
 	}
 	sb.WriteString("\n" + i18n.T(lang, "update.tail", shortSHA(latest)))
 
-	rows := [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "update.btn_now"), "menu:update")},
-		backHomeRow(lang),
-	}
-	if msgID := a.msg.SendKB(ctx, target, a.applyPremium(sb.String()), rows); msgID != 0 {
-		time.AfterFunc(60*time.Second, func() {
-			a.msg.Delete(context.Background(), target, msgID)
+	if manual {
+		a.sendKB(ctx, target, sb.String(), [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "update.btn_now"), "upd:now")},
+			homeRow(lang),
 		})
+	} else {
+		rows := [][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "update.btn_now"), "upd:now")},
+			backHomeRow(lang),
+		}
+		if msgID := a.msg.SendKB(ctx, target, a.applyPremium(sb.String()), rows); msgID != 0 {
+			time.AfterFunc(60*time.Second, func() {
+				a.msg.Delete(context.Background(), target, msgID)
+			})
+		}
 	}
 	a.setUpdateSeen(ctx, latest)
 }
 
-func (a *App) onUpdateCheck(ctx context.Context, chatID int64, val string, isAdmin bool) {
+func (a *App) onUpdateCheck(ctx context.Context, chatID int64, val string, isAdmin bool, srcMsgID int) {
 	if !isAdmin {
 		return
 	}
 	switch val {
+	case "now":
+		if srcMsgID != 0 {
+			a.msg.Delete(ctx, chatID, srcMsgID)
+		}
+		a.handleUpdate(ctx, chatID)
 	case "toggle":
 		a.mu.Lock()
 		if a.botCfg != nil {

@@ -447,7 +447,19 @@ func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	if err := a.ctl.SelfUpdate(ctx); err != nil {
 		_ = os.Remove(marker)
 		a.sendHome(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
+		return
 	}
+	time.AfterFunc(90*time.Second, func() {
+		bg := context.Background()
+		if _, err := os.Stat(marker); err != nil {
+			return
+		}
+		_ = os.Remove(marker)
+		if a.msg != nil && startMsgID != 0 {
+			a.msg.Delete(bg, chatID, startMsgID)
+		}
+		a.sendHome(bg, chatID, i18n.T(a.botLang(), "update.no_restart"))
+	})
 }
 
 func (a *App) notifyUpdated(ctx context.Context) {
