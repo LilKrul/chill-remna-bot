@@ -215,8 +215,7 @@ func (a *App) adminMenuRows(lang string) [][]models.InlineKeyboardButton {
 	return [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "menu.cat_pay"), "menu:pay"), btn(i18n.T(lang, "menu.cat_marketing"), "menu:marketing")},
 		{btn(i18n.T(lang, "menu.cat_iface"), "menu:iface"), btn(i18n.T(lang, "btn.users"), "menu:users")},
-		{btn(i18n.T(lang, "menu.cat_system"), "menu:system")},
-		{btn(i18n.T(lang, "btn.storefront"), "menu:buy")},
+		{btn(i18n.T(lang, "menu.cat_system"), "menu:system"), btn(i18n.T(lang, "btn.storefront"), "menu:buy")},
 	}
 }
 
@@ -287,11 +286,10 @@ func (a *App) showSystem(ctx context.Context, chatID int64) {
 		updLabel = i18n.T(lang, "btn.upd_notify_on")
 	}
 	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, i18n.T(lang, "menu.system_title"), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.update"), "menu:update")},
-		{btn(i18n.T(lang, "btn.check_update"), "upd:check"), btn(updLabel, "upd:toggle")},
-		{btn(i18n.T(lang, "btn.channel")+": "+a.channelName(lang), "upd:chan")},
+		{btn(i18n.T(lang, "btn.update"), "menu:update"), btn(i18n.T(lang, "btn.check_update"), "upd:check")},
+		{btn(updLabel, "upd:toggle"), btn(i18n.T(lang, "btn.channel")+": "+a.channelName(lang), "upd:chan")},
+		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
 		{btn(i18n.T(lang, "btn.webhooks"), "menu:webhooks"), btn(i18n.T(lang, "btn.subdomain"), "menu:subdomain")},
-		{btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
 		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
 		homeRow(lang),
 	})
@@ -414,11 +412,11 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 		rows = a.adminMenuRows(lang)
 		photo = bannerInputFor(assets.SectionAdminStats)
 	} else {
-		rows = a.contactRows()
 		rows = append(rows, a.navRow(ctx, chatID))
 		if a.referralCfg().Enabled {
 			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.referral"), "menu:ref")})
 		}
+		rows = append(rows, a.contactRows()...)
 	}
 	if len(ents) == 0 {
 		caption = a.applyPremium(caption)

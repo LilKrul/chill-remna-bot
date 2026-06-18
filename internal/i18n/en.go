@@ -149,18 +149,18 @@ var en = map[string]string{
 	"btn.p2p":                 "🤝 P2P",
 	"btn.emoji":               "🎨 Emoji",
 	"btn.banner":              "🖼 Banner",
-	"btn.update":              "🔄 Update",
-	"btn.check_update":        "🔄 Check for updates",
+	"btn.update":              "⬆️ Update",
+	"btn.check_update":        "🔍 Check",
 	"btn.upd_notify_on":       "🔔 Notifications: on",
 	"btn.upd_notify_off":      "🔕 Notifications: off",
 	"btn.home":                "🏠 Home",
 	"btn.cancel":              "⬅️ Cancel",
-	"btn.reconfig":            "🔧 Reconfigure (DB & panel)",
+	"btn.reconfig":            "🔧 Reconfigure",
 	"menu.cat_iface":          "🎨 Interface",
 	"menu.cat_pay":            "💸 Sales",
 	"menu.cat_marketing":      "📣 Marketing",
 	"menu.cat_system":         "🛠 System",
-	"btn.storefront":          "🛒 Storefront (user view)",
+	"btn.storefront":          "🛒 Storefront",
 	"menu.admin_title":        "🛠 <b>Admin panel</b>\nChoose a section:",
 	"update.done":             "✅ Bot updated and restarted.",
 	"update.available":        "🆕 <b>A bot update is available</b>",
@@ -198,10 +198,10 @@ var en = map[string]string{
 		"• 👥 Referrals — bonus for invited users.\n" +
 		"• 📣 Broadcast — message to all bot users.\n" +
 		"• 🔔 Reminders — auto-notifications about expiring subscriptions and trials.",
-	"menu.system_title": "🛠 <b>System</b>\n\n" +
+	"menu.system_title": "🏠 Home › 🛠 <b>System</b>\n\n" +
 		"Utility functions:\n" +
 		"• 📊 Status — panel connectivity and summary.\n" +
-		"• 🔄 Update — pull new image and restart.\n" +
+		"• ⬆️ Update — pull new image and restart.\n" +
 		"• 🔗 Webhooks — receive panel and payment events.\n" +
 		"• 🌐 Subscription domain — single external host in subscription links.\n" +
 		"• 📡 API log — last 200 bot→panel requests.\n" +
@@ -331,7 +331,7 @@ var en = map[string]string{
 	"banners.ask_upload":        "📤 Send a photo — it will become the banner for «%s».\n\n💡 <b>To avoid heavy compression:</b>\n• Exactly <b>1280×640</b> px (2:1).\n• JPEG, quality 90–95%%.\n• File size <b>60–200 KB</b> (under 40 KB — artifacts already there; over 500 KB — Telegram compresses harder).\n• No transparency; PNG is pointless — Telegram converts to JPEG anyway.",
 	"banners.btn_upload":        "📤 Upload new",
 	"banners.btn_reset":         "↩️ Reset to default",
-	"btn.subdomain":             "🌐 Subscription domain",
+	"btn.subdomain":             "🌐 Sub-domain",
 	"subdomain.title":           "🌐 <b>Subscription domain override</b>\n\nStatus: %s\nCurrent domain: <code>%s</code>\n\nWhen enabled, the bot rewrites the host in the subscription link, keeping the path and shortId. Useful if you want to expose subscriptions via a single brand domain, hiding the panel host.",
 	"subdomain.on":              "on ✅",
 	"subdomain.off":             "off ❌",
@@ -345,7 +345,7 @@ var en = map[string]string{
 	"apilog.btn_refresh":        "🔄 Refresh",
 	"apilog.btn_clear":          "🧹 Clear",
 	"buy.popular":               "🔥 Most popular: <b>%d mo</b> — what other users pick most often.",
-	"btn.group":                 "👥 Channel",
+	"btn.group":                 "💬 Channel",
 	"btn.support":               "🛟 Support",
 	"btn.contacts":              "🛟 Contacts & terms",
 	"contacts.title":            "🛟 <b>Contacts & user agreement</b>\n\nThese values are visible to your users. An empty field simply hides the corresponding button (or disables the agreement). No defaults.\n\n👥 Channel: %s\n🛟 Support: %s\n📜 Agreement: %s",
@@ -443,7 +443,7 @@ var en = map[string]string{
 	"admin.cb_btn_asset":        "🪙 Accepted coins",
 	"admin.cb_ask_token":        "Enter Crypto-Pay-API-Token (issued in @CryptoBot → My apps):",
 	"admin.cb_ask_asset":        "Enter asset code (USDT, TON, BTC, ETH, …):",
-	"btn.referral":              "👥 Invite a friend",
+	"btn.referral":              "🎉 Invite a friend",
 	"btn.referral_admin":        "👥 Referrals",
 	"ref.disabled":              "The referral program is currently disabled.",
 	"ref.user":                  "👥 <b>Referral program</b>\n\nInvite friends and get a bonus: <b>%s</b> %s.\n\nInvited: <b>%d</b>\n\nYour link (tap to copy):\n<code>%s</code>",
