@@ -270,8 +270,10 @@ func (a *App) checkUpdateOnce(ctx context.Context, adminChat int64, manual bool)
 			backHomeRow(lang),
 		}
 		if msgID := a.msg.SendKB(ctx, target, a.applyPremium(sb.String()), rows); msgID != 0 {
+			a.setUpdNotice(target, msgID)
 			time.AfterFunc(60*time.Second, func() {
 				a.msg.Delete(context.Background(), target, msgID)
+				a.clearUpdNotice(target, msgID)
 			})
 		}
 	}

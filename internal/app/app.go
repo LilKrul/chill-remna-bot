@@ -55,12 +55,13 @@ type App struct {
 
 	newStore func(kind, dsn string) (storage.Storage, error)
 
-	mu     sync.Mutex
-	store  storage.Storage
-	botCfg *model.BotConfig
-	panel  *remnawave.Client
-	wiz    map[int64]*wizard
-	ui     map[int64]*uiState
+	mu           sync.Mutex
+	store        storage.Storage
+	botCfg       *model.BotConfig
+	panel        *remnawave.Client
+	wiz          map[int64]*wizard
+	ui           map[int64]*uiState
+	updNoticeMsg map[int64]int
 
 	scrMu  sync.Mutex
 	screen map[int64][]int
@@ -433,8 +434,38 @@ func enabledMethods(cfg *model.BotConfig) string {
 	return strings.Join(m, ", ")
 }
 
+func (a *App) setUpdNotice(chatID int64, msgID int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.updNoticeMsg == nil {
+		a.updNoticeMsg = map[int64]int{}
+	}
+	a.updNoticeMsg[chatID] = msgID
+}
+
+func (a *App) takeUpdNotice(chatID int64) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	id := a.updNoticeMsg[chatID]
+	delete(a.updNoticeMsg, chatID)
+	return id
+}
+
+func (a *App) clearUpdNotice(chatID int64, msgID int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.updNoticeMsg[chatID] == msgID {
+		delete(a.updNoticeMsg, chatID)
+	}
+}
+
 func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
+	// Clean up any pending 'update available' notification before restarting,
+	// regardless of whether the update was triggered from the notification or the menu.
+	if id := a.takeUpdNotice(chatID); id != 0 {
+		a.msg.Delete(ctx, chatID, id)
+	}
 	if a.ctl == nil || !a.ctl.Available() {
 		a.sendHome(ctx, chatID, i18n.T(lang, "update.not_available"))
 		return
