@@ -63,26 +63,35 @@ func (a *App) runBroadcast(adminChat int64, text string) {
 		return
 	}
 	lang := a.lang(adminChat)
+	ctx := a.bgContext()
 	go func() {
-		ctx := context.Background()
 		ids, err := a.store.AllUserIDs(ctx)
 		if err != nil {
 			a.sendHome(ctx, adminChat, i18n.T(lang, "bcast.failed"))
 			return
 		}
+		// Pace sends to stay well under Telegram's global rate limit and stop
+		// promptly on shutdown. Per-message 429s are retried inside sendWithRetry.
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
 		var sent, failed int
 		for _, id := range ids {
+			select {
+			case <-ctx.Done():
+				a.log.Info("broadcast cancelled", "sent", sent, "failed", failed, "total", len(ids))
+				return
+			case <-ticker.C:
+			}
 			if a.msg.Send(ctx, id, a.applyPremium(text)) != 0 {
 				sent++
 			} else {
 				failed++
 			}
-			time.Sleep(50 * time.Millisecond)
 		}
 		id := a.msg.Send(ctx, adminChat, a.applyPremium(i18n.T(lang, "bcast.done", sent, failed)))
 		if id != 0 {
 			time.AfterFunc(60*time.Second, func() {
-				a.msg.Delete(context.Background(), adminChat, id)
+				a.msg.Delete(a.bgContext(), adminChat, id)
 			})
 		}
 	}()

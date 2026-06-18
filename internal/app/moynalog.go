@@ -48,7 +48,7 @@ func (a *App) fiscalize(amountRub float64, detail string) {
 		name = cfg.ServiceName
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(a.bgContext(), 30*time.Second)
 		defer cancel()
 		id, err := client.CreateIncome(ctx, amountRub, name)
 		if err != nil {

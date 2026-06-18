@@ -3,9 +3,11 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -82,6 +84,8 @@ type App struct {
 	mnKey    string
 
 	payLogPurgedAt time.Time
+
+	bgCtx context.Context
 }
 
 type subCacheEntry struct {
@@ -197,6 +201,7 @@ func (a *App) switchStore(ctx context.Context, kind, dsn string) error {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	a.bgCtx = ctx
 	b, err := bot.New(a.cfg.BotToken, bot.WithDefaultHandler(a.handle))
 	if err != nil {
 		return err
@@ -210,11 +215,25 @@ func (a *App) Run(ctx context.Context) error {
 	return nil
 }
 
+// bgContext returns the long-lived root context so background goroutines
+// (broadcasts, fiscalization) are cancelled on shutdown instead of leaking.
+func (a *App) bgContext() context.Context {
+	if a.bgCtx != nil {
+		return a.bgCtx
+	}
+	return context.Background()
+}
+
 func (a *App) installed() bool {
 	return a.botCfg != nil && a.botCfg.Installed
 }
 
 func (a *App) handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.log.Error("паника в обработчике апдейта", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
 	switch {
 	case update.CallbackQuery != nil:
 		a.handleCallback(ctx, update.CallbackQuery)
@@ -891,16 +910,56 @@ func (m botMessenger) Send(ctx context.Context, chatID int64, text string) int {
 	return m.SendKB(ctx, chatID, text, nil)
 }
 
+// sendWithRetry retries a Telegram call when the API replies 429 Too Many
+// Requests, honouring the retry_after hint. Non-429 errors return immediately.
+func (m botMessenger) sendWithRetry(ctx context.Context, do func() error) error {
+	const maxAttempts = 4
+	var err error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if err = do(); err == nil {
+			return nil
+		}
+		var tmr *bot.TooManyRequestsError
+		if !errors.As(err, &tmr) {
+			return err
+		}
+		wait := time.Duration(tmr.RetryAfter) * time.Second
+		if wait <= 0 {
+			wait = time.Second
+		}
+		if wait > 60*time.Second {
+			wait = 60 * time.Second
+		}
+		m.log.Warn("telegram 429, backing off", "retry_after_s", tmr.RetryAfter, "attempt", attempt+1)
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return ctx.Err()
+		case <-t.C:
+		}
+	}
+	return err
+}
+
 func (m botMessenger) SendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) int {
 	params := &bot.SendMessageParams{ChatID: chatID, Text: text, ParseMode: models.ParseModeHTML}
 	if len(rows) > 0 {
 		params.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: rows}
 	}
-	msg, err := m.b.SendMessage(ctx, params)
+	var msg *models.Message
+	err := m.sendWithRetry(ctx, func() (e error) {
+		msg, e = m.b.SendMessage(ctx, params)
+		return e
+	})
 	if err != nil {
 		params.ParseMode = ""
 		params.Text = stripHTMLTags(text)
-		if msg, err = m.b.SendMessage(ctx, params); err != nil {
+		err = m.sendWithRetry(ctx, func() (e error) {
+			msg, e = m.b.SendMessage(ctx, params)
+			return e
+		})
+		if err != nil {
 			m.log.Error("send message", "err", err)
 			return 0
 		}
