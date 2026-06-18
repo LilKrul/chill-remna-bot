@@ -28,8 +28,9 @@ const (
 )
 
 type wizard struct {
-	step step
-	cfg  model.BotConfig
+	step     step
+	cfg      model.BotConfig
+	reconfig bool
 }
 
 func (a *App) startWizard(ctx context.Context, chatID int64) {
@@ -46,6 +47,7 @@ func (a *App) startWizard(ctx context.Context, chatID int64) {
 // Single source of truth so the switch below stays in sync.
 const (
 	cbLang      = "lang"
+	cbReconf    = "rcfg"
 	cbDB        = "db"
 	cbLoc       = "loc"
 	cbInst      = "inst"
@@ -112,6 +114,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 			return
 		}
 		a.wizardCallback(ctx, chatID, w, key, val)
+	case cbReconf:
+		if isAdmin {
+			a.cancelReconfigure(ctx, chatID)
+		}
 	case cbMenu:
 		a.onMenu(ctx, chatID, val, isAdmin, cq.From.FirstName, cq.From.Username)
 	case cbUpd:
@@ -319,10 +325,14 @@ func (a *App) gotoDB(ctx context.Context, chatID int64, w *wizard) {
 	w.step = stepDB
 	lang := w.cfg.Language
 	a.send(ctx, chatID, i18n.T(lang, "step.db.title"))
-	a.sendKB(ctx, chatID, i18n.T(lang, "step.db.body"), [][]models.InlineKeyboardButton{{
+	rows := [][]models.InlineKeyboardButton{{
 		btn(i18n.T(lang, "step.db.choose_sqlite"), "db:sqlite"),
 		btn(i18n.T(lang, "step.db.choose_postgres"), "db:postgres"),
-	}})
+	}}
+	if w.reconfig {
+		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "rcfg:cancel")})
+	}
+	a.sendKB(ctx, chatID, i18n.T(lang, "step.db.body"), rows)
 }
 
 func (a *App) onDBChosen(ctx context.Context, chatID int64, w *wizard, kind string) {

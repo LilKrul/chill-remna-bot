@@ -424,14 +424,14 @@ func (a *App) handleStatus(ctx context.Context, chatID int64) {
 	}
 	count, err := panel.SystemStats(ctx)
 	if err != nil {
-		a.sendKB(ctx, chatID, i18n.T(lang, "status.fail", err.Error()), rows)
+		a.sendSysKB(ctx, chatID, i18n.T(lang, "status.fail", err.Error()), rows)
 		return
 	}
 	text := i18n.T(lang, "status.line", count, dbKind, mode, methods)
 	if isAdmin {
 		text += "\n\n" + i18n.T(lang, "status.res_title") + "\n" + resourceStats()
 	}
-	a.sendKB(ctx, chatID, text, rows)
+	a.sendSysKB(ctx, chatID, text, rows)
 }
 
 func (a *App) statusNavRows(lang string, isAdmin bool) [][]models.InlineKeyboardButton {

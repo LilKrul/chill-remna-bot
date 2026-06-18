@@ -388,10 +388,19 @@ func (a *App) startReconfigure(ctx context.Context, chatID int64) {
 	if a.botCfg != nil {
 		base = *a.botCfg
 	}
-	w := &wizard{step: stepDB, cfg: base}
+	w := &wizard{step: stepDB, cfg: base, reconfig: true}
 	a.wiz[chatID] = w
 	a.mu.Unlock()
 	a.gotoDB(ctx, chatID, w)
+}
+
+// cancelReconfigure aborts an in-progress reconfigure wizard and returns to the
+// System menu (rendered in place on the same banner).
+func (a *App) cancelReconfigure(ctx context.Context, chatID int64) {
+	a.mu.Lock()
+	delete(a.wiz, chatID)
+	a.mu.Unlock()
+	a.showSystem(ctx, chatID)
 }
 
 func bannerInputFor(section string) models.InputFile {
