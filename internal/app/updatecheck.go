@@ -289,14 +289,8 @@ func (a *App) onUpdateCheck(ctx context.Context, chatID int64, val string, isAdm
 	case "now":
 		// Transitional migration: oblige the admin to pick a channel before updating.
 		if !a.channelChosen() {
-			if srcMsgID != 0 {
-				a.msg.Delete(ctx, chatID, srcMsgID)
-			}
 			a.showChannelChooser(ctx, chatID)
 			return
-		}
-		if srcMsgID != 0 {
-			a.msg.Delete(ctx, chatID, srcMsgID)
 		}
 		a.handleUpdate(ctx, chatID)
 	case "toggle":

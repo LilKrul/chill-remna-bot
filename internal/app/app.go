@@ -466,28 +466,39 @@ func (a *App) clearUpdNotice(chatID int64, msgID int) {
 
 func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
-	// Clean up any pending 'update available' notification before restarting,
-	// regardless of whether the update was triggered from the notification or the menu.
-	if id := a.takeUpdNotice(chatID); id != 0 {
-		a.msg.Delete(ctx, chatID, id)
+	// Reuse the message the admin acted on so the whole update flow lives in ONE
+	// message: changelog -> starting -> result (edit in place, not delete+resend).
+	src := a.takeEditTarget(chatID)
+	if notice := a.takeUpdNotice(chatID); notice != 0 {
+		if src == 0 {
+			src = notice
+		} else if notice != src {
+			a.msg.Delete(ctx, chatID, notice)
+		}
 	}
 	if a.ctl == nil || !a.ctl.Available() {
+		if src != 0 && a.msg.EditText(ctx, chatID, src, a.applyPremium(i18n.T(lang, "update.not_available")), [][]models.InlineKeyboardButton{homeRow(lang)}) {
+			return
+		}
 		a.sendHome(ctx, chatID, i18n.T(lang, "update.not_available"))
 		return
 	}
-	startMsgID := a.msg.SendKB(ctx, chatID,
-		a.applyPremium(i18n.T(lang, "update.starting")),
-		[][]models.InlineKeyboardButton{backHomeRow(lang)})
+	startText := a.applyPremium(i18n.T(lang, "update.starting"))
+	startRows := [][]models.InlineKeyboardButton{backHomeRow(lang)}
+	startMsgID := src
+	if startMsgID == 0 || !a.msg.EditText(ctx, chatID, startMsgID, startText, startRows) {
+		startMsgID = a.msg.SendKB(ctx, chatID, startText, startRows)
+	}
 	marker := filepath.Join(a.cfg.DataDir, "update.pending")
 	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(startMsgID)), 0o600)
 	if err := a.ctl.SetImageChannel(channelTag(a.updChannel())); err != nil {
 		_ = os.Remove(marker)
-		a.sendHome(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
+		a.updateFailMsg(ctx, chatID, startMsgID, err)
 		return
 	}
 	if err := a.ctl.SelfUpdate(ctx); err != nil {
 		_ = os.Remove(marker)
-		a.sendHome(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
+		a.updateFailMsg(ctx, chatID, startMsgID, err)
 		return
 	}
 	time.AfterFunc(90*time.Second, func() {
@@ -496,11 +507,26 @@ func (a *App) handleUpdate(ctx context.Context, chatID int64) {
 			return
 		}
 		_ = os.Remove(marker)
+		txt := a.applyPremium(i18n.T(a.botLang(), "update.no_restart"))
+		rows := [][]models.InlineKeyboardButton{homeRow(a.botLang())}
+		if startMsgID != 0 && a.msg != nil && a.msg.EditText(bg, chatID, startMsgID, txt, rows) {
+			return
+		}
 		if a.msg != nil && startMsgID != 0 {
 			a.msg.Delete(bg, chatID, startMsgID)
 		}
 		a.sendHome(bg, chatID, i18n.T(a.botLang(), "update.no_restart"))
 	})
+}
+
+func (a *App) updateFailMsg(ctx context.Context, chatID int64, msgID int, err error) {
+	lang := a.lang(chatID)
+	text := a.applyPremium(i18n.T(lang, "update.fail", err.Error()))
+	rows := [][]models.InlineKeyboardButton{homeRow(lang)}
+	if msgID != 0 && a.msg.EditText(ctx, chatID, msgID, text, rows) {
+		return
+	}
+	a.sendHome(ctx, chatID, i18n.T(lang, "update.fail", err.Error()))
 }
 
 func (a *App) notifyUpdated(ctx context.Context) {
@@ -520,6 +546,11 @@ func (a *App) notifyUpdated(ctx context.Context) {
 	}
 	if chatID == 0 {
 		chatID = a.cfg.AdminID
+	}
+	doneText := a.applyPremium(i18n.T(a.botLang(), "update.done"))
+	doneRows := [][]models.InlineKeyboardButton{homeRow(a.botLang())}
+	if msgID != 0 && a.msg != nil && a.msg.EditText(ctx, chatID, msgID, doneText, doneRows) {
+		return
 	}
 	if msgID != 0 && a.msg != nil {
 		a.msg.Delete(ctx, chatID, msgID)
@@ -645,7 +676,7 @@ func (a *App) sendBanner(ctx context.Context, chatID int64, photo models.InputFi
 
 func (a *App) sendKBSection(ctx context.Context, chatID int64, section, caption string, rows [][]models.InlineKeyboardButton) {
 	url := assets.URL(section)
-	if url == "" {
+	if url == "" || len([]rune(caption)) > 1000 {
 		a.sendKB(ctx, chatID, caption, rows)
 		return
 	}

@@ -128,7 +128,7 @@ func (a *App) showTributeAdmin(ctx context.Context, chatID int64) {
 		url = i18n.T(lang, "admin.none")
 	}
 	text := i18n.T(lang, "trb.title", status, key, url)
-	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
+	a.sendPayKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "admin.btn_toggle"), "trb:toggle")},
 		{btn(i18n.T(lang, "trb.btn_key"), "trb:key"), btn(i18n.T(lang, "trb.btn_url"), "trb:url")},
 		{btn(i18n.T(lang, "btn.back"), "menu:pay"), btn(i18n.T(lang, "btn.home"), "menu:home")},

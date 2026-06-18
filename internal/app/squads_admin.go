@@ -76,7 +76,7 @@ func (a *App) showSquads(ctx context.Context, chatID int64) {
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "squads.btn_refresh"), "sqd:refresh")})
 	rows = append(rows, back)
 
-	a.sendKB(ctx, chatID, i18n.T(lang, "squads.title", len(intSquads), len(extSquads), len(activeInt), display(activeExt, lang)), rows)
+	a.sendPayKB(ctx, chatID, i18n.T(lang, "squads.title", len(intSquads), len(extSquads), len(activeInt), display(activeExt, lang)), rows)
 }
 
 func display(v, lang string) string {

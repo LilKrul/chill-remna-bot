@@ -187,7 +187,7 @@ func (a *App) showPlategaAdmin(ctx context.Context, chatID int64) {
 		method = i18n.T(lang, "pl.method_cards")
 	}
 	text := i18n.T(lang, "pl.title", status, merchant, secret, ret, method)
-	a.sendKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
+	a.sendPayKB(ctx, chatID, text, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "admin.btn_toggle"), "pl:toggle"), btn(i18n.T(lang, "pl.btn_method"), "pl:method")},
 		{btn(i18n.T(lang, "pl.btn_merchant"), "pl:merchant"), btn(i18n.T(lang, "pl.btn_secret"), "pl:secret")},
 		{btn(i18n.T(lang, "pl.btn_return"), "pl:return")},

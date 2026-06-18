@@ -47,7 +47,7 @@ func (a *App) showTrialAdmin(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "trial.btn_hwid"), "trial:hwid"), btn(i18n.T(lang, "trial.btn_squads"), "trial:squads")},
 		{btn(i18n.T(lang, "btn.back"), "menu:pay"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	}
-	a.sendKB(ctx, chatID, body, rows)
+	a.sendPayKB(ctx, chatID, body, rows)
 }
 
 func (a *App) onTrialAdmin(ctx context.Context, chatID int64, val string) {

@@ -186,6 +186,12 @@ func (a *App) contactRows() [][]models.InlineKeyboardButton {
 	return [][]models.InlineKeyboardButton{row}
 }
 
+// sendPayKB renders a Sales sub-screen on the parent "Продажи" banner so that
+// navigation within the category edits the caption in place (no delete+resend).
+func (a *App) sendPayKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
+	a.sendKBSection(ctx, chatID, assets.SectionBuySubscription, text, rows)
+}
+
 func homeRow(lang string) []models.InlineKeyboardButton {
 	return []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.home"), "menu:home")}
 }
