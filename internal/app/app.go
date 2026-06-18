@@ -38,6 +38,7 @@ type messenger interface {
 	SetCommandKeyboard(ctx context.Context, chatID int64, label string)
 	AnswerCallback(ctx context.Context, id string)
 	EditText(ctx context.Context, chatID int64, msgID int, text string, rows [][]models.InlineKeyboardButton) bool
+	EditCaption(ctx context.Context, chatID int64, msgID int, caption string, rows [][]models.InlineKeyboardButton) bool
 
 	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
 	AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string)
@@ -64,10 +65,11 @@ type App struct {
 	ui           map[int64]*uiState
 	updNoticeMsg map[int64]int
 
-	scrMu      sync.Mutex
-	screen     map[int64][]int
-	kbSet      map[int64]bool
-	editTarget map[int64]int
+	scrMu         sync.Mutex
+	screen        map[int64][]int
+	kbSet         map[int64]bool
+	editTarget    map[int64]int
+	screenSection map[int64]string
 
 	subMu    sync.Mutex
 	subCache map[int64]subCacheEntry
@@ -89,7 +91,7 @@ type subCacheEntry struct {
 
 func New(cfg *config.Config, crypter *crypto.Crypter, log *slog.Logger) *App {
 	return &App{cfg: cfg, crypter: crypter, log: log, ctl: hostctl.New(), wiz: map[int64]*wizard{}, ui: map[int64]*uiState{},
-		screen: map[int64][]int{}, kbSet: map[int64]bool{}, editTarget: map[int64]int{}}
+		screen: map[int64][]int{}, kbSet: map[int64]bool{}, editTarget: map[int64]int{}, screenSection: map[int64]string{}}
 }
 
 func (a *App) Bootstrap(ctx context.Context) error {
@@ -546,6 +548,21 @@ func (a *App) takeEditTarget(chatID int64) int {
 	return id
 }
 
+func (a *App) setScreenSection(chatID int64, section string) {
+	a.scrMu.Lock()
+	defer a.scrMu.Unlock()
+	if a.screenSection == nil {
+		a.screenSection = map[int64]string{}
+	}
+	a.screenSection[chatID] = section
+}
+
+func (a *App) getScreenSection(chatID int64) string {
+	a.scrMu.Lock()
+	defer a.scrMu.Unlock()
+	return a.screenSection[chatID]
+}
+
 // tryEditScreen edits the message the user acted on (callback source) in place
 // instead of delete+resend. Text screens only; on a photo message or any error
 // it returns false and the caller falls back to the normal delete+send flow.
@@ -574,6 +591,7 @@ func (a *App) tryEditScreen(ctx context.Context, chatID int64, text string, rows
 
 func (a *App) emit(ctx context.Context, chatID int64, send func() int) {
 	a.takeEditTarget(chatID)
+	a.setScreenSection(chatID, "")
 	a.scrMu.Lock()
 	if a.screen == nil {
 		a.screen = map[int64][]int{}
@@ -614,6 +632,7 @@ func (a *App) sendHome(ctx context.Context, chatID int64, text string) {
 
 func (a *App) sendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
 	t := a.applyPremium(text)
+	a.setScreenSection(chatID, "")
 	if a.tryEditScreen(ctx, chatID, t, rows) {
 		return
 	}
@@ -631,6 +650,27 @@ func (a *App) sendKBSection(ctx context.Context, chatID int64, section, caption 
 		return
 	}
 	t := a.applyPremium(caption)
+	// Same-section re-render (toggle/pagination/refresh): edit the caption in
+	// place instead of delete+resend. Different section (navigation) or any
+	// failure falls through to the normal resend below.
+	if target := a.takeEditTarget(chatID); target != 0 && a.getScreenSection(chatID) == section {
+		if a.msg.EditCaption(ctx, chatID, target, t, rows) {
+			a.scrMu.Lock()
+			old := a.screen[chatID]
+			a.screen[chatID] = []int{target}
+			a.scrMu.Unlock()
+			for _, id := range old {
+				if id != target {
+					a.msg.Delete(ctx, chatID, id)
+				}
+			}
+			if a.store != nil {
+				_ = a.store.SetScreenMsg(ctx, chatID, target)
+			}
+			a.setScreenSection(chatID, section)
+			return
+		}
+	}
 	var cached string
 	if a.store != nil {
 		if id, ok, _ := a.store.LoadMediaFileID(ctx, section); ok {
@@ -649,6 +689,7 @@ func (a *App) sendKBSection(ctx context.Context, chatID int64, section, caption 
 			a.log.Warn("media_cache save", "section", section, "err", err)
 		}
 	}
+	a.setScreenSection(chatID, section)
 }
 
 func (a *App) notify(ctx context.Context, chatID int64, text string) {
@@ -1006,6 +1047,19 @@ func (m botMessenger) EditText(ctx context.Context, chatID int64, msgID int, tex
 	params.Text = stripHTMLTags(text)
 	_, err := m.b.EditMessageText(ctx, params)
 	return err == nil
+}
+
+func (m botMessenger) EditCaption(ctx context.Context, chatID int64, msgID int, caption string, rows [][]models.InlineKeyboardButton) bool {
+	params := &bot.EditMessageCaptionParams{ChatID: chatID, MessageID: msgID, Caption: caption, ParseMode: models.ParseModeHTML}
+	if len(rows) > 0 {
+		params.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	}
+	if _, err := m.b.EditMessageCaption(ctx, params); err == nil {
+		return true
+	} else if strings.Contains(err.Error(), "not modified") {
+		return true
+	}
+	return false
 }
 
 func applyPremiumEmoji(text string, m map[string]string) string {

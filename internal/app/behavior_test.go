@@ -38,6 +38,9 @@ func (f *fakeMsg) AnswerCallback(_ context.Context, _ string) {}
 func (f *fakeMsg) EditText(_ context.Context, _ int64, _ int, _ string, _ [][]models.InlineKeyboardButton) bool {
 	return false
 }
+func (f *fakeMsg) EditCaption(_ context.Context, _ int64, _ int, _ string, _ [][]models.InlineKeyboardButton) bool {
+	return false
+}
 func (f *fakeMsg) SendPhoto(_ context.Context, _ int64, _, caption string, _ [][]models.InlineKeyboardButton) int {
 	return f.add(caption)
 }
