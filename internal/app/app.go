@@ -37,6 +37,7 @@ type messenger interface {
 
 	SetCommandKeyboard(ctx context.Context, chatID int64, label string)
 	AnswerCallback(ctx context.Context, id string)
+	EditText(ctx context.Context, chatID int64, msgID int, text string, rows [][]models.InlineKeyboardButton) bool
 
 	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
 	AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string)
@@ -63,9 +64,10 @@ type App struct {
 	ui           map[int64]*uiState
 	updNoticeMsg map[int64]int
 
-	scrMu  sync.Mutex
-	screen map[int64][]int
-	kbSet  map[int64]bool
+	scrMu      sync.Mutex
+	screen     map[int64][]int
+	kbSet      map[int64]bool
+	editTarget map[int64]int
 
 	subMu    sync.Mutex
 	subCache map[int64]subCacheEntry
@@ -87,7 +89,7 @@ type subCacheEntry struct {
 
 func New(cfg *config.Config, crypter *crypto.Crypter, log *slog.Logger) *App {
 	return &App{cfg: cfg, crypter: crypter, log: log, ctl: hostctl.New(), wiz: map[int64]*wizard{}, ui: map[int64]*uiState{},
-		screen: map[int64][]int{}, kbSet: map[int64]bool{}}
+		screen: map[int64][]int{}, kbSet: map[int64]bool{}, editTarget: map[int64]int{}}
 }
 
 func (a *App) Bootstrap(ctx context.Context) error {
@@ -523,7 +525,55 @@ func (a *App) notifyUpdated(ctx context.Context) {
 	a.notify(ctx, chatID, i18n.T(a.botLang(), "update.done"))
 }
 
+func (a *App) setEditTarget(chatID int64, msgID int) {
+	a.scrMu.Lock()
+	defer a.scrMu.Unlock()
+	if a.editTarget == nil {
+		a.editTarget = map[int64]int{}
+	}
+	if msgID == 0 {
+		delete(a.editTarget, chatID)
+		return
+	}
+	a.editTarget[chatID] = msgID
+}
+
+func (a *App) takeEditTarget(chatID int64) int {
+	a.scrMu.Lock()
+	defer a.scrMu.Unlock()
+	id := a.editTarget[chatID]
+	delete(a.editTarget, chatID)
+	return id
+}
+
+// tryEditScreen edits the message the user acted on (callback source) in place
+// instead of delete+resend. Text screens only; on a photo message or any error
+// it returns false and the caller falls back to the normal delete+send flow.
+func (a *App) tryEditScreen(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) bool {
+	target := a.takeEditTarget(chatID)
+	if target == 0 {
+		return false
+	}
+	if !a.msg.EditText(ctx, chatID, target, text, rows) {
+		return false
+	}
+	a.scrMu.Lock()
+	old := a.screen[chatID]
+	a.screen[chatID] = []int{target}
+	a.scrMu.Unlock()
+	for _, id := range old {
+		if id != target {
+			a.msg.Delete(ctx, chatID, id)
+		}
+	}
+	if a.store != nil {
+		_ = a.store.SetScreenMsg(ctx, chatID, target)
+	}
+	return true
+}
+
 func (a *App) emit(ctx context.Context, chatID int64, send func() int) {
+	a.takeEditTarget(chatID)
 	a.scrMu.Lock()
 	if a.screen == nil {
 		a.screen = map[int64][]int{}
@@ -564,6 +614,9 @@ func (a *App) sendHome(ctx context.Context, chatID int64, text string) {
 
 func (a *App) sendKB(ctx context.Context, chatID int64, text string, rows [][]models.InlineKeyboardButton) {
 	t := a.applyPremium(text)
+	if a.tryEditScreen(ctx, chatID, t, rows) {
+		return
+	}
 	a.emit(ctx, chatID, func() int { return a.msg.SendKB(ctx, chatID, t, rows) })
 }
 
@@ -937,6 +990,22 @@ func (m botMessenger) SetCommandKeyboard(ctx context.Context, chatID int64, labe
 
 func (m botMessenger) AnswerCallback(ctx context.Context, id string) {
 	_, _ = m.b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: id})
+}
+
+func (m botMessenger) EditText(ctx context.Context, chatID int64, msgID int, text string, rows [][]models.InlineKeyboardButton) bool {
+	params := &bot.EditMessageTextParams{ChatID: chatID, MessageID: msgID, Text: text, ParseMode: models.ParseModeHTML}
+	if len(rows) > 0 {
+		params.ReplyMarkup = models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	}
+	if _, err := m.b.EditMessageText(ctx, params); err == nil {
+		return true
+	} else if strings.Contains(err.Error(), "not modified") {
+		return true
+	}
+	params.ParseMode = ""
+	params.Text = stripHTMLTags(text)
+	_, err := m.b.EditMessageText(ctx, params)
+	return err == nil
 }
 
 func applyPremiumEmoji(text string, m map[string]string) string {

@@ -364,7 +364,7 @@ var en = map[string]string{
 	"btn.back_home":             "◀️ Back to home",
 	"menu.outdated":             "⚠️ This menu is outdated. Tap /start to open the current one.",
 	"btn.addsub":                "➕ Add-on sub",
-	"addsub.title":              "➕ <b>Add-on subscription (addsub)</b>\n\nStatus: %s\nTraffic B: %s\nInternal squads B: %d\n\nCreated as a second panel user (suffix <code>_addsub</code>) with its own internal squads and traffic. Expiry, reset strategy and device limit are inherited from the main subscription. The second link is not shown to the user.",
+	"addsub.title":              "➕ <b>Add-on subscription (addsub)</b>\n\nStatus: %s\nTraffic B: %s\nInternal squads B: %s\n\nCreated as a second panel user (suffix <code>_addsub</code>) with its own internal squads and traffic. Expiry, reset strategy and device limit are inherited from the main subscription. The second link is not shown to the user.",
 	"addsub.on":                 "✅ enabled",
 	"addsub.off":                "⛔ disabled",
 	"addsub.unlimited":          "unlimited",

@@ -15,6 +15,10 @@ func (a *App) showAddSubAdmin(ctx context.Context, chatID int64) {
 	c := a.botCfg.AddSub
 	a.mu.Unlock()
 
+	squadNames, _ := a.squadNames(ctx, c.InternalSquads, "")
+	if squadNames == "" {
+		squadNames = i18n.T(lang, "admin.none")
+	}
 	state := i18n.T(lang, "addsub.off")
 	if c.Enabled {
 		state = i18n.T(lang, "addsub.on")
@@ -27,7 +31,7 @@ func (a *App) showAddSubAdmin(ctx context.Context, chatID int64) {
 	if c.Enabled {
 		toggleLabel = i18n.T(lang, "addsub.btn_disable")
 	}
-	title := i18n.T(lang, "addsub.title", state, traffic, len(c.InternalSquads))
+	title := i18n.T(lang, "addsub.title", state, traffic, squadNames)
 	a.sendKB(ctx, chatID, title, [][]models.InlineKeyboardButton{
 		{btn(toggleLabel, "addsub:toggle")},
 		{btn(i18n.T(lang, "addsub.btn_gb"), "addsub:gb"), btn(i18n.T(lang, "addsub.btn_squads"), "addsub:squads")},
