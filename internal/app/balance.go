@@ -69,7 +69,7 @@ func (a *App) showBalance(ctx context.Context, chatID int64) {
 		}
 	}
 	caption += "\n\n" + i18n.T(lang, "balance.autopay_note")
-	a.sendKB(ctx, chatID, caption, [][]models.InlineKeyboardButton{
+	a.sendPayKB(ctx, chatID, caption, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup"), btn(i18n.T(lang, "btn.buy"), "menu:buy")},
 		{btn(i18n.T(lang, "btn.promo"), "pr:enter")},
 		{btn(i18n.T(lang, "btn.home"), "menu:home")},
@@ -150,7 +150,7 @@ func (a *App) showTopUp(ctx context.Context, chatID int64) {
 	}
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "topup.btn_custom"), "top:custom")})
 	rows = append(rows, navBack(lang, "menu:buy"))
-	a.sendKB(ctx, chatID, i18n.T(lang, "topup.title", kopecksToRub(bal)), rows)
+	a.sendPayKB(ctx, chatID, i18n.T(lang, "topup.title", kopecksToRub(bal)), rows)
 }
 
 func (a *App) onTopUp(ctx context.Context, chatID int64, val string) {
