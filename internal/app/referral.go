@@ -140,6 +140,7 @@ func (a *App) addReferralDays(ctx context.Context, ref int64, days int) (ok, fou
 		return false, true
 	}
 	a.invalidateSubCache(ref)
+	a.syncAddSub(ctx, ref)
 	if a.store != nil {
 		_ = a.store.SetSubExpiry(ctx, ref, expireAt, "paid")
 	}

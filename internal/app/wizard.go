@@ -86,6 +86,7 @@ const (
 	cbTerms     = "terms"
 	cbInput     = "inp"
 	cbClose     = "x"
+	cbAddSub    = "addsub"
 )
 
 func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
@@ -226,6 +227,10 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	case cbSquads:
 		if isAdmin {
 			a.onSquads(ctx, chatID, val)
+		}
+	case cbAddSub:
+		if isAdmin {
+			a.onAddSubAdmin(ctx, chatID, val)
 		}
 	case cbTerms:
 

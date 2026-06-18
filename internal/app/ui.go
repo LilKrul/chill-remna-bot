@@ -258,6 +258,7 @@ func (a *App) showPay(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "subsetup.btn_quick"), "prc:quick")},
 		{btn(i18n.T(lang, "subsetup.btn_manual"), "menu:pricing")},
 		{btn(i18n.T(lang, "btn.trial_admin"), "menu:trial"), btn(i18n.T(lang, "btn.squads"), "menu:squads")},
+		{btn(i18n.T(lang, "btn.addsub"), "menu:addsub")},
 		{btn(i18n.T(lang, "btn.p2p"), "menu:p2p"), btn(i18n.T(lang, "btn.stars"), "menu:stars")},
 		{btn(i18n.T(lang, "btn.yookassa"), "menu:yookassa"), btn(i18n.T(lang, "btn.cryptobot"), "menu:cryptobot")},
 		{btn(i18n.T(lang, "btn.platega"), "menu:platega"), btn(i18n.T(lang, "btn.tribute"), "menu:tribute")},
@@ -559,6 +560,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "manage":
 		if isAdmin {
 			a.showMenu(ctx, chatID, true, name)
+		}
+	case "addsub":
+		if isAdmin {
+			a.showAddSubAdmin(ctx, chatID)
 		}
 	case "marketing":
 		if isAdmin {

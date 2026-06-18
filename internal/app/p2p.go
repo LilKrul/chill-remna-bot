@@ -473,6 +473,7 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	a.payLog(ctx, method, extID, telegramID, "panel_ok", "expire=%s", expireAt)
 	link = a.rewriteSub(link)
 	a.invalidateSubCache(telegramID)
+	a.syncAddSub(ctx, telegramID)
 	if a.store != nil {
 		if err := a.store.AddPayment(ctx, &model.Payment{
 			TelegramID: telegramID, Method: method, Months: months, Amount: amount, Status: model.PaymentPaid, ExtID: extID,
@@ -789,6 +790,19 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.setTrialGB(n)
 		_ = a.saveBotConfig(ctx)
 		a.showTrialAdmin(ctx, chatID)
+	case "addsub_gb":
+		ui.adminInput = ""
+		n, _ := strconv.Atoi(strings.TrimSpace(text))
+		if n < 0 {
+			n = 0
+		}
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.AddSub.TrafficGB = n
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showAddSubAdmin(ctx, chatID)
 	case "trial_hwid":
 		ui.adminInput = ""
 		n, _ := strconv.Atoi(strings.TrimSpace(text))

@@ -279,6 +279,7 @@ func (a *App) activateTrial(ctx context.Context, chatID int64) {
 		_ = a.store.SetSubExpiry(ctx, chatID, expireAt, "trial")
 	}
 	a.invalidateSubCache(chatID)
+	a.syncAddSub(ctx, chatID)
 
 	a.sendSubActive(ctx, chatID, link, expireAt)
 }

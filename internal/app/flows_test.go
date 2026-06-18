@@ -96,6 +96,8 @@ func TestAdminButtonWalk(t *testing.T) {
 
 		"menu:squads", "sqd:refresh", "sqd:int:s1", "sqd:ext:e1",
 
+		"menu:addsub", "addsub:toggle", "addsub:gb", "addsub:squads", "addsub:refresh", "addsub:int:s1", "addsub:ext:e1",
+
 		"menu:p2p", "adm:toggle", "adm:rotate", "adm:cards", "adm:prices", "adm:price:1", "sq:pick",
 		"menu:stars", "star:toggle", "star:prices", "star:price:1",
 		"menu:yookassa", "yk:toggle", "yk:shop", "yk:secret", "yk:return", "yk:prices", "yk:price:1",

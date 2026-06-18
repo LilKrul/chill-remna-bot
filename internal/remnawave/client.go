@@ -164,6 +164,9 @@ type panelUser struct {
 	Username        string `json:"username"`
 	TelegramID      int64  `json:"telegramId"`
 	Status          string `json:"status"`
+
+	TrafficLimitStrategy string `json:"trafficLimitStrategy"`
+	HwidDeviceLimit      int    `json:"hwidDeviceLimit"`
 }
 
 type PanelUser struct {
@@ -173,6 +176,8 @@ type PanelUser struct {
 	ExpireAt        string
 	SubscriptionURL string
 	Tag             string
+	Strategy        string
+	DeviceLimit     int
 }
 
 func toPanelUser(u *panelUser) *PanelUser {
@@ -186,6 +191,8 @@ func toPanelUser(u *panelUser) *PanelUser {
 		ExpireAt:        u.ExpireAt,
 		SubscriptionURL: u.SubscriptionURL,
 		Tag:             u.Tag,
+		Strategy:        u.TrafficLimitStrategy,
+		DeviceLimit:     u.HwidDeviceLimit,
 	}
 }
 
@@ -196,6 +203,100 @@ func ownedByBot(u *panelUser, telegramID int64) bool {
 		return false
 	}
 	return u.TelegramID == telegramID || u.Username == fmt.Sprintf("tg_%d", telegramID)
+}
+
+const BotTagAdd = "CHILLBOT_ADD"
+
+func addSubUsername(telegramID int64, suffix string) string {
+	if suffix == "" {
+		suffix = "_addsub"
+	}
+	return fmt.Sprintf("tg_%d%s", telegramID, suffix)
+}
+
+// UpsertAddSub creates/updates the add-on user B for telegramID. B inherits
+// expireAt, traffic-reset strategy and device limit from the main user A; only
+// squads and traffic are overridden. B carries NO telegramId and tag
+// CHILLBOT_ADD, so it never appears in by-telegram-id lookups.
+func (c *Client) UpsertAddSub(ctx context.Context, telegramID int64, suffix string, trafficBytes int64, internalSquads []string, externalSquad string) error {
+	a, err := c.findByTelegram(ctx, telegramID)
+	if err != nil {
+		return err
+	}
+	if a == nil || a.ExpireAt == "" {
+		return nil
+	}
+	limits := UserLimits{
+		TrafficBytes:   trafficBytes,
+		DeviceLimit:    a.HwidDeviceLimit,
+		Strategy:       a.TrafficLimitStrategy,
+		InternalSquads: internalSquads,
+		ExternalSquad:  externalSquad,
+	}
+	uname := addSubUsername(telegramID, suffix)
+	existing, err := c.FindByUsername(ctx, uname)
+	if err != nil {
+		return err
+	}
+	if existing != nil && existing.UUID != "" {
+		if existing.Tag != BotTagAdd {
+			return fmt.Errorf("addsub: пользователь %s принадлежит не боту", uname)
+		}
+		patch := map[string]any{"uuid": existing.UUID, "expireAt": a.ExpireAt}
+		applyLimits(patch, limits)
+		_, _, err = c.upsertCall(ctx, http.MethodPatch, "/api/users", patch)
+		return err
+	}
+	body := map[string]any{
+		"username": uname,
+		"expireAt": a.ExpireAt,
+		"tag":      BotTagAdd,
+	}
+	applyLimits(body, limits)
+	_, _, err = c.upsertCall(ctx, http.MethodPost, "/api/users", body)
+	return err
+}
+
+func (c *Client) DeleteAddSub(ctx context.Context, telegramID int64, suffix string) error {
+	u, err := c.FindByUsername(ctx, addSubUsername(telegramID, suffix))
+	if err != nil || u == nil || u.UUID == "" {
+		return err
+	}
+	if u.Tag != BotTagAdd {
+		return nil
+	}
+	resp, err := c.do(ctx, http.MethodDelete, "/api/users/"+u.UUID, nil)
+	if err != nil {
+		return fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusCreated {
+		return classifyHTTP(resp)
+	}
+	return nil
+}
+
+func (c *Client) SetAddSubEnabled(ctx context.Context, telegramID int64, suffix string, enable bool) error {
+	u, err := c.FindByUsername(ctx, addSubUsername(telegramID, suffix))
+	if err != nil || u == nil || u.UUID == "" {
+		return err
+	}
+	if u.Tag != BotTagAdd {
+		return nil
+	}
+	status := "DISABLED"
+	if enable {
+		status = "ACTIVE"
+	}
+	resp, err := c.do(ctx, http.MethodPatch, "/api/users", map[string]any{"uuid": u.UUID, "status": status})
+	if err != nil {
+		return fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return classifyHTTP(resp)
+	}
+	return nil
 }
 
 type UserLimits struct {

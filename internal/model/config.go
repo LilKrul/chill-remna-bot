@@ -62,6 +62,8 @@ type BotConfig struct {
 	Trial TrialConfig `json:"trial"`
 
 	UpdateCheck UpdateCheckConfig `json:"update_check"`
+
+	AddSub AddSubConfig `json:"addsub"`
 }
 
 type UpdateCheckConfig struct {
@@ -88,6 +90,30 @@ func (c *BotConfig) NormalizeUpdateCheck() {
 	}
 	if u.Channel != "dev" && u.Channel != "stable" {
 		u.Channel = "stable"
+	}
+}
+
+// AddSubConfig configures the optional second ("add-on") panel subscription B.
+// Only squads and traffic are configurable; expiry, reset strategy and device
+// limit are inherited from the main subscription A at sync time.
+type AddSubConfig struct {
+	Enabled           bool     `json:"enabled"`
+	UsernameSuffix    string   `json:"username_suffix"`
+	TrafficGB         int      `json:"traffic_gb"`
+	InternalSquads    []string `json:"internal_squads"`
+	ExternalSquadUUID string   `json:"external_squad_uuid"`
+	Init              bool     `json:"init"`
+}
+
+func (c *BotConfig) NormalizeAddSub() {
+	a := &c.AddSub
+	if !a.Init {
+		a.Enabled = false
+		a.UsernameSuffix = "_addsub"
+		a.Init = true
+	}
+	if a.UsernameSuffix == "" {
+		a.UsernameSuffix = "_addsub"
 	}
 }
 

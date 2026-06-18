@@ -316,6 +316,7 @@ func (a *App) applyBlock(ctx context.Context, adminChat, uid int64, mode string,
 			} else {
 				didSub = true
 			}
+			a.setAddSubEnabledPanel(ctx, uid, false)
 		}
 		a.invalidateSubCache(uid)
 	}
@@ -417,6 +418,7 @@ func (a *App) adminDeleteUser(ctx context.Context, adminChat, uid int64, deleteS
 		if _, err := panel.DeleteByTelegramID(ctx, uid); err != nil {
 			a.notify(ctx, adminChat, "⚠️ "+err.Error())
 		}
+		a.removeAddSub(ctx, uid)
 	}
 	a.invalidateSubCache(uid)
 	_ = a.store.DeletePaymentsByUser(ctx, uid)
