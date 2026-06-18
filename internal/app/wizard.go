@@ -42,6 +42,52 @@ func (a *App) startWizard(ctx context.Context, chatID int64) {
 	})
 }
 
+// Callback domain prefixes — the routing keys dispatched in handleCallback.
+// Single source of truth so the switch below stays in sync.
+const (
+	cbLang      = "lang"
+	cbDB        = "db"
+	cbLoc       = "loc"
+	cbInst      = "inst"
+	cbAPIProt   = "apiprot"
+	cbMenu      = "menu"
+	cbUpd       = "upd"
+	cbBuy       = "buy"
+	cbMethod    = "method"
+	cbTop       = "top"
+	cbP2P       = "p2p"
+	cbAdm       = "adm"
+	cbStar      = "star"
+	cbYK        = "yk"
+	cbYKCheck   = "ykc"
+	cbCBCheck   = "cbc"
+	cbCB        = "cb"
+	cbRef       = "ref"
+	cbBroadcast = "bc"
+	cbPromo     = "pr"
+	cbMoyNalog  = "mn"
+	cbPlatega   = "pl"
+	cbPLCheck   = "plc"
+	cbTribute   = "trb"
+	cbWebhooks  = "wh"
+	cbNotify    = "ntf"
+	cbPricing   = "prc"
+	cbPayments  = "pay"
+	cbEmoji     = "emo"
+	cbWelcome   = "wel"
+	cbUsers     = "usr"
+	cbSquad     = "sq"
+	cbSection   = "sec"
+	cbSubdomain = "subd"
+	cbAPILog    = "alog"
+	cbContacts  = "ctc"
+	cbTrial     = "trial"
+	cbSquads    = "sqd"
+	cbTerms     = "terms"
+	cbInput     = "inp"
+	cbClose     = "x"
+)
+
 func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	a.msg.AnswerCallback(ctx, cq.ID)
 	chatID := cq.From.ID
@@ -53,7 +99,7 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 	key, val, _ := strings.Cut(cq.Data, ":")
 
 	switch key {
-	case "lang", "db", "loc", "inst", "apiprot":
+	case cbLang, cbDB, cbLoc, cbInst, cbAPIProt:
 		if !isAdmin {
 			return
 		}
@@ -64,131 +110,131 @@ func (a *App) handleCallback(ctx context.Context, cq *models.CallbackQuery) {
 			return
 		}
 		a.wizardCallback(ctx, chatID, w, key, val)
-	case "menu":
+	case cbMenu:
 		a.onMenu(ctx, chatID, val, isAdmin, cq.From.FirstName, cq.From.Username)
-	case "upd":
+	case cbUpd:
 		a.onUpdateCheck(ctx, chatID, val, isAdmin, cqMsgID(cq))
-	case "buy":
+	case cbBuy:
 		a.onBuyPlan(ctx, chatID, val)
-	case "method":
+	case cbMethod:
 		a.onMethod(ctx, chatID, val)
-	case "top":
+	case cbTop:
 		a.onTopUp(ctx, chatID, val)
-	case "p2p":
+	case cbP2P:
 		a.onP2PUser(ctx, chatID, val)
-	case "adm":
+	case cbAdm:
 		if isAdmin {
 			a.onAdmin(ctx, chatID, val, cqMsgID(cq))
 		}
-	case "star":
+	case cbStar:
 		if isAdmin {
 			a.onStars(ctx, chatID, val)
 		}
-	case "yk":
+	case cbYK:
 		if isAdmin {
 			a.onYKAdmin(ctx, chatID, val)
 		}
-	case "ykc":
+	case cbYKCheck:
 		a.onYKCheck(ctx, chatID, val)
-	case "cbc":
+	case cbCBCheck:
 		a.onCBCheck(ctx, chatID, val)
-	case "cb":
+	case cbCB:
 		if isAdmin {
 			a.onCBAdmin(ctx, chatID, val)
 		}
-	case "ref":
+	case cbRef:
 		if isAdmin {
 			a.onReferralAdmin(ctx, chatID, val)
 		}
-	case "bc":
+	case cbBroadcast:
 		if isAdmin {
 			a.onBroadcast(ctx, chatID, val)
 		}
-	case "pr":
+	case cbPromo:
 		if isAdmin {
 			a.onPromoAdmin(ctx, chatID, val)
 		} else {
 			a.onPromoUser(ctx, chatID, val)
 		}
-	case "mn":
+	case cbMoyNalog:
 		if isAdmin {
 			a.onMoyNalogAdmin(ctx, chatID, val)
 		}
-	case "pl":
+	case cbPlatega:
 		if isAdmin {
 			a.onPlategaAdmin(ctx, chatID, val)
 		}
-	case "plc":
+	case cbPLCheck:
 		a.onPLCheck(ctx, chatID, val)
-	case "trb":
+	case cbTribute:
 		if isAdmin {
 			a.onTributeAdmin(ctx, chatID, val)
 		}
-	case "wh":
+	case cbWebhooks:
 		if isAdmin {
 			a.onWebhooksAdmin(ctx, chatID, val)
 		}
-	case "ntf":
+	case cbNotify:
 		if isAdmin {
 			a.onNotifyAdmin(ctx, chatID, val)
 		}
-	case "prc":
+	case cbPricing:
 		if isAdmin {
 			a.onPricing(ctx, chatID, val)
 		}
-	case "pay":
+	case cbPayments:
 		if isAdmin {
 			a.onPayments(ctx, chatID, val)
 		}
-	case "emo":
+	case cbEmoji:
 		if isAdmin {
 			a.onEmoji(ctx, chatID, val)
 		}
-	case "wel":
+	case cbWelcome:
 		if isAdmin {
 			a.onWelcome(ctx, chatID, val)
 		}
-	case "usr":
+	case cbUsers:
 		if isAdmin {
 			a.onUsers(ctx, chatID, val, cqMsgID(cq))
 		}
-	case "sq":
+	case cbSquad:
 		if isAdmin {
 			a.onSquad(ctx, chatID, val)
 		}
-	case "sec":
+	case cbSection:
 		if isAdmin {
 			a.onSectionBanner(ctx, chatID, val)
 		}
-	case "subd":
+	case cbSubdomain:
 		if isAdmin {
 			a.onSubdomain(ctx, chatID, val)
 		}
-	case "alog":
+	case cbAPILog:
 		if isAdmin {
 			a.onAPILog(ctx, chatID, val)
 		}
-	case "ctc":
+	case cbContacts:
 		if isAdmin {
 			a.onContacts(ctx, chatID, val)
 		}
-	case "trial":
+	case cbTrial:
 
 		if isAdmin {
 			a.onTrialAdmin(ctx, chatID, val)
 		}
-	case "sqd":
+	case cbSquads:
 		if isAdmin {
 			a.onSquads(ctx, chatID, val)
 		}
-	case "terms":
+	case cbTerms:
 
 		a.onTerms(ctx, chatID, val, cq.From.FirstName, cq.From.Username)
-	case "inp":
+	case cbInput:
 		if val == "cancel" {
 			a.cancelInput(ctx, chatID, isAdmin, cq.From.FirstName, cq.From.Username)
 		}
-	case "x":
+	case cbClose:
 
 		switch val {
 		case "home":

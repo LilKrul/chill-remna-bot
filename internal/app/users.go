@@ -547,13 +547,7 @@ func (a *App) showPayments(ctx context.Context, chatID int64, page int) {
 	sb.WriteString("</pre>")
 
 	var kbRows [][]models.InlineKeyboardButton
-	var nav []models.InlineKeyboardButton
-	if page > 0 {
-		nav = append(nav, btn(i18n.T(lang, "btn.prev"), "pay:page:"+strconv.Itoa(page-1)))
-	}
-	if page+1 < pages {
-		nav = append(nav, btn(i18n.T(lang, "btn.next"), "pay:page:"+strconv.Itoa(page+1)))
-	}
+	nav := paginationRow("pay:page:", page, pages, i18n.T(lang, "btn.prev"), i18n.T(lang, "btn.next"))
 	if len(nav) > 0 {
 		kbRows = append(kbRows, nav)
 	}

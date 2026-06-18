@@ -92,13 +92,7 @@ func (a *App) showAPILog(ctx context.Context, chatID int64, page int) {
 	sb.WriteString("</pre>")
 
 	var rows [][]models.InlineKeyboardButton
-	var nav []models.InlineKeyboardButton
-	if page > 0 {
-		nav = append(nav, btn(i18n.T(lang, "btn.prev"), "alog:page:"+strconv.Itoa(page-1)))
-	}
-	if page+1 < pages {
-		nav = append(nav, btn(i18n.T(lang, "btn.next"), "alog:page:"+strconv.Itoa(page+1)))
-	}
+	nav := paginationRow("alog:page:", page, pages, i18n.T(lang, "btn.prev"), i18n.T(lang, "btn.next"))
 	if len(nav) > 0 {
 		rows = append(rows, nav)
 	}
