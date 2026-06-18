@@ -102,6 +102,9 @@ type fakeStore struct {
 
 func (s *fakeStore) Migrate(context.Context) error { return nil }
 
+func (s *fakeStore) GetScreenMsg(context.Context, int64) (int, error) { return 0, nil }
+func (s *fakeStore) SetScreenMsg(context.Context, int64, int) error   { return nil }
+
 func (s *fakeStore) AddPayLog(_ context.Context, e *model.PayLogEntry) error {
 	s.paylogs = append(s.paylogs, *e)
 	return nil

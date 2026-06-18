@@ -21,6 +21,9 @@ type Storage interface {
 	LoadConfig(ctx context.Context) (*model.BotConfig, bool, error)
 	SaveConfig(ctx context.Context, cfg *model.BotConfig) error
 
+	GetScreenMsg(ctx context.Context, chatID int64) (int, error)
+	SetScreenMsg(ctx context.Context, chatID int64, msgID int) error
+
 	UpsertUser(ctx context.Context, telegramID int64) error
 
 	SetUserInfo(ctx context.Context, telegramID int64, username, firstName string) error
@@ -121,6 +124,28 @@ type placeholderFunc func(n int) string
 
 func (b *base) Kind() string { return b.kind }
 func (b *base) Close() error { return b.db.Close() }
+
+// GetScreenMsg returns the persisted id of the last screen message for a chat
+// (0 if none). Lets the bot delete the previous screen even after a restart,
+// when the in-memory tracking map has been wiped.
+func (b *base) GetScreenMsg(ctx context.Context, chatID int64) (int, error) {
+	var id int
+	err := b.db.QueryRowContext(ctx,
+		"SELECT msg_id FROM screen_state WHERE chat_id = "+b.ph(1), chatID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return id, err
+}
+
+// SetScreenMsg persists the id of the last screen message shown to a chat.
+func (b *base) SetScreenMsg(ctx context.Context, chatID int64, msgID int) error {
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO screen_state (chat_id, msg_id) VALUES ("+b.ph(1)+", "+b.ph(2)+") "+
+			"ON CONFLICT(chat_id) DO UPDATE SET msg_id = excluded.msg_id",
+		chatID, msgID)
+	return err
+}
 
 func (b *base) loadConfig(ctx context.Context) (*model.BotConfig, bool, error) {
 	var enc string

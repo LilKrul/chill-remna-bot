@@ -531,6 +531,13 @@ func (a *App) emit(ctx context.Context, chatID int64, send func() int) {
 	a.screen[chatID] = nil
 	a.scrMu.Unlock()
 
+	// After a restart the in-memory screen map is empty; fall back to the
+	// persisted last-screen id so the previous screen can still be removed.
+	if len(toDelete) == 0 && a.store != nil {
+		if pid, _ := a.store.GetScreenMsg(ctx, chatID); pid != 0 {
+			toDelete = []int{pid}
+		}
+	}
 	for _, id := range toDelete {
 		a.msg.Delete(ctx, chatID, id)
 	}
@@ -539,6 +546,9 @@ func (a *App) emit(ctx context.Context, chatID int64, send func() int) {
 		a.scrMu.Lock()
 		a.screen[chatID] = []int{id}
 		a.scrMu.Unlock()
+		if a.store != nil {
+			_ = a.store.SetScreenMsg(ctx, chatID, id)
+		}
 	}
 }
 
