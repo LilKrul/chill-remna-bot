@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -154,7 +155,7 @@ func (a *App) onCBCheck(ctx context.Context, chatID int64, val string) {
 	amount := a.cryptoAmount(months, cbAmount(inv.Asset, inv.Amount, inv.PaidAsset, inv.PaidAmount, inv.Fiat))
 	link, expireAt, err := a.finalizePurchase(ctx, payChat, months, model.PayMethodCryptoBot, amount, extID)
 	if err != nil {
-		if err == storage.ErrDuplicateExtID {
+		if errors.Is(err, storage.ErrDuplicateExtID) {
 			a.showMySubs(ctx, chatID)
 			return
 		}

@@ -193,7 +193,7 @@ func (c *Controller) runComposeDetached(ctx context.Context, script string) erro
 		"sh", "-c", script,
 	}
 	if out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("compose detached: %v: %s", err, out)
+		return fmt.Errorf("compose detached: %w: %s", err, out)
 	}
 	return nil
 }
@@ -272,7 +272,7 @@ func (c *Controller) addWebhookPortsToCompose() error {
 func (c *Controller) compose(ctx context.Context, args ...string) error {
 	full := append([]string{"compose", "-f", c.composeFile, "-p", c.project}, args...)
 	if out, err := exec.CommandContext(ctx, "docker", full...).CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose %v: %v: %s", args, err, out)
+		return fmt.Errorf("docker compose %v: %w: %s", args, err, out)
 	}
 	return nil
 }
