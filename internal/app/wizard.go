@@ -324,14 +324,20 @@ func (a *App) handleWizardText(ctx context.Context, chatID int64, text string) {
 func (a *App) gotoDB(ctx context.Context, chatID int64, w *wizard) {
 	w.step = stepDB
 	lang := w.cfg.Language
-	a.send(ctx, chatID, i18n.T(lang, "step.db.title"))
 	rows := [][]models.InlineKeyboardButton{{
 		btn(i18n.T(lang, "step.db.choose_sqlite"), "db:sqlite"),
 		btn(i18n.T(lang, "step.db.choose_postgres"), "db:postgres"),
 	}}
 	if w.reconfig {
+		// Reconfigure is opened from the System menu, so render this screen on
+		// the same System banner (edits in place) with a Back button that
+		// returns there instead of leaving a stray bannerless message.
 		rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "rcfg:cancel")})
+		caption := i18n.T(lang, "step.db.title") + "\n\n" + i18n.T(lang, "step.db.body")
+		a.sendSysKB(ctx, chatID, caption, rows)
+		return
 	}
+	a.send(ctx, chatID, i18n.T(lang, "step.db.title"))
 	a.sendKB(ctx, chatID, i18n.T(lang, "step.db.body"), rows)
 }
 

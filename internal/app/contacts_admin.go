@@ -87,9 +87,9 @@ func (a *App) setContact(ctx context.Context, chatID int64, field, raw string) {
 	if a.botCfg != nil {
 		switch field {
 		case "group":
-			a.botCfg.Contact.GroupURL = raw
+			a.botCfg.Contact.GroupURL = normalizeContactURL(raw)
 		case "support":
-			a.botCfg.Contact.SupportURL = raw
+			a.botCfg.Contact.SupportURL = normalizeContactURL(raw)
 		case "terms":
 			a.botCfg.Contact.TermsText = raw
 		}
@@ -98,4 +98,33 @@ func (a *App) setContact(ctx context.Context, chatID int64, field, raw string) {
 	_ = a.saveBotConfig(ctx)
 	a.getUI(chatID).adminInput = ""
 	a.showContacts(ctx, chatID)
+}
+
+// normalizeContactURL turns admin input for the Group/Support buttons into a
+// value Telegram accepts as an inline-button URL. Plain links, @usernames,
+// bare usernames and t.me/... (with or without scheme) all become a usable
+// https/tg link; an empty value clears the button.
+func normalizeContactURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	low := strings.ToLower(raw)
+	switch {
+	case strings.HasPrefix(low, "https://"), strings.HasPrefix(low, "http://"), strings.HasPrefix(low, "tg://"):
+		return raw
+	case strings.HasPrefix(raw, "@"):
+		return "https://t.me/" + strings.TrimPrefix(raw, "@")
+	case strings.HasPrefix(low, "t.me/"), strings.HasPrefix(low, "telegram.me/"),
+		strings.HasPrefix(low, "telegram.dog/"), strings.HasPrefix(low, "www."):
+		return "https://" + raw
+	case !strings.ContainsAny(raw, "/. :"):
+		// Bare username like "my_channel".
+		return "https://t.me/" + raw
+	case strings.Contains(raw, "."):
+		// Looks like a domain without a scheme.
+		return "https://" + raw
+	default:
+		return raw
+	}
 }
