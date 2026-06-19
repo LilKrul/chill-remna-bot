@@ -1,9 +1,10 @@
 version: "2"
 
 # The golangci-lint CI job is informational (non-gating). This config keeps the
-# useful signal while silencing conventional false positives so the run is clean
-# on Go 1.25. Note: golangci-lint v1 never actually ran here — it is built with
-# Go 1.24 and refuses a go1.25 target — so these are long-standing, not new.
+# useful signal while silencing conventional false positives and style-only
+# suggestions so the run is clean on Go 1.25. golangci-lint v1 never actually
+# ran here (it is built with Go 1.24 and refuses a go1.25 target), so these are
+# long-standing findings, not regressions.
 linters:
   exclusions:
     generated: lax
@@ -15,9 +16,12 @@ linters:
       # Tests routinely ignore setup/teardown errors.
       - linters: [errcheck]
         path: _test\.go
-      # De Morgan rewrite is a style preference, not a defect.
+      # QF* are staticcheck "quickfix" style suggestions (e.g. De Morgan
+      # rewrites, Fprintf-over-WriteString) — opinion, not defects. The exact
+      # set grows between linter versions, so drop the whole category to keep
+      # the run stable across upgrades.
       - linters: [staticcheck]
-        text: 'QF1001'
+        text: '^QF'
       # Intentionally empty branch in a test scaffold.
       - linters: [staticcheck]
         path: _test\.go
