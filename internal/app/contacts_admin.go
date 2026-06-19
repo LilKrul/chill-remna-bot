@@ -46,7 +46,10 @@ func (a *App) showContacts(ctx context.Context, chatID int64) {
 		btn(i18n.T(lang, "btn.back"), "menu:iface"),
 		btn(i18n.T(lang, "btn.home"), "menu:home"),
 	})
-	a.sendKB(ctx, chatID, body, rows)
+	// Render on the parent Interface banner (like the sibling screens) so
+	// navigating to/from Contacts edits the caption in place instead of
+	// sending a new bannerless message.
+	a.sendIfaceKB(ctx, chatID, body, rows)
 }
 
 func (a *App) onContacts(ctx context.Context, chatID int64, val string) {
