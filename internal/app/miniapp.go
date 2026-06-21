@@ -129,7 +129,11 @@ func (a *App) MiniPlans(ctx context.Context, tgID int64) web.MiniPlansDTO {
 	// planCountries hits the panel (cached) and locks a.mu internally, so it
 	// must run AFTER releasing the lock above.
 	for _, r := range rows {
-		countries, configs := a.planCountries(ctx, r.months)
+		cs, configs := a.planCountries(ctx, r.months)
+		var countries []web.MiniCountryDTO
+		for _, c := range cs {
+			countries = append(countries, web.MiniCountryDTO{Flag: c.Flag, Code: c.Code, Name: c.Name})
+		}
 		dto.Plans = append(dto.Plans, web.MiniPlanDTO{
 			Months:    r.months,
 			Price:     r.price,

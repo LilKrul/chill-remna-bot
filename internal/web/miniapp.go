@@ -122,10 +122,17 @@ type MiniPlanDTO struct {
 	// (panel default).
 	Devices int `json:"devices"`
 	// Countries are the distinct countries available to the plan's squad,
-	// as display strings with flags (e.g. "🇩🇪 Германия"), deduped.
-	Countries []string `json:"countries,omitempty"`
+	// deduped. Each carries a flag emoji, ISO code (for image flags), and name.
+	Countries []MiniCountryDTO `json:"countries,omitempty"`
 	// Configs is the number of inbounds (configs) accessible to the plan.
 	Configs int `json:"configs,omitempty"`
+}
+
+// MiniCountryDTO is one destination country available to a plan.
+type MiniCountryDTO struct {
+	Flag string `json:"flag,omitempty"`
+	Code string `json:"code,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type MiniPlansDTO struct {

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -48,8 +47,11 @@ func TestPlanCountries_DedupAndFilter(t *testing.T) {
 		},
 	}
 	cs, inb := a.planCountries(context.Background(), 1)
-	if got := strings.Join(cs, "|"); got != "🇩🇪 Германия|🇳🇱 Нидерланды" {
-		t.Fatalf("countries=%q want DE|NL deduped", got)
+	if len(cs) != 2 || cs[0].Code != "de" || cs[0].Name != "Германия" || cs[1].Code != "nl" {
+		t.Fatalf("countries=%+v want DE,NL deduped", cs)
+	}
+	if cs[0].Flag != "🇩🇪" {
+		t.Fatalf("flag=%q want 🇩🇪", cs[0].Flag)
 	}
 	if inb != 3 {
 		t.Fatalf("inbounds=%d want 3", inb)

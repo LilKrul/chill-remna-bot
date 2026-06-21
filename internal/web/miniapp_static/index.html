@@ -158,7 +158,8 @@ svg{width:18px;height:18px;flex:none;vertical-align:middle}
 .frow .l{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
 .frow b{font-size:14.5px;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.chip2{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;padding:8px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--stroke);backdrop-filter:blur(10px)}
+.chip2{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;padding:7px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--stroke);backdrop-filter:blur(10px)}
+.flag{width:21px;height:15px;border-radius:3px;object-fit:cover;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
 
 /* skeletons */
 .sk{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--stroke);border-radius:var(--radius)}
@@ -306,7 +307,7 @@ function render(me,menu,sub,plans){
       const best=i===Math.min(2,plans.plans.length-1);
       const lab=esc(p.price)+' '+esc(p.currency);
       h+='<div class="plan'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+lab+'\')">'+
-        '<div class="pl"><span class="pm">'+p.months+' мес.</span><span class="ps">'+esc(planSub(p))+(p.countries&&p.countries.length?(' · 🌍 '+p.countries.length+' '+plural(p.countries.length,'страна','страны','стран')):'')+'</span></div>'+
+        '<div class="pl"><span class="pm">'+monthsWord(p.months)+'</span><span class="ps">'+esc(planSub(p))+(p.countries&&p.countries.length?(' · 🌍 '+p.countries.length+' '+plural(p.countries.length,'страна','страны','стран')):'')+'</span></div>'+
         '<span class="price">'+lab+'</span></div>';
     });
   }
@@ -330,6 +331,7 @@ function planDevices(p){return (p&&p.devices>0)?(p.devices+' устр.'):'';}
 function planSub(p){var d=planDevices(p);return planTraffic(p)+' трафик'+(d?(' · '+d):'');}
 function planByMonths(m){return (STATE.plans||[]).filter(function(x){return x.months==m;})[0]||{};}
 function plural(n,one,few,many){n=Math.abs(n)%100;var d=n%10;if(n>10&&n<20)return many;if(d>1&&d<5)return few;if(d===1)return one;return many;}
+function monthsWord(n){return n+' '+plural(n,'месяц','месяца','месяцев');}
 var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
 function buyPlan(months,label){
   haptic('tap');
@@ -339,7 +341,7 @@ function buyPlan(months,label){
   if(!methods.length){toast('Оплата временно недоступна. Попробуйте через бота.','err');return;}
   var p=planByMonths(months);
   var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status"><span class="dot"></span>Оформление</span>'+IC.bolt+'</div>'+
-    '<div class="title">'+months+' мес.</div><div class="until">'+esc(label)+'</div></div>';
+    '<div class="title">'+monthsWord(months)+'</div><div class="until">'+esc(label)+'</div></div>';
   h+='<div class="sec-title">'+IC.shield+'Что входит</div><div class="feat">';
   h+='<div class="frow"><span class="l">'+IC.bolt+'Трафик</span><b>'+esc(planTraffic(p))+'</b></div>';
   if(p.devices>0)h+='<div class="frow"><span class="l">'+IC.device+'Устройства (HWID)</span><b>'+p.devices+'</b></div>';
@@ -349,7 +351,10 @@ function buyPlan(months,label){
   h+='</div>';
   if(p.countries&&p.countries.length){
     h+='<div class="sec-title">'+IC.globe+'Доступные страны</div><div class="chips">';
-    p.countries.forEach(function(c){h+='<span class="chip2">'+esc(c)+'</span>';});
+    p.countries.forEach(function(c){
+      var fl=c.code?('<img class="flag" loading="lazy" alt="" src="https://flagcdn.com/'+esc(c.code)+'.svg">'):(c.flag?esc(c.flag)+' ':'');
+      h+='<span class="chip2">'+fl+esc(c.name||c.flag||'')+'</span>';
+    });
     h+='</div>';
   }
   h+='<div class="sec-title">Способ оплаты</div>';

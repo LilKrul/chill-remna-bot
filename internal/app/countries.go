@@ -70,10 +70,19 @@ func (a *App) planSquadUUIDs(months int) []string {
 	return append([]string(nil), a.botCfg.Plan.ActiveInternalSquads...)
 }
 
-// planCountries returns the distinct countries available to a plan as display
-// strings taken from host remarks (e.g. "🇩🇪 Германия"), deduped by flag and in
-// first-seen order, plus the count of accessible inbounds (configs).
-func (a *App) planCountries(ctx context.Context, months int) (countries []string, inbounds int) {
+// country is one distinct destination available to a plan: the flag emoji, its
+// ISO-3166-1 alpha-2 code (lowercase, for image rendering on platforms that do
+// not draw flag emoji, e.g. Windows webviews), and the display name.
+type country struct {
+	Flag string
+	Code string
+	Name string
+}
+
+// planCountries returns the distinct countries available to a plan, taken from
+// host remarks (e.g. "🇩🇪 Германия"), deduped by flag and in first-seen order,
+// plus the count of accessible inbounds (configs).
+func (a *App) planCountries(ctx context.Context, months int) (countries []country, inbounds int) {
 	squadIDs := a.planSquadUUIDs(months)
 	if len(squadIDs) == 0 {
 		return nil, 0
@@ -108,13 +117,19 @@ func (a *App) planCountries(ctx context.Context, months int) (countries []string
 			continue
 		}
 		seen[flag] = true
-		if name != "" {
-			countries = append(countries, flag+" "+name)
-		} else {
-			countries = append(countries, flag)
-		}
+		countries = append(countries, country{Flag: flag, Code: flagToISO(flag), Name: name})
 	}
 	return countries, inbounds
+}
+
+// flagToISO converts a flag emoji (two regional-indicator runes) to its
+// ISO-3166-1 alpha-2 code in lowercase (🇩🇪 -> "de"), or "" if not a flag.
+func flagToISO(flag string) string {
+	rs := []rune(flag)
+	if len(rs) != 2 || !isRegionalIndicator(rs[0]) || !isRegionalIndicator(rs[1]) {
+		return ""
+	}
+	return string([]byte{byte('a' + (rs[0] - 0x1F1E6)), byte('a' + (rs[1] - 0x1F1E6))})
 }
 
 func anyInSet(list []string, set map[string]bool) bool {
@@ -160,5 +175,13 @@ func (a *App) countriesLine(ctx context.Context, lang string, months int) string
 	if len(cs) == 0 {
 		return ""
 	}
-	return i18n.T(lang, "buy.countries", len(cs), strings.Join(cs, ", "))
+	parts := make([]string, 0, len(cs))
+	for _, c := range cs {
+		if c.Name != "" {
+			parts = append(parts, c.Flag+" "+c.Name)
+		} else {
+			parts = append(parts, c.Flag)
+		}
+	}
+	return i18n.T(lang, "buy.countries", len(cs), strings.Join(parts, ", "))
 }
