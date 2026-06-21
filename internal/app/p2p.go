@@ -199,12 +199,18 @@ func (a *App) notifyAdminUserRequest(ctx context.Context, userID int64) {
 }
 
 func (a *App) issueCard(ctx context.Context, chatID int64) {
-	lang := a.lang(chatID)
 	ui := a.getUI(chatID)
 	months := ui.buyMonths
 	if months == 0 {
 		months = model.PlanMonths[0]
 	}
+	a.issueCardMonths(ctx, chatID, months)
+}
+
+// issueCardMonths is issueCard for an explicit period (used by the Mini App,
+// which has no chat-side buyMonths state).
+func (a *App) issueCardMonths(ctx context.Context, chatID int64, months int) {
+	lang := a.lang(chatID)
 
 	a.mu.Lock()
 	a.botCfg.NormalizePricing()

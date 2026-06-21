@@ -74,6 +74,27 @@ func (a *App) miniPayURL(ctx context.Context, tgID int64, months int, method str
 	return "", false, errors.New("неизвестный способ оплаты")
 }
 
+// MiniP2P starts the P2P flow for a Mini App checkout: it delivers the payment
+// card (or the approval-needed notice) into the user's bot chat — exactly like
+// the chat flow — and tells the Mini App to open the bot to finish (the
+// screenshot upload and admin confirmation happen in the chat).
+func (a *App) MiniP2P(ctx context.Context, tgID int64, months int) web.MiniActionDTO {
+	if a.store == nil {
+		return web.MiniActionDTO{Error: "хранилище недоступно"}
+	}
+	_ = a.store.UpsertUser(ctx, tgID)
+	u, err := a.store.GetUser(ctx, tgID)
+	if err != nil {
+		return web.MiniActionDTO{Error: err.Error()}
+	}
+	if u == nil || !u.P2PApproved {
+		a.notifyAdminUserRequest(ctx, tgID)
+		return web.MiniActionDTO{Redirect: true, Message: "Доступ к P2P ещё не подтверждён. Запрос отправлен администратору — откройте бота."}
+	}
+	a.issueCardMonths(ctx, tgID, months)
+	return web.MiniActionDTO{Redirect: true, Message: "Реквизиты для оплаты отправлены в бот. Откройте чат и завершите оплату."}
+}
+
 // miniDesc is a neutral invoice description for Mini App payments.
 func miniDesc(months int) string {
 	return "VPN " + itoaMonths(months)

@@ -81,6 +81,8 @@ type MiniActionDTO struct {
 	ExpireAt string `json:"expire_at,omitempty"`
 	Error    string `json:"error,omitempty"`
 	Redirect bool   `json:"redirect,omitempty"`
+	// Message is a human-readable note shown on a redirect (e.g. P2P -> bot).
+	Message string `json:"message,omitempty"`
 	// PayURL is set for external methods: a payment page/redirect URL, or a
 	// Telegram invoice link when Invoice=true (front opens it via openInvoice).
 	PayURL  string `json:"pay_url,omitempty"`

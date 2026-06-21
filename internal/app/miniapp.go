@@ -179,6 +179,9 @@ func (a *App) MiniCheckout(ctx context.Context, tgID int64, months int, method s
 	if !valid {
 		return web.MiniActionDTO{Error: "неверный период"}
 	}
+	if method == model.PayMethodP2P {
+		return a.MiniP2P(ctx, tgID, months)
+	}
 	if method != model.PayMethodBalance {
 		payURL, invoice, err := a.miniPayURL(ctx, tgID, months, method)
 		if err != nil {

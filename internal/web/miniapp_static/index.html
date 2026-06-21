@@ -405,7 +405,7 @@ function monthsWord(n){return n+' '+plural(n,'месяц','месяца','мес
 function daysLeft(ts){var d=Math.ceil((ts*1000-Date.now())/86400000);return d>0?d:0;}
 function shortDate(ts){var d=new Date(ts*1000),p=function(n){return(n<10?'0':'')+n;};return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear();}
 function daysWord(n){return plural(n,'день','дня','дней');}
-var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
+var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute',p2p:'💸 Перевод на карту (P2P)'};
 function buyPlan(months,label){
   haptic('tap');
   var methods=[];
@@ -447,7 +447,7 @@ async function pay(months,method,el){
       }else{openL(r.pay_url);armReturnRefresh();toast('Откройте оплату во вкладке, затем вернитесь — обновим сами','ok');}
       return;
     }
-    if(r.redirect){toast('Этот способ оплаты доступен в боте','err');return;}
+    if(r.redirect){toast(r.message||'Этот способ оплаты доступен в боте','ok');if(tg&&tg.close)setTimeout(function(){try{tg.close();}catch(e){}},2200);return;}
     haptic('err');toast(r.error||'Не удалось оплатить','err');
   }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');}
   finally{busy(el,false);}
