@@ -15,7 +15,7 @@ import (
 )
 
 // appConfigTTL bounds how long the subscription page's app-config is cached.
-const appConfigTTL = 6 * time.Hour
+const appConfigTTL = 5 * time.Minute
 
 // connectUA is a browser-like User-Agent so a WAF/Cloudflare in front of the
 // subscription page does not reject the fetch as a bot.

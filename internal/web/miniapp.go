@@ -109,6 +109,7 @@ type MiniSubDTO struct {
 	Active      bool   `json:"active"`
 	Status      string `json:"status"`
 	ExpireAt    string `json:"expire_at"`
+	ExpireTS    int64  `json:"expire_ts,omitempty"`
 	SubURL      string `json:"sub_url"`
 	DevicesUsed int    `json:"devices_used"`
 	DeviceLimit int    `json:"device_limit"`

@@ -188,6 +188,27 @@ svg{width:18px;height:18px;flex:none;vertical-align:middle}
 .appname{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
 .appdesc{font-size:12.5px;color:var(--muted);margin:6px 0 2px}
 .fbadge{font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:999px;color:#fff;background:linear-gradient(120deg,var(--accent),var(--accent-2))}
+.pass{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,#26305a,#3c2668 48%,#143a52);box-shadow:0 12px 30px rgba(91,140,255,.22);margin-bottom:14px}
+.pass .sheen{position:absolute;inset:0;background:linear-gradient(115deg,transparent 33%,rgba(255,255,255,.12) 49%,transparent 64%);pointer-events:none}
+.pass .ph{position:relative;padding:15px 16px 13px}
+.pass .pl{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.pass .brand{font-size:11px;font-weight:800;letter-spacing:1.6px;color:#cdd6ff}
+.pass .pstat{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#bdf3da}
+.pass .route{display:flex;align-items:center;justify-content:space-between;color:#fff}
+.pass .route .pt{font-size:17px;font-weight:800}
+.pass .route .pic svg{color:#9fb4e8}
+.pass .route .ln{flex:1;height:2px;margin:0 10px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.38) 0 5px,transparent 5px 10px)}
+.pass .perf{position:relative;border-top:2px dashed rgba(255,255,255,.22)}
+.pass .perf::before,.pass .perf::after{content:"";position:absolute;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--bg)}
+.pass .perf::before{left:-9px}
+.pass .perf::after{right:-9px}
+.pass .stub{display:flex;justify-content:space-between;padding:13px 18px 15px}
+.pass .stub .c .k{font-size:9px;letter-spacing:1px;color:#9aa3ba;margin-bottom:3px}
+.pass .stub .c .v{font-size:14px;font-weight:800;color:#fff}
+.pass .stub .c:nth-child(2){text-align:center}
+.pass .stub .c:last-child{text-align:right}
+.coins{display:flex;justify-content:center;margin-top:14px}
+.coins svg{width:128px;height:48px}
 </style>
 </head>
 <body>
@@ -222,7 +243,8 @@ const IC={
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
   tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg>',
   globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>',
-  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>'
+  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>',
+  plane:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 2 9l2-1 6 1 5-5c1-1 3-1.6 3.6-1 .6.6 0 2.6-1 3.6l-5 5 1 6-1 2-4.5-8.5Z"/></svg>'
 };
 
 const app=document.getElementById('app');
@@ -326,13 +348,18 @@ function render(me,menu,sub,plans){
   STATE.plans=(plans&&plans.plans)||[]; STATE.strategy=(plans&&plans.strategy)||'';
   let h='<div class="stagger">';
   if(sub.active){
-    h+='<div class="card hero glow"><div class="top"><span class="status"><span class="dot"></span>Подписка активна</span>'+IC.shield+'</div>';
-    h+='<div class="title">Доступ открыт</div>';
-    if(sub.expire_at)h+='<div class="until">'+IC.bolt+'активна до '+esc(sub.expire_at)+'</div>';
-    const d=devicesText(sub);
-    if(d!==null)h+='<div class="metric"><span class="l">'+IC.device+'Устройства</span><b>'+esc(d)+'</b></div>';
-    if(sub.sub_url)h+='<div class="linkbox"><div class="lab">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div>';
-    h+='</div>';
+    var dleft=sub.expire_ts?daysLeft(sub.expire_ts):null;
+    var dshort=sub.expire_ts?shortDate(sub.expire_ts):(sub.expire_at||'');
+    var dtext=devicesText(sub);
+    h+='<div class="pass"><div class="sheen"></div><div class="ph">'+
+      '<div class="pl"><span class="brand">ДОСТУП · BOARDING</span><span class="pstat"><span class="dot"></span>активно</span></div>'+
+      '<div class="route"><span class="pt">Ты</span><span class="ln"></span><span class="pic">'+IC.plane+'</span><span class="ln"></span><span class="pt">Сеть</span></div></div>'+
+      '<div class="perf"></div><div class="stub">'+
+        '<div class="c"><div class="k">ДО</div><div class="v">'+esc(dshort)+'</div></div>'+
+        (dleft!==null?'<div class="c"><div class="k">ОСТАЛОСЬ</div><div class="v">'+dleft+' '+daysWord(dleft)+'</div></div>':'')+
+        (dtext!==null?'<div class="c"><div class="k">УСТРОЙСТВА</div><div class="v">'+esc(dtext)+'</div></div>':'')+
+      '</div></div>';
+    if(sub.sub_url)h+='<div class="card"><div class="linkbox" style="margin-top:0"><div class="lab">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div></div>';
     if(sub.sub_url){h+='<button class="btn" onclick="openConnect()">'+IC.download+'Подключить</button>';
       h+='<button class="btn sec" onclick="copy(\''+jsq(sub.sub_url)+'\')">'+IC.copy+'Скопировать ссылку</button>';}
     if(menu.can_renew)h+='<div class="hint center">Для продления выберите период ниже</div>';
@@ -372,6 +399,9 @@ function planSub(p){var d=planDevices(p);return planTraffic(p)+' трафик'+(
 function planByMonths(m){return (STATE.plans||[]).filter(function(x){return x.months==m;})[0]||{};}
 function plural(n,one,few,many){n=Math.abs(n)%100;var d=n%10;if(n>10&&n<20)return many;if(d>1&&d<5)return few;if(d===1)return one;return many;}
 function monthsWord(n){return n+' '+plural(n,'месяц','месяца','месяцев');}
+function daysLeft(ts){var d=Math.ceil((ts*1000-Date.now())/86400000);return d>0?d:0;}
+function shortDate(ts){var d=new Date(ts*1000),p=function(n){return(n<10?'0':'')+n;};return p(d.getDate())+'.'+p(d.getMonth()+1);}
+function daysWord(n){return plural(n,'день','дня','дней');}
 var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
 function buyPlan(months,label){
   haptic('tap');
@@ -459,7 +489,8 @@ async function topupOpen(){
     if(!o.amounts||!o.amounts.length||!o.methods||!o.methods.length){toast('Пополнение недоступно','err');openMore();return;}
     STATE.tuMethods=o.methods;
     var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status">'+IC.wallet+' Пополнение</span></div>'+
-      '<div class="title">Выберите сумму</div></div>';
+      '<div class="title">Выберите сумму</div>'+
+      '<div class="coins"><svg viewBox="0 0 130 48" fill="none"><ellipse cx="45" cy="24" rx="19" ry="19" fill="rgba(91,140,255,.16)" stroke="#5b8cff" stroke-width="2"/><ellipse cx="65" cy="24" rx="19" ry="19" fill="rgba(157,123,255,.16)" stroke="#9d7bff" stroke-width="2"/><ellipse cx="85" cy="24" rx="19" ry="19" fill="rgba(52,211,153,.14)" stroke="#34d399" stroke-width="2"/><text x="85" y="30" text-anchor="middle" fill="#34d399" font-size="18" font-weight="700">₽</text></svg></div></div>';
     o.amounts.forEach(function(a){h+='<button class="btn sec" onclick="topupPick('+a.kopecks+',\''+esc(a.label)+'\')">'+esc(a.label)+'</button>';});
     h+='<button class="btn ghost" style="margin-top:16px" onclick="openMore()">← Назад</button></div>';
     view(h,openMore);

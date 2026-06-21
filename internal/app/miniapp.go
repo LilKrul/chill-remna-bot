@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"remnabot/internal/model"
 	"remnabot/internal/web"
@@ -90,6 +91,9 @@ func (a *App) MiniSubscription(ctx context.Context, tgID int64) web.MiniSubDTO {
 	dto.Status = status
 	dto.SubURL = a.rewriteSub(url)
 	dto.ExpireAt = formatExpire(expireAt, a.lang(tgID))
+	if t, err := time.Parse(time.RFC3339, expireAt); err == nil {
+		dto.ExpireTS = t.Unix()
+	}
 	if info, dok := panel.DevicesByTelegramID(ctx, tgID); dok {
 		dto.DevicesOK = true
 		dto.DevicesUsed = info.Used
