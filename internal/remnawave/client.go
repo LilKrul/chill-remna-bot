@@ -556,7 +556,7 @@ func (c *Client) DevicesByTelegramID(ctx context.Context, telegramID int64) (Dev
 	}
 	info := DeviceInfo{Limit: u.HwidDeviceLimit, HasLimit: u.HwidDeviceLimit > 0}
 
-	resp, err := c.do(ctx, http.MethodGet, "/api/users/"+url.PathEscape(u.Uuid)+"/hwid", nil)
+	resp, err := c.do(ctx, http.MethodGet, "/api/hwid/devices/"+url.PathEscape(u.Uuid), nil)
 	if err != nil {
 		return DeviceInfo{}, false
 	}

@@ -17,7 +17,7 @@ func deviceServer(t *testing.T, limit int, total int) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"response":[{"uuid":"u-1","subscriptionUrl":"https://x/y","status":"ACTIVE","hwidDeviceLimit":` + itoa(limit) + `}]}`))
 	})
-	mux.HandleFunc("/api/users/u-1/hwid", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/hwid/devices/u-1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"response":{"total":` + itoa(total) + `,"devices":[]}}`))
 	})
