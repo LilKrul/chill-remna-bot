@@ -247,7 +247,9 @@ const IC={
   tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg>',
   globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>',
   download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>',
-  plane:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 2 9l2-1 6 1 5-5c1-1 3-1.6 3.6-1 .6.6 0 2.6-1 3.6l-5 5 1 6-1 2-4.5-8.5Z"/></svg>'
+  plane:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5 2 9l2-1 6 1 5-5c1-1 3-1.6 3.6-1 .6.6 0 2.6-1 3.6l-5 5 1 6-1 2-4.5-8.5Z"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  life:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m4.93 19.07 4.24-4.24"/></svg>'
 };
 
 const app=document.getElementById('app');
@@ -327,6 +329,7 @@ function openL(u){if(tg&&tg.openLink)tg.openLink(u);else window.open(u,'_blank')
 function openDeep(u){try{window.location.href=u;}catch(e){}}
 function isTgLink(u){return /^(https:\/\/t\.me\/|tg:\/\/)/i.test(String(u||''));}
 function openPay(u){if(isTgLink(u)&&tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return true;}catch(e){}}openL(u);return false;}
+function openSmart(u){if(isTgLink(u)&&tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return;}catch(e){}}openL(u);}
 function armReturnRefresh(){
   var fired=false;
   function fire(){if(fired)return;fired=true;document.removeEventListener('visibilitychange',onv);boot();}
@@ -371,7 +374,7 @@ function render(me,menu,sub,plans){
   }else{
     h+='<div class="card hero"><div class="top"><span class="status"><span class="dot off"></span>Нет активной подписки</span>'+IC.shield+'</div>';
     h+='<div class="title">Выберите тариф</div><div class="hint" style="margin-top:4px">Подключитесь за минуту и получите доступ ко всем серверам.</div></div>';
-    if(menu.trial_available)h+='<button class="btn" onclick="doTrial(this)">'+IC.bolt+'Попробовать бесплатно</button>';
+    if(menu.trial_available)h+='<button class="btn" onclick="doTrial(this)">'+IC.gift+'Попробовать бесплатно</button>';
   }
   if(plans.plans&&plans.plans.length){
     h+='<div class="sec-title">'+IC.tag+'Тарифы</div>';
@@ -383,7 +386,8 @@ function render(me,menu,sub,plans){
         '<span class="price">'+lab+'</span></div>';
     });
   }
-  if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">'+IC.help+'Поддержка</button>';
+  if(menu.support_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.support_url)+'\')">'+IC.life+'Поддержка</button>';
+  if(menu.group_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.group_url)+'\')">'+IC.users+'Наша группа</button>';
   h+='<button class="btn ghost" onclick="openMore()">'+IC.dots+'Ещё</button>';
   h+='</div>';
   view(h,null);
@@ -615,7 +619,7 @@ function renderConnect(){
   list.forEach(function(ap){
     h+='<div class="appc'+(ap.featured?' feat':'')+'"><div class="apphead"><span class="appname">'+esc(ap.name)+(ap.featured?'<span class="fbadge">Рекомендуем</span>':'')+'</span></div>';
     if(ap.add_desc)h+='<div class="appdesc">'+esc(ap.add_desc)+'</div>';
-    if(ap.deeplink)h+='<button class="btn" onclick="openDeep(\''+jsq(ap.deeplink)+'\')">'+IC.bolt+'Добавить подписку</button>';
+    if(ap.deeplink)h+='<button class="btn" onclick="openDeep(\''+jsq(ap.deeplink)+'\')">'+IC.plus+'Добавить подписку</button>';
     (ap.installs||[]).forEach(function(b){
       h+='<button class="btn sec" onclick="openL(\''+jsq(b.url)+'\')">'+IC.download+esc(b.text||'Установить')+'</button>';
     });

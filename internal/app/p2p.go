@@ -240,10 +240,10 @@ func (a *App) issueCardMonths(ctx context.Context, chatID int64, months int) {
 	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "request_created", "months=%d price=%s", months, price)
 	idStr := strconv.FormatInt(req.ID, 10)
 	a.sendKB(ctx, chatID, i18n.T(lang, "p2p.card", months, price+curSuffix(cur), card),
-		[][]models.InlineKeyboardButton{
-			{btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+idStr)},
-			{btn(i18n.T(lang, "btn.cancel"), "p2p:cancel:"+idStr)},
-		})
+		[][]models.InlineKeyboardButton{{
+			btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+idStr),
+			btn(i18n.T(lang, "btn.cancel"), "p2p:cancel:"+idStr),
+		}})
 }
 
 func (a *App) onP2PUser(ctx context.Context, chatID int64, val string) {
