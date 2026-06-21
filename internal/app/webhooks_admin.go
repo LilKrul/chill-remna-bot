@@ -13,6 +13,16 @@ import (
 	"remnabot/internal/i18n"
 )
 
+// webhookListenPortNum returns the numeric listen port (default 8080).
+func (a *App) webhookListenPortNum() int {
+	p := a.webhookListenPort()
+	n, err := strconv.Atoi(p)
+	if err != nil || n <= 0 || n > 65535 {
+		return 8080
+	}
+	return n
+}
+
 func (a *App) webhookListenPort() string {
 	addr := ":8080"
 	a.mu.Lock()
@@ -191,5 +201,54 @@ func (a *App) cleanupWebhookApplyMsg(ctx context.Context) {
 	}
 	if chatID != 0 {
 		a.sendHome(ctx, chatID, i18n.T(a.lang(chatID), "wh.applied"))
+	}
+}
+
+// applyBotPort publishes the configured listen port on a host loopback address
+// and recreates the container so an external reverse proxy can reach the bot.
+// Mirrors applyWebhookServer: refuses if the port is busy, otherwise restarts
+// via hostctl and reports the result after the container comes back.
+func (a *App) applyBotPort(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	port := a.webhookListenPortNum()
+	if a.ctl == nil || !a.ctl.Available() {
+		// Can't self-manage docker — fall back to manual instructions.
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.port_manual", port))
+		return
+	}
+	if busy, err := a.ctl.PortsBusy(ctx, port); err == nil && len(busy) > 0 {
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.port_busy", port))
+		return
+	}
+	msgID := a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "wh.port_applying", port)), nil)
+	marker := filepath.Join(a.cfg.DataDir, "botport.pending")
+	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(msgID)), 0o600)
+	if err := a.ctl.PublishBotPort(ctx, port); err != nil {
+		_ = os.Remove(marker)
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_fail", err.Error()))
+		return
+	}
+}
+
+// cleanupBotPortMsg runs on startup after a port-change restart: it removes the
+// "applying" message and confirms the new port is live.
+func (a *App) cleanupBotPortMsg(ctx context.Context) {
+	marker := filepath.Join(a.cfg.DataDir, "botport.pending")
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return
+	}
+	_ = os.Remove(marker)
+	parts := strings.SplitN(strings.TrimSpace(string(data)), ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	chatID, _ := strconv.ParseInt(parts[0], 10, 64)
+	msgID, _ := strconv.Atoi(parts[1])
+	if chatID != 0 && msgID != 0 && a.msg != nil {
+		a.msg.Delete(ctx, chatID, msgID)
+	}
+	if chatID != 0 {
+		a.sendHome(ctx, chatID, i18n.T(a.lang(chatID), "wh.port_applied", a.webhookListenPortNum()))
 	}
 }

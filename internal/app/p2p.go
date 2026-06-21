@@ -648,7 +648,9 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.mu.Unlock()
 		ui.adminInput = ""
 		_ = a.saveBotConfig(ctx)
-		a.showWebhooksAdmin(ctx, chatID)
+		// Apply the new port itself: rewrite compose (127.0.0.1:port:port) and
+		// recreate the container, so the admin doesn't touch compose by hand.
+		a.applyBotPort(ctx, chatID)
 	case "wh_base":
 		text = strings.TrimSpace(text)
 

@@ -237,30 +237,36 @@ func (c *Controller) SetImageChannel(tag string) error {
 	return os.WriteFile(c.composeFile, out, 0o644)
 }
 
-// WebhookPortsBusy probes whether host ports 80/443 are already in use (e.g. by
-// FastPanel/nginx or the panel proxy). It runs a throwaway container in the
-// HOST network namespace and inspects /proc/net/tcp{,6} for LISTEN sockets, so
-// it needs no extra tools and no privileges beyond docker. Returns the busy
-// ports (subset of 80,443). Used to refuse built-in HTTPS before recreating the
-// bot container, which would otherwise fail to bind and crash-loop the bot.
-func (c *Controller) WebhookPortsBusy(ctx context.Context) ([]int, error) {
+// PortsBusy probes whether the given host ports are already in use. It runs a
+// throwaway container in the HOST network namespace and inspects
+// /proc/net/tcp{,6} for LISTEN sockets, so it needs no extra tools and no
+// privileges beyond docker. Returns the busy subset of the requested ports.
+// Used to refuse publishing a port before recreating the bot container, which
+// would otherwise fail to bind and crash-loop the bot.
+func (c *Controller) PortsBusy(ctx context.Context, ports ...int) ([]int, error) {
+	want := map[string]int{}
+	for _, p := range ports {
+		want[fmt.Sprintf("%04X", p)] = p
+	}
 	script := `awk '{print $2, $4}' /proc/net/tcp /proc/net/tcp6 2>/dev/null | while read la st; do ` +
-		`p=${la##*:}; [ "$st" = "0A" ] && { [ "$p" = "0050" ] && echo 80; [ "$p" = "01BB" ] && echo 443; }; done | sort -u`
+		`[ "$st" = "0A" ] && echo ${la##*:}; done | sort -u`
 	args := []string{"run", "--rm", "--network", "host", "busybox", "sh", "-c", script}
 	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("проверка портов: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	var busy []int
-	for _, ln := range strings.Fields(string(out)) {
-		switch ln {
-		case "80":
-			busy = append(busy, 80)
-		case "443":
-			busy = append(busy, 443)
+	for _, hexp := range strings.Fields(string(out)) {
+		if p, ok := want[strings.ToUpper(hexp)]; ok {
+			busy = append(busy, p)
 		}
 	}
 	return busy, nil
+}
+
+// WebhookPortsBusy reports whether host ports 80/443 are taken.
+func (c *Controller) WebhookPortsBusy(ctx context.Context) ([]int, error) {
+	return c.PortsBusy(ctx, 80, 443)
 }
 
 func (c *Controller) PublishWebhookPorts(ctx context.Context) error {
@@ -270,7 +276,8 @@ func (c *Controller) PublishWebhookPorts(ctx context.Context) error {
 	return c.runComposeDetached(ctx, fmt.Sprintf("docker compose -p %s up -d", c.project))
 }
 
-func (c *Controller) addWebhookPortsToCompose() error {
+// setBotPorts rewrites the bot service "ports" in the compose file.
+func (c *Controller) setBotPorts(ports []any) error {
 	data, err := os.ReadFile(c.composeFile)
 	if err != nil {
 		return err
@@ -287,12 +294,29 @@ func (c *Controller) addWebhookPortsToCompose() error {
 	if !ok {
 		return fmt.Errorf("в compose нет сервиса bot")
 	}
-	bot["ports"] = []any{"80:80", "443:443"}
+	bot["ports"] = ports
 	out, err := yaml.Marshal(root)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(c.composeFile, out, 0o644)
+}
+
+func (c *Controller) addWebhookPortsToCompose() error {
+	return c.setBotPorts([]any{"80:80", "443:443"})
+}
+
+// PublishBotPort maps the bot's internal HTTP port to a HOST loopback port of
+// the same number (127.0.0.1:port:port) and recreates the container, so an
+// external reverse proxy (nginx/FastPanel) can reach the bot without exposing
+// it publicly. Used by the in-bot "Bot port" setting so the admin doesn't have
+// to edit compose by hand.
+func (c *Controller) PublishBotPort(ctx context.Context, port int) error {
+	mapping := fmt.Sprintf("127.0.0.1:%d:%d", port, port)
+	if err := c.setBotPorts([]any{mapping}); err != nil {
+		return fmt.Errorf("правка compose: %w", err)
+	}
+	return c.runComposeDetached(ctx, fmt.Sprintf("docker compose -p %s up -d", c.project))
 }
 
 func (c *Controller) compose(ctx context.Context, args ...string) error {

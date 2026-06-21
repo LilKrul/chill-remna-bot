@@ -212,6 +212,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.msg = botMessenger{b: b, log: a.log}
 	a.notifyUpdated(ctx)
 	a.cleanupWebhookApplyMsg(ctx)
+	a.cleanupBotPortMsg(ctx)
 	a.log.Info("бот запущен")
 	b.Start(ctx)
 	return nil
@@ -593,6 +594,17 @@ func (a *App) notifyUpdated(ctx context.Context) {
 		}
 	}
 	if doneID != 0 && a.msg != nil {
+		// Register as the current screen so the next navigation (e.g. "Главная")
+		// deletes it instead of leaving it stuck.
+		a.scrMu.Lock()
+		if a.screen == nil {
+			a.screen = map[int64][]int{}
+		}
+		a.screen[chatID] = []int{doneID}
+		a.scrMu.Unlock()
+		if a.store != nil {
+			_ = a.store.SetScreenMsg(ctx, chatID, doneID)
+		}
 		id := doneID
 		time.AfterFunc(60*time.Second, func() { a.msg.Delete(context.Background(), chatID, id) })
 	}
