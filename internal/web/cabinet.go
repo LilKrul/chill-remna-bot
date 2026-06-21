@@ -67,6 +67,15 @@ func validateTelegramLogin(fields map[string]string, botToken string, ttl time.D
 
 func (s *Server) cabinetOK() bool { return s.mini != nil && s.mini.CabinetEnabled() }
 
+// authThrottled rate-limits the internet-facing auth endpoints per client IP.
+func (s *Server) authThrottled(w http.ResponseWriter, r *http.Request) bool {
+	if s.authLimiter != nil && !s.authLimiter.allow(clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "слишком много попыток, попробуйте позже"})
+		return true
+	}
+	return false
+}
+
 func (s *Server) issueCabinetToken(w http.ResponseWriter, tgID int64) {
 	tok := issueJWT(tgID, true, jwtKey(s.mini.MiniBotToken()), cabinetJWTTTL)
 	writeJSON(w, http.StatusOK, map[string]any{"token": tok, "expires_in": int(cabinetJWTTTL.Seconds())})
@@ -78,6 +87,7 @@ func (s *Server) handleCabinetConfig(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	s.setSecurityHeaders(w, true)
 	writeJSON(w, http.StatusOK, map[string]any{"bot_username": s.mini.CabinetBotUsername()})
 }
 
@@ -85,6 +95,10 @@ func (s *Server) handleCabinetConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCabinetTelegramAuth(w http.ResponseWriter, r *http.Request) {
 	if !s.cabinetOK() {
 		http.NotFound(w, r)
+		return
+	}
+	s.setSecurityHeaders(w, true)
+	if s.authThrottled(w, r) {
 		return
 	}
 	body, err := readAllLimited(r, 16*1024)
@@ -131,6 +145,10 @@ func (s *Server) cabinetEmail(w http.ResponseWriter, r *http.Request, register b
 		http.NotFound(w, r)
 		return
 	}
+	s.setSecurityHeaders(w, true)
+	if s.authThrottled(w, r) {
+		return
+	}
 	body, err := readAllLimited(r, 8*1024)
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -173,6 +191,7 @@ func (s *Server) handleCabinetStatic(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	s.setSecurityHeaders(w, true)
 	p := s.mini.CabinetPath()
 	if !strings.HasPrefix(r.URL.Path, p) {
 		http.NotFound(w, r)

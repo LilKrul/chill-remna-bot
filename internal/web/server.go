@@ -25,12 +25,13 @@ type Handlers interface {
 }
 
 type Server struct {
-	log      *slog.Logger
-	handlers Handlers
-	srv      *http.Server
-	domain   string
-	cacheDir string
-	mini     MiniProvider
+	log         *slog.Logger
+	handlers    Handlers
+	srv         *http.Server
+	domain      string
+	cacheDir    string
+	mini        MiniProvider
+	authLimiter *rateLimiter
 }
 
 // SetMiniApp wires the Mini App data provider. Routes read it live, so it may
@@ -79,14 +80,14 @@ func New(addr string, h Handlers, log *slog.Logger) *Server {
 	if addr == "" {
 		addr = ":8080"
 	}
-	s := &Server{log: log, handlers: h}
+	s := &Server{log: log, handlers: h, authLimiter: newRateLimiter(15, 5*time.Minute)}
 	s.srv = &http.Server{Addr: addr, Handler: s.mux()}
 	applyTimeouts(s.srv)
 	return s
 }
 
 func NewAutocert(domain, cacheDir string, h Handlers, log *slog.Logger) *Server {
-	s := &Server{log: log, handlers: h, domain: domain, cacheDir: cacheDir}
+	s := &Server{log: log, handlers: h, domain: domain, cacheDir: cacheDir, authLimiter: newRateLimiter(15, 5*time.Minute)}
 	s.srv = &http.Server{Addr: ":443", Handler: s.mux()}
 	applyTimeouts(s.srv)
 	return s

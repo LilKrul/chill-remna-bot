@@ -62,8 +62,8 @@ func (a *App) CabinetEmailRegister(ctx context.Context, email, password string) 
 	if !strings.Contains(email, "@") || len(email) < 5 {
 		return 0, errors.New("неверный email")
 	}
-	if len(password) < 6 {
-		return 0, errors.New("пароль слишком короткий (мин. 6 символов)")
+	if len(password) < 8 {
+		return 0, errors.New("пароль слишком короткий (мин. 8 символов)")
 	}
 	if a.store == nil {
 		return 0, errCabinetOff
