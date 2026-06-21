@@ -535,6 +535,51 @@ func (c *Client) SubscriptionFull(ctx context.Context, telegramID int64) (url, e
 	return u.SubscriptionURL, u.ExpireAt, u.Status, true
 }
 
+// DeviceInfo is a read-only snapshot of a user's HWID devices.
+// Used is the number of devices currently registered on the subscription;
+// Limit is the per-user device limit. HasLimit is false when no explicit
+// per-user limit is set (0) — the panel-wide HWID_FALLBACK_DEVICE_LIMIT then
+// applies and is unknown to the bot, so callers show only the connected count.
+type DeviceInfo struct {
+	Used     int
+	Limit    int
+	HasLimit bool
+}
+
+// DevicesByTelegramID returns the connected/allowed device counts for a user.
+// Read-only: it never registers or deletes devices. ok=false when the user
+// is unknown to the panel or HWID data is unavailable.
+func (c *Client) DevicesByTelegramID(ctx context.Context, telegramID int64) (DeviceInfo, bool) {
+	u, err := c.findByTelegram(ctx, telegramID)
+	if err != nil || u == nil || u.Uuid == "" {
+		return DeviceInfo{}, false
+	}
+	info := DeviceInfo{Limit: u.HwidDeviceLimit, HasLimit: u.HwidDeviceLimit > 0}
+
+	resp, err := c.do(ctx, http.MethodGet, "/api/users/"+url.PathEscape(u.Uuid)+"/hwid", nil)
+	if err != nil {
+		return DeviceInfo{}, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return DeviceInfo{}, false
+	}
+	var env struct {
+		Response struct {
+			Total   int               `json:"total"`
+			Devices []json.RawMessage `json:"devices"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return DeviceInfo{}, false
+	}
+	info.Used = env.Response.Total
+	if info.Used == 0 && len(env.Response.Devices) > 0 {
+		info.Used = len(env.Response.Devices)
+	}
+	return info, true
+}
+
 func (c *Client) findByTelegram(ctx context.Context, telegramID int64) (*panelUser, error) {
 	resp, err := c.do(ctx, http.MethodGet, "/api/users/by-telegram-id/"+strconv.FormatInt(telegramID, 10), nil)
 	if err != nil {

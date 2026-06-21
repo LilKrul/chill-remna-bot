@@ -615,7 +615,28 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 		a.sendKBSection(ctx, chatID, assets.SectionMySubscription, i18n.T(lang, "subs.blocked"), rows)
 		return
 	}
-	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, a.subActiveText(ctx, chatID, url, expireAt), rows)
+	text := a.subActiveText(ctx, chatID, url, expireAt) + a.devicesLine(ctx, chatID, panel)
+	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, text, rows)
+}
+
+// devicesLine renders a read-only "connected[/allowed]" devices line for the
+// "My subscription" screen. When the user has no explicit device limit
+// (unlimited / limit disabled) it shows ONLY the connected count. Returns ""
+// when the panel is unavailable or HWID data cannot be fetched, so the screen
+// degrades gracefully. View-only: it never registers or removes devices.
+func (a *App) devicesLine(ctx context.Context, chatID int64, panel *remnawave.Client) string {
+	if panel == nil {
+		return ""
+	}
+	info, ok := panel.DevicesByTelegramID(ctx, chatID)
+	if !ok {
+		return ""
+	}
+	val := strconv.Itoa(info.Used)
+	if info.HasLimit {
+		val += " / " + strconv.Itoa(info.Limit)
+	}
+	return "\n\n" + i18n.T(a.lang(chatID), "sub.devices", val)
 }
 
 func (a *App) showSquadPicker(ctx context.Context, chatID int64) {
