@@ -652,9 +652,7 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		// recreate the container, so the admin doesn't touch compose by hand.
 		a.applyBotPort(ctx, chatID)
 	case "wh_base":
-		text = strings.TrimSpace(text)
-
-		text = strings.TrimRight(text, "/")
+		text = normalizeBaseURL(text)
 		a.mu.Lock()
 		if a.botCfg != nil {
 			a.botCfg.Webhook.PublicBaseURL = text

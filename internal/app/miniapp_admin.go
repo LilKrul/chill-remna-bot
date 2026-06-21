@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -14,18 +15,46 @@ import (
 // settings, or "" if no public base is configured yet.
 func (a *App) miniAppURL() string {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.botCfg == nil {
-		return ""
+	base := ""
+	if a.botCfg != nil {
+		base = a.botCfg.Webhook.PublicBaseURL
+		if base == "" && a.botCfg.Webhook.Domain != "" {
+			base = "https://" + a.botCfg.Webhook.Domain
+		}
 	}
-	base := strings.TrimRight(a.botCfg.Webhook.PublicBaseURL, "/")
-	if base == "" && a.botCfg.Webhook.Domain != "" {
-		base = "https://" + a.botCfg.Webhook.Domain
-	}
+	a.mu.Unlock()
+	base = normalizeBaseURL(base)
 	if base == "" {
 		return ""
 	}
-	return base + "/miniapp/"
+	full := base + "/miniapp/"
+	// Validate: only emit a well-formed https URL. A malformed value must never
+	// reach a Telegram web_app button (it would make the whole menu send fail).
+	u, err := url.Parse(full)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return ""
+	}
+	return full
+}
+
+// normalizeBaseURL cleans a user-entered public base URL: collapses an
+// accidental double scheme, adds https:// if the scheme is missing, drops
+// trailing slashes and a trailing "/miniapp" (so we never double it).
+func normalizeBaseURL(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	s = strings.ReplaceAll(s, "https://https://", "https://")
+	s = strings.ReplaceAll(s, "http://http://", "http://")
+	if !strings.Contains(s, "://") {
+		s = "https://" + s
+	}
+	s = strings.TrimRight(s, "/")
+	if strings.HasSuffix(strings.ToLower(s), "/miniapp") {
+		s = s[:len(s)-len("/miniapp")]
+	}
+	return strings.TrimRight(s, "/")
 }
 
 func (a *App) showMiniAppAdmin(ctx context.Context, chatID int64) {
