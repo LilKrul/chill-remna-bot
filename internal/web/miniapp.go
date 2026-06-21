@@ -32,9 +32,40 @@ type MiniProvider interface {
 	// MiniTrial activates the free trial (mirrors the chat trial flow).
 	MiniTrial(ctx context.Context, tgID int64) MiniActionDTO
 	// MiniCheckout performs an in-app purchase for the given period+method.
-	// Currently only the "balance" method completes in-app; others set
-	// Redirect=true so the front-end points the user to the bot.
 	MiniCheckout(ctx context.Context, tgID int64, months int, method string) MiniActionDTO
+
+	// MiniReferral returns the user's referral info (mirrors showReferral).
+	MiniReferral(ctx context.Context, tgID int64) MiniReferralDTO
+	// MiniPromo applies a promo code (mirrors the chat promo flow).
+	MiniPromo(ctx context.Context, tgID int64, code string) MiniPromoDTO
+	// MiniTopUpOptions returns preset top-up amounts + enabled methods.
+	MiniTopUpOptions(ctx context.Context, tgID int64) MiniTopUpOptionsDTO
+	// MiniTopUp creates a balance top-up payment (yk/cb) and returns the URL.
+	MiniTopUp(ctx context.Context, tgID int64, kopecks int64, method string) MiniActionDTO
+}
+
+type MiniReferralDTO struct {
+	Enabled    bool   `json:"enabled"`
+	Link       string `json:"link,omitempty"`
+	Count      int    `json:"count"`
+	BonusValue int    `json:"bonus_value"`
+	BonusKind  string `json:"bonus_kind"`
+	OnFirstPay bool   `json:"on_first_pay"`
+}
+
+type MiniPromoDTO struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+type MiniAmountDTO struct {
+	Kopecks int64  `json:"kopecks"`
+	Label   string `json:"label"`
+}
+
+type MiniTopUpOptionsDTO struct {
+	Amounts []MiniAmountDTO `json:"amounts"`
+	Methods []string        `json:"methods"`
 }
 
 // MiniActionDTO is the result of an action (trial/checkout): on success it
@@ -224,4 +255,69 @@ func (s *Server) handleMiniCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	writeJSON(w, http.StatusOK, s.mini.MiniCheckout(ctx, id, req.Months, req.Method))
+}
+
+func (s *Server) handleMiniReferral(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.miniGuard(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, s.mini.MiniReferral(ctx, id))
+}
+
+func (s *Server) handleMiniPromo(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.miniGuard(w, r)
+	if !ok {
+		return
+	}
+	body, err := readAllLimited(r, 4*1024)
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, s.mini.MiniPromo(ctx, id, req.Code))
+}
+
+func (s *Server) handleMiniTopUpOptions(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.miniGuard(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, s.mini.MiniTopUpOptions(ctx, id))
+}
+
+func (s *Server) handleMiniTopUp(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.miniGuard(w, r)
+	if !ok {
+		return
+	}
+	body, err := readAllLimited(r, 4*1024)
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Kopecks int64  `json:"kopecks"`
+		Method  string `json:"method"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	writeJSON(w, http.StatusOK, s.mini.MiniTopUp(ctx, id, req.Kopecks, req.Method))
 }

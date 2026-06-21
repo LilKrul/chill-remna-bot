@@ -30,51 +30,51 @@ func (a *App) onPromoUser(ctx context.Context, chatID int64, val string) {
 }
 
 func (a *App) applyPromo(ctx context.Context, chatID int64, raw string) {
+	msg, _ := a.redeemPromo(ctx, chatID, raw)
+	a.notify(ctx, chatID, msg)
+}
+
+// redeemPromo validates and applies a promo code, returning a localized result
+// message and whether it succeeded. Shared by the chat flow and the Mini App
+// so the rules (expiry, max-uses, already-used, days-need-sub) stay identical.
+func (a *App) redeemPromo(ctx context.Context, chatID int64, raw string) (string, bool) {
 	lang := a.lang(chatID)
 	code := strings.ToUpper(strings.TrimSpace(raw))
 	if code == "" || a.store == nil {
-		a.notify(ctx, chatID, i18n.T(lang, "promo.not_found"))
-		return
+		return i18n.T(lang, "promo.not_found"), false
 	}
 	p, _ := a.store.GetPromo(ctx, code)
 	if p == nil {
-		a.notify(ctx, chatID, i18n.T(lang, "promo.not_found"))
-		return
+		return i18n.T(lang, "promo.not_found"), false
 	}
 	if p.ExpiresAt != "" {
 		if t, err := time.Parse(time.RFC3339, p.ExpiresAt); err == nil && time.Now().UTC().After(t) {
-			a.notify(ctx, chatID, i18n.T(lang, "promo.expired"))
-			return
+			return i18n.T(lang, "promo.expired"), false
 		}
 	}
 	if p.MaxUses > 0 && p.Used >= p.MaxUses {
-		a.notify(ctx, chatID, i18n.T(lang, "promo.exhausted"))
-		return
+		return i18n.T(lang, "promo.exhausted"), false
 	}
 	if done, _ := a.store.PromoRedeemedBy(ctx, code, chatID); done {
-		a.notify(ctx, chatID, i18n.T(lang, "promo.already"))
-		return
+		return i18n.T(lang, "promo.already"), false
 	}
 	switch p.Kind {
 	case model.PromoKindDays:
 		ok, found := a.addReferralDays(ctx, chatID, p.Value)
 		if !found {
-			a.notify(ctx, chatID, i18n.T(lang, "promo.need_sub"))
-			return
+			return i18n.T(lang, "promo.need_sub"), false
 		}
 		if !ok {
-			a.notify(ctx, chatID, i18n.T(lang, "promo.grant_fail"))
-			return
+			return i18n.T(lang, "promo.grant_fail"), false
 		}
 		_ = a.store.RedeemPromo(ctx, code, chatID)
-		a.notify(ctx, chatID, i18n.T(lang, "promo.ok_days", p.Value))
+		return i18n.T(lang, "promo.ok_days", p.Value), true
 	default:
 		if err := a.store.AddBalance(ctx, chatID, int64(p.Value)*100); err != nil {
-			a.notify(ctx, chatID, i18n.T(lang, "promo.grant_fail"))
-			return
+			return i18n.T(lang, "promo.grant_fail"), false
 		}
 		_ = a.store.RedeemPromo(ctx, code, chatID)
-		a.notify(ctx, chatID, i18n.T(lang, "promo.ok_balance", p.Value))
+		return i18n.T(lang, "promo.ok_balance", p.Value), true
 	}
 }
 

@@ -83,6 +83,7 @@ function render(me,menu,sub,plans){
     });
   }
   if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">Поддержка</button>';
+  h+='<button class="btn sec" onclick="openMore()">Ещё</button>';
   app.innerHTML=h;
 }
 function copy(t){if(tg&&navigator.clipboard)navigator.clipboard.writeText(t);if(tg)tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}
@@ -126,6 +127,55 @@ async function pay(months,method){
     alert(r.error||'Не удалось оплатить');
   }catch(e){alert('Ошибка: '+e.message);}
 }
+function rub(k){return (Math.round(k)/100).toLocaleString('ru-RU');}
+async function openMore(){
+  app.innerHTML='<div class="skel"></div>';
+  var ref={enabled:false};
+  try{ref=await api('/api/miniapp/referral');}catch(e){}
+  var h='<div class="card"><div class="hint">Баланс</div><div class="big">'+rub(STATE.balanceK)+' ₽</div>';
+  h+='<button class="btn" style="margin-top:8px" onclick="topupOpen()">Пополнить баланс</button></div>';
+  h+='<h3>Промокод</h3><div class="card"><input id="promoIn" placeholder="Введите код" style="width:100%;background:var(--color-surface-2);border:0;border-radius:10px;color:var(--color-text);padding:11px;font-size:14px">';
+  h+='<button class="btn" style="margin-top:8px" onclick="promoApply()">Применить</button></div>';
+  if(ref&&ref.enabled){
+    var bonus=(ref.bonus_kind==='days')?(ref.bonus_value+' дн.'):(ref.bonus_value+' ₽');
+    h+='<h3>Пригласить друга</h3><div class="card"><div class="hint">Бонус: '+esc(bonus)+(ref.on_first_pay?' за первую оплату':' за регистрацию')+'. Приглашено: '+(ref.count||0)+'</div>';
+    if(ref.link){h+='<div class="mono" style="margin-top:8px">'+esc(ref.link)+'</div><button class="btn sec" style="margin-top:8px" onclick="copy(\''+esc(ref.link)+'\')">Скопировать ссылку</button>';}
+    h+='</div>';
+  }
+  h+='<button class="btn sec" style="margin-top:14px" onclick="boot()">← Назад</button>';
+  app.innerHTML=h;
+}
+async function promoApply(){
+  var el=document.getElementById('promoIn'); var code=el?el.value.trim():'';
+  if(!code)return;
+  try{var r=await post('/api/miniapp/promo',{code:code});
+    alert(r.message||(r.ok?'Готово':'Не удалось'));
+    if(r.ok)boot();
+  }catch(e){alert('Ошибка: '+e.message);}
+}
+async function topupOpen(){
+  try{var o=await api('/api/miniapp/topup/options');
+    if(!o.amounts||!o.amounts.length||!o.methods||!o.methods.length){alert('Пополнение недоступно.');return;}
+    STATE.tuMethods=o.methods;
+    var h='<div class="card"><div class="big">Пополнение баланса</div><div class="hint">Выберите сумму</div></div>';
+    o.amounts.forEach(function(a){h+='<button class="btn sec" onclick="topupPick('+a.kopecks+',\''+esc(a.label)+'\')">'+esc(a.label)+'</button>';});
+    h+='<button class="btn sec" style="margin-top:14px" onclick="openMore()">← Назад</button>';
+    app.innerHTML=h;
+  }catch(e){alert('Ошибка: '+e.message);}
+}
+var METHOD_LABELS2={yk:'💳 Банковская карта',cb:'🪙 Криптовалюта'};
+function topupPick(kopecks,label){
+  var h='<div class="card"><div class="big">'+esc(label)+'</div><div class="hint">Способ пополнения</div></div>';
+  (STATE.tuMethods||[]).forEach(function(m){h+='<button class="btn sec" onclick="topupPay('+kopecks+',\''+m+'\')">'+(METHOD_LABELS2[m]||m)+'</button>';});
+  h+='<button class="btn sec" style="margin-top:14px" onclick="topupOpen()">← Назад</button>';
+  app.innerHTML=h;
+}
+async function topupPay(kopecks,method){
+  try{var r=await post('/api/miniapp/topup',{kopecks:kopecks,method:method});
+    if(r.ok&&r.pay_url){openL(r.pay_url);alert('Откройте оплату. После пополнения вернитесь и обновите экран.');return;}
+    alert(r.error||'Не удалось создать пополнение');
+  }catch(e){alert('Ошибка: '+e.message);}
+}
 async function boot(){
   try{
     if(!tg||!tg.initData){app.innerHTML='<div class="card err">Откройте через Telegram.</div>';return;}
@@ -134,7 +184,7 @@ async function boot(){
     const [me,menu,sub,plans]=await Promise.all([
       api('/api/miniapp/me'),api('/api/miniapp/menu'),
       api('/api/miniapp/subscription'),api('/api/miniapp/plans')]);
-    STATE.balanceK=me.balance_kopecks||0; STATE.methods=menu.pay_methods||[];
+    STATE.balanceK=me.balance_kopecks||0; STATE.methods=menu.pay_methods||[]; STATE.menu=menu;
     render(me,menu,sub,plans);
   }catch(e){app.innerHTML='<div class="card err">Не удалось загрузить: '+esc(e.message)+'</div>';}
 }

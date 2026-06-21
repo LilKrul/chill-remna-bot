@@ -247,6 +247,34 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 		return
 	}
 	rub := kopecksToRub(k)
+	payURL, checkExtID, err := a.topUpCreate(ctx, chatID, k, method)
+	if err != nil {
+		a.sendHome(ctx, chatID, err.Error())
+		return
+	}
+	checkCB := "ykc:" + checkExtID
+	payBtn := i18n.T(lang, "yk.btn_pay")
+	checkBtn := i18n.T(lang, "yk.btn_check")
+	if method == "cb" {
+		checkCB = "cbc:" + checkExtID + ":0"
+		payBtn = i18n.T(lang, "cb.btn_pay")
+		checkBtn = i18n.T(lang, "cb.btn_check")
+	}
+	a.sendKB(ctx, chatID, i18n.T(lang, "topup.pay_prompt", rub), [][]models.InlineKeyboardButton{
+		{{Text: payBtn, URL: payURL}},
+		{btn(checkBtn, checkCB)},
+		{btn(i18n.T(lang, "btn.home"), "menu:home")},
+	})
+}
+
+// topUpCreate creates a balance top-up invoice (Purpose "topup") via YooKassa
+// ("yk") or CryptoBot ("cb") and returns the pay URL plus the check ExtID.
+// For "cb" the returned ExtID is the bare invoice id (caller adds the "cb:"
+// prefix where needed). Shared by the chat flow and the Mini App so the pending
+// record format stays identical for the webhooks.
+func (a *App) topUpCreate(ctx context.Context, chatID int64, k int64, method string) (payURL, checkExtID string, err error) {
+	lang := a.lang(chatID)
+	rub := kopecksToRub(k)
 	if a.store != nil {
 		_ = a.store.UpsertUser(ctx, chatID)
 	}
@@ -254,59 +282,44 @@ func (a *App) startTopUp(ctx context.Context, chatID int64, method string) {
 	case "yk":
 		client := a.ykClient()
 		if client == nil {
-			a.sendHome(ctx, chatID, i18n.T(lang, "yk.not_configured"))
-			return
+			return "", "", errors.New(i18n.T(lang, "yk.not_configured"))
 		}
 		ret := a.ykConfig().ReturnURL
 		if ret == "" {
 			ret = "https://t.me"
 		}
-		pay, err := client.CreatePayment(ctx, rub, "RUB", i18n.T(lang, "topup.invoice_desc"), ret, chatID, 0)
-		if err != nil {
-			a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
-			a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
-			return
+		pay, e := client.CreatePayment(ctx, rub, "RUB", i18n.T(lang, "topup.invoice_desc"), ret, chatID, 0)
+		if e != nil {
+			a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, e)
+			return "", "", errors.New(i18n.T(lang, "yk.fail", e.Error()))
 		}
 		a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "topup kopecks=%d", k)
 		if a.store != nil {
-			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
-				Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Purpose: "topup", Kopecks: k,
-			})
+			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Purpose: "topup", Kopecks: k})
 		}
-		a.sendKB(ctx, chatID, i18n.T(lang, "topup.pay_prompt", rub), [][]models.InlineKeyboardButton{
-			{{Text: i18n.T(lang, "yk.btn_pay"), URL: pay.Confirmation.ConfirmationURL}},
-			{btn(i18n.T(lang, "yk.btn_check"), "ykc:"+pay.ID)},
-			{btn(i18n.T(lang, "btn.home"), "menu:home")},
-		})
+		return pay.Confirmation.ConfirmationURL, pay.ID, nil
 	case "cb":
 		client := a.cbClient()
 		if client == nil {
-			a.sendHome(ctx, chatID, i18n.T(lang, "cb.not_configured"))
-			return
+			return "", "", errors.New(i18n.T(lang, "cb.not_configured"))
 		}
-		inv, err := client.CreateInvoice(ctx, rub, a.cbConfig().Asset, chatID, 0)
-		if err != nil {
-			a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, err)
-			a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
-			return
+		inv, e := client.CreateInvoice(ctx, rub, a.cbConfig().Asset, chatID, 0)
+		if e != nil {
+			a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "topup kopecks=%d: %v", k, e)
+			return "", "", errors.New(i18n.T(lang, "cb.fail", e.Error()))
 		}
 		extID := "cb:" + strconv.FormatInt(inv.InvoiceID, 10)
 		a.payLog(ctx, model.PayMethodCryptoBot, extID, chatID, "invoice_created", "topup kopecks=%d", k)
 		if a.store != nil {
-			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
-				Method: model.PayMethodCryptoBot, ExtID: extID, TelegramID: chatID, Purpose: "topup", Kopecks: k,
-			})
+			_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{Method: model.PayMethodCryptoBot, ExtID: extID, TelegramID: chatID, Purpose: "topup", Kopecks: k})
 		}
 		payURL := inv.MiniAppInvoiceURL
 		if payURL == "" {
 			payURL = inv.BotInvoiceURL
 		}
-		a.sendKB(ctx, chatID, i18n.T(lang, "topup.pay_prompt", rub), [][]models.InlineKeyboardButton{
-			{{Text: i18n.T(lang, "cb.btn_pay"), URL: payURL}},
-			{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+strconv.FormatInt(inv.InvoiceID, 10)+":0")},
-			{btn(i18n.T(lang, "btn.home"), "menu:home")},
-		})
+		return payURL, strconv.FormatInt(inv.InvoiceID, 10), nil
 	}
+	return "", "", errors.New(i18n.T(lang, "topup.no_methods"))
 }
 
 func (a *App) finalizeTopUp(ctx context.Context, chatID int64, kopecks int64, method, amount, extID string) error {

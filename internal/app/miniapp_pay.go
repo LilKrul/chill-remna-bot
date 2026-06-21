@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"remnabot/internal/model"
+	"remnabot/internal/web"
 )
 
 // miniPayURL creates a payment for an external method and returns a URL the
@@ -90,4 +91,75 @@ func itoaMonths(m int) string {
 		return "12 мес."
 	}
 	return "подписка"
+}
+
+// MiniReferral mirrors showReferral: link, referral count and bonus terms.
+func (a *App) MiniReferral(ctx context.Context, tgID int64) web.MiniReferralDTO {
+	cfg := a.referralCfg()
+	if !cfg.Enabled {
+		return web.MiniReferralDTO{Enabled: false}
+	}
+	count := 0
+	if a.store != nil {
+		count, _ = a.store.CountReferrals(ctx, tgID)
+	}
+	return web.MiniReferralDTO{
+		Enabled:    true,
+		Link:       a.referralLink(ctx, tgID),
+		Count:      count,
+		BonusValue: cfg.BonusValue,
+		BonusKind:  cfg.BonusKind,
+		OnFirstPay: cfg.OnFirstPay,
+	}
+}
+
+// MiniPromo applies a promo code via the shared redeemPromo core.
+func (a *App) MiniPromo(ctx context.Context, tgID int64, code string) web.MiniPromoDTO {
+	msg, ok := a.redeemPromo(ctx, tgID, code)
+	return web.MiniPromoDTO{OK: ok, Message: msg}
+}
+
+// MiniTopUpOptions returns the same preset amounts as the chat top-up screen,
+// plus the enabled top-up methods (YooKassa/CryptoBot).
+func (a *App) MiniTopUpOptions(ctx context.Context, tgID int64) web.MiniTopUpOptionsDTO {
+	var dto web.MiniTopUpOptionsDTO
+	amts, _ := a.topUpAmounts()
+	for _, k := range amts {
+		dto.Amounts = append(dto.Amounts, web.MiniAmountDTO{Kopecks: k, Label: kopecksToRub(k) + curSuffix(curRUB)})
+	}
+	a.mu.Lock()
+	if a.botCfg != nil {
+		if a.botCfg.YooKassa.Enabled {
+			dto.Methods = append(dto.Methods, "yk")
+		}
+		if a.botCfg.CryptoBot.Enabled {
+			dto.Methods = append(dto.Methods, "cb")
+		}
+	}
+	a.mu.Unlock()
+	return dto
+}
+
+// MiniTopUp creates a balance top-up payment (preset amount + yk/cb) via the
+// shared topUpCreate core and returns the payment URL.
+func (a *App) MiniTopUp(ctx context.Context, tgID int64, kopecks int64, method string) web.MiniActionDTO {
+	amts, maxK := a.topUpAmounts()
+	valid := false
+	for _, k := range amts {
+		if k == kopecks {
+			valid = true
+			break
+		}
+	}
+	if !valid || (maxK > 0 && kopecks > maxK) {
+		return web.MiniActionDTO{Error: "недопустимая сумма"}
+	}
+	if method != "yk" && method != "cb" {
+		return web.MiniActionDTO{Error: "способ пополнения недоступен"}
+	}
+	payURL, _, err := a.topUpCreate(ctx, tgID, kopecks, method)
+	if err != nil {
+		return web.MiniActionDTO{Error: err.Error()}
+	}
+	return web.MiniActionDTO{OK: true, PayURL: payURL}
 }
