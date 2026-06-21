@@ -6,8 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"html"
 	"io"
 	"io/fs"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strconv"
@@ -274,10 +276,70 @@ func (s *Server) handleCabinetStatic(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	rel := strings.TrimPrefix(r.URL.Path, p)
+	if rel == "" || rel == "index.html" {
+		s.serveCabinetHTML(w)
+		return
+	}
 	sub, err := fs.Sub(miniStaticFS, "miniapp_static")
 	if err != nil {
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
 	}
 	http.StripPrefix(p, http.FileServer(http.FS(sub))).ServeHTTP(w, r)
+}
+
+var fpAlphabet = []byte("abcdefghijklmnopqrstuvwxyz0123456789")
+
+func randToken(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = fpAlphabet[rand.Intn(len(fpAlphabet))]
+	}
+	return string(b)
+}
+
+// serveCabinetHTML serves the SPA with the configured title/description/favicon
+// injected, and (in anti-fingerprint mode) randomized markers so the page is
+// harder to identify as this bot's cabinet.
+func (s *Server) serveCabinetHTML(w http.ResponseWriter) {
+	data, err := miniStaticFS.ReadFile("miniapp_static/index.html")
+	if err != nil {
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	out := string(data)
+	antifp := s.mini.CabinetAntiFP()
+
+	title := s.mini.CabinetTitle()
+	if title == "" {
+		if antifp {
+			title = randToken(6)
+		} else {
+			title = "Кабинет"
+		}
+	}
+	out = strings.Replace(out, "<title>Кабинет</title>", "<title>"+html.EscapeString(title)+"</title>", 1)
+
+	head := ""
+	if d := s.mini.CabinetDescription(); d != "" {
+		head += "<meta name=\"description\" content=\"" + html.EscapeString(d) + "\">\n"
+	}
+	if fav := s.mini.CabinetFavicon(); fav != "" {
+		head += "<link rel=\"icon\" href=\"" + html.EscapeString(fav) + "\">\n"
+	}
+	if antifp {
+		// vary the served bytes per request and drop a couple of obvious markers
+		head += "<!-- " + randToken(16) + " -->\n"
+		out = strings.ReplaceAll(out, "Личный кабинет", html.EscapeString(title))
+	}
+	if head != "" {
+		out = strings.Replace(out, "<title>", head+"<title>", 1)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if antifp {
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	_, _ = w.Write([]byte(out))
 }

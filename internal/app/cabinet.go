@@ -42,6 +42,13 @@ func (a *App) CabinetPath() string {
 	return p
 }
 
+// CabinetTitle/CabinetDescription/CabinetFavicon/CabinetAntiFP expose the
+// cabinet's branding + privacy settings to the HTML server.
+func (a *App) CabinetTitle() string       { return a.cabinetCfg().Title }
+func (a *App) CabinetDescription() string { return a.cabinetCfg().Desc }
+func (a *App) CabinetFavicon() string     { return a.cabinetCfg().Favicon }
+func (a *App) CabinetAntiFP() bool        { return a.cabinetCfg().AntiFP }
+
 // CabinetBotUsername returns the bot @username (for the Telegram Login Widget).
 func (a *App) CabinetBotUsername() string { return a.botUsername(context.Background()) }
 

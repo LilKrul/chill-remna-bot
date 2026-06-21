@@ -664,6 +664,25 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 		if isAdmin {
 			a.cycleCabinetApproval(ctx, chatID)
 		}
+	case "cabtitle":
+		if isAdmin {
+			a.getUI(chatID).adminInput = "cab_title"
+			a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "cabinet.ask_title"), "menu:cabinet")
+		}
+	case "cabdesc":
+		if isAdmin {
+			a.getUI(chatID).adminInput = "cab_desc"
+			a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "cabinet.ask_desc"), "menu:cabinet")
+		}
+	case "cabfav":
+		if isAdmin {
+			a.getUI(chatID).adminInput = "cab_favicon"
+			a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "cabinet.ask_favicon"), "menu:cabinet")
+		}
+	case "cabfp":
+		if isAdmin {
+			a.toggleCabinetAntiFP(ctx, chatID)
+		}
 	case "reconf":
 		if isAdmin {
 			a.startReconfigure(ctx, chatID)

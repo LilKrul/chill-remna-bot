@@ -69,9 +69,28 @@ func (a *App) showCabinetAdmin(ctx context.Context, chatID int64) {
 		return m
 	}())
 	text += "\n" + i18n.T(lang, "cabinet.approval", appr)
+	a.mu.Lock()
+	cab := model.CabinetConfig{}
+	if a.botCfg != nil {
+		cab = a.botCfg.Cabinet
+	}
+	a.mu.Unlock()
+	yn := func(set bool) string {
+		if set {
+			return i18n.T(lang, "user.yes")
+		}
+		return i18n.T(lang, "user.no")
+	}
+	text += "\n" + i18n.T(lang, "cabinet.branding", firstNonEmpty(cab.Title, "—"), yn(cab.Desc != ""), yn(cab.Favicon != ""))
+	fpLabel := i18n.T(lang, "cabinet.btn_antifp") + ": " + i18n.T(lang, "cabinet.off")
+	if cab.AntiFP {
+		fpLabel = i18n.T(lang, "cabinet.btn_antifp") + ": " + i18n.T(lang, "cabinet.on")
+	}
 	rows := [][]models.InlineKeyboardButton{
 		{btn(toggle, "menu:cabtoggle")},
 		{btn(i18n.T(lang, "cabinet.btn_path"), "menu:cabpath"), btn(i18n.T(lang, "cabinet.btn_approval"), "menu:cabapprove")},
+		{btn(i18n.T(lang, "cabinet.btn_title"), "menu:cabtitle"), btn(i18n.T(lang, "cabinet.btn_desc"), "menu:cabdesc")},
+		{btn(i18n.T(lang, "cabinet.btn_favicon"), "menu:cabfav"), btn(fpLabel, "menu:cabfp")},
 		{btn(i18n.T(lang, "btn.back"), "menu:system"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	}
 	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, text, rows)
@@ -153,6 +172,45 @@ func (a *App) cycleCabinetApproval(ctx context.Context, chatID int64) {
 			a.botCfg.Cabinet.Approval = model.CabinetApprovalEmail
 		default:
 			a.botCfg.Cabinet.Approval = model.CabinetApprovalOff
+		}
+	}
+	a.mu.Unlock()
+	_ = a.saveBotConfig(ctx)
+	a.showCabinetAdmin(ctx, chatID)
+}
+
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
+}
+
+func (a *App) toggleCabinetAntiFP(ctx context.Context, chatID int64) {
+	a.mu.Lock()
+	if a.botCfg != nil {
+		a.botCfg.NormalizeCabinet()
+		a.botCfg.Cabinet.AntiFP = !a.botCfg.Cabinet.AntiFP
+	}
+	a.mu.Unlock()
+	_ = a.saveBotConfig(ctx)
+	a.showCabinetAdmin(ctx, chatID)
+}
+
+func (a *App) setCabinetField(ctx context.Context, chatID int64, field, text string) {
+	v := strings.TrimSpace(text)
+	if v == "-" {
+		v = ""
+	}
+	a.mu.Lock()
+	if a.botCfg != nil {
+		switch field {
+		case "title":
+			a.botCfg.Cabinet.Title = v
+		case "desc":
+			a.botCfg.Cabinet.Desc = v
+		case "favicon":
+			a.botCfg.Cabinet.Favicon = v
 		}
 	}
 	a.mu.Unlock()

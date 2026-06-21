@@ -51,6 +51,10 @@ type MiniProvider interface {
 	CabinetEnabled() bool
 	CabinetPath() string
 	CabinetBotUsername() string
+	CabinetTitle() string
+	CabinetDescription() string
+	CabinetFavicon() string
+	CabinetAntiFP() bool
 	CabinetEnsureUser(ctx context.Context, tgID int64)
 	CabinetEmailRegister(ctx context.Context, email, password string) (int64, error)
 	CabinetEmailLogin(ctx context.Context, email, password string) (int64, error)

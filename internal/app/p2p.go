@@ -848,6 +848,15 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 	case "cab_path":
 		ui.adminInput = ""
 		a.setCabinetPath(ctx, chatID, text)
+	case "cab_title":
+		ui.adminInput = ""
+		a.setCabinetField(ctx, chatID, "title", text)
+	case "cab_desc":
+		ui.adminInput = ""
+		a.setCabinetField(ctx, chatID, "desc", text)
+	case "cab_favicon":
+		ui.adminInput = ""
+		a.setCabinetField(ctx, chatID, "favicon", text)
 	case "device_per":
 		mo := ui.priceMonths
 		ui.adminInput = ""

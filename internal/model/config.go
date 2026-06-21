@@ -424,7 +424,14 @@ type CabinetConfig struct {
 	// Approval gates new web sign-ins requiring admin approval:
 	// "" / "off" (none), "tg", "email", "all".
 	Approval string `json:"approval"`
-	Init     bool   `json:"init"`
+	// Branding / privacy: page <title>, meta description, favicon URL, and an
+	// anti-fingerprint mode (randomize markers so the cabinet is harder to
+	// identify as this bot).
+	Title   string `json:"title"`
+	Desc    string `json:"desc"`
+	Favicon string `json:"favicon"`
+	AntiFP  bool   `json:"anti_fp"`
+	Init    bool   `json:"init"`
 }
 
 // Cabinet approval modes.
