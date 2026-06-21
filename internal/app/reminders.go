@@ -95,9 +95,12 @@ func (a *App) remindUser(ctx context.Context, st interface {
 
 func (a *App) sendReminder(ctx context.Context, chatID int64, key string, daysLeft int) {
 	lang := a.lang(chatID)
-	a.notifyKB(ctx, chatID, i18n.T(lang, key, daysLeft), [][]models.InlineKeyboardButton{
-		{btn(i18n.T(lang, "btn.buy"), "menu:buy")},
-	})
+	rows := [][]models.InlineKeyboardButton{}
+	if row := a.miniAppButtonRow(lang); row != nil {
+		rows = append(rows, row)
+	}
+	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.buy"), "menu:buy")})
+	a.notifyKB(ctx, chatID, i18n.T(lang, key, daysLeft), rows)
 }
 
 func daysUntil(exp, now time.Time) int {

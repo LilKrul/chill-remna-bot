@@ -461,6 +461,9 @@ func (a *App) showMenu(ctx context.Context, chatID int64, isAdmin bool, name str
 		photo = bannerInputFor(assets.SectionAdminStats)
 	} else {
 		rows = append(rows, a.navRow(ctx, chatID))
+		if row := a.miniAppButtonRow(lang); row != nil {
+			rows = append(rows, row)
+		}
 		if a.referralCfg().Enabled {
 			rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.referral"), "menu:ref")})
 		}

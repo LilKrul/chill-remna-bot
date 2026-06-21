@@ -65,3 +65,19 @@ func (a *App) toggleMiniApp(ctx context.Context, chatID int64) {
 	_ = a.saveBotConfig(ctx)
 	a.showMiniAppAdmin(ctx, chatID)
 }
+
+// miniAppButtonRow returns a web_app launch button row for the Mini App, or nil
+// when the feature is disabled or no public URL is configured.
+func (a *App) miniAppButtonRow(lang string) []models.InlineKeyboardButton {
+	a.mu.Lock()
+	on := a.botCfg != nil && a.botCfg.MiniApp.Enabled
+	a.mu.Unlock()
+	if !on {
+		return nil
+	}
+	url := a.miniAppURL()
+	if url == "" {
+		return nil
+	}
+	return []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.open_app"), WebApp: &models.WebAppInfo{URL: url}}}
+}

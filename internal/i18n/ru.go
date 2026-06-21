@@ -276,6 +276,7 @@ var ru = map[string]string{
 	"sub.no_expire":         "бессрочно",
 	"sub.tz_msk":            "МСК (московское время)",
 	"sub.devices":           "📱 Устройства: <b>%s</b>",
+	"btn.open_app":          "📲 Открыть приложение",
 	"btn.miniapp":           "📲 Mini App",
 	"miniapp.title":         "📲 <b>Mini App / личный кабинет</b>\n\nСостояние: %s",
 	"miniapp.on":            "включён ✅",

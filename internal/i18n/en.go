@@ -276,6 +276,7 @@ var en = map[string]string{
 	"sub.no_expire":         "no expiry",
 	"sub.tz_msk":            "MSK (Moscow time)",
 	"sub.devices":           "📱 Devices: <b>%s</b>",
+	"btn.open_app":          "📲 Open app",
 	"btn.miniapp":           "📲 Mini App",
 	"miniapp.title":         "📲 <b>Mini App / web cabinet</b>\n\nState: %s",
 	"miniapp.on":            "enabled ✅",
