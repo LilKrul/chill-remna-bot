@@ -116,10 +116,18 @@ type MiniPlanDTO struct {
 	Months   int    `json:"months"`
 	Price    string `json:"price"`
 	Currency string `json:"currency"`
+	// TrafficGB is the plan's traffic allowance in GB; 0 means unlimited.
+	TrafficGB int `json:"traffic_gb"`
+	// Devices is the plan's HWID device limit; 0 means no explicit limit
+	// (panel default).
+	Devices int `json:"devices"`
 }
 
 type MiniPlansDTO struct {
 	Plans []MiniPlanDTO `json:"plans"`
+	// Strategy is the traffic reset strategy shared by all plans
+	// (NO_RESET/DAY/WEEK/MONTH/MONTH_ROLLING).
+	Strategy string `json:"strategy,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

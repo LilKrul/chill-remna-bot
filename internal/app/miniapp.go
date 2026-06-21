@@ -115,11 +115,14 @@ func (a *App) MiniPlans(ctx context.Context, tgID int64) web.MiniPlansDTO {
 			continue
 		}
 		dto.Plans = append(dto.Plans, web.MiniPlanDTO{
-			Months:   m,
-			Price:    price,
-			Currency: p.Currency,
+			Months:    m,
+			Price:     price,
+			Currency:  p.Currency,
+			TrafficGB: p.Traffic[m],
+			Devices:   p.DeviceLimitFor(m),
 		})
 	}
+	dto.Strategy = p.ResetStrategy()
 	return dto
 }
 
