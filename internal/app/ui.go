@@ -78,6 +78,13 @@ func userLabel(u *model.User) string {
 
 func (a *App) userLabelByID(ctx context.Context, id int64) string {
 	if a.store != nil {
+		// Web-cabinet email accounts have a synthetic negative id and no
+		// Telegram username/name — show their email so they are identifiable.
+		if id < 0 {
+			if wu, _ := a.store.GetWebUserByTgID(ctx, id); wu != nil && wu.Email != "" {
+				return "📧 " + wu.Email
+			}
+		}
 		if u, _ := a.store.GetUser(ctx, id); u != nil {
 			return userLabel(u)
 		}
@@ -652,6 +659,10 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 		if isAdmin {
 			a.getUI(chatID).adminInput = "cab_path"
 			a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "cabinet.ask_path"), "menu:cabinet")
+		}
+	case "cabapprove":
+		if isAdmin {
+			a.cycleCabinetApproval(ctx, chatID)
 		}
 	case "reconf":
 		if isAdmin {

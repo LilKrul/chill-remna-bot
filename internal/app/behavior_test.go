@@ -413,6 +413,21 @@ func (s *fakeStore) CreateWebUser(_ context.Context, u *model.WebUser) error {
 	s.webUsers[u.Email] = &cp
 	return nil
 }
+func (s *fakeStore) GetWebUserByTgID(_ context.Context, tgID int64) (*model.WebUser, error) {
+	for _, u := range s.webUsers {
+		if u.TgID == tgID {
+			cp := *u
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+func (s *fakeStore) SetWebApproved(_ context.Context, tgID int64, approved bool) error {
+	if s.users != nil && s.users[tgID] != nil {
+		s.users[tgID].WebApproved = approved
+	}
+	return nil
+}
 func (s *fakeStore) GetWebUserByEmail(_ context.Context, email string) (*model.WebUser, error) {
 	if s.webUsers != nil {
 		if u, ok := s.webUsers[email]; ok {

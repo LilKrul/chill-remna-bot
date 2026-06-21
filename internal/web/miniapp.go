@@ -54,6 +54,7 @@ type MiniProvider interface {
 	CabinetEnsureUser(ctx context.Context, tgID int64)
 	CabinetEmailRegister(ctx context.Context, email, password string) (int64, error)
 	CabinetEmailLogin(ctx context.Context, email, password string) (int64, error)
+	CabinetGate(ctx context.Context, tgID int64, isEmail bool) error
 	// MiniBlocked reports whether the user is blocked by an admin.
 	MiniBlocked(ctx context.Context, tgID int64) bool
 }

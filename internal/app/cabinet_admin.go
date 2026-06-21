@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
 
 	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
+	"remnabot/internal/model"
 )
 
 // cabinetURL builds the public URL of the web cabinet from the webhook/public
@@ -57,9 +59,19 @@ func (a *App) showCabinetAdmin(ctx context.Context, chatID int64) {
 	}
 	text += "\n\n" + i18n.T(lang, "cabinet.steps")
 
+	appr := i18n.T(lang, "cabinet.appr_"+func() string {
+		a.mu.Lock()
+		m := model.CabinetApprovalOff
+		if a.botCfg != nil && a.botCfg.Cabinet.Approval != "" {
+			m = a.botCfg.Cabinet.Approval
+		}
+		a.mu.Unlock()
+		return m
+	}())
+	text += "\n" + i18n.T(lang, "cabinet.approval", appr)
 	rows := [][]models.InlineKeyboardButton{
 		{btn(toggle, "menu:cabtoggle")},
-		{btn(i18n.T(lang, "cabinet.btn_path"), "menu:cabpath")},
+		{btn(i18n.T(lang, "cabinet.btn_path"), "menu:cabpath"), btn(i18n.T(lang, "cabinet.btn_approval"), "menu:cabapprove")},
 		{btn(i18n.T(lang, "btn.back"), "menu:system"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	}
 	a.sendKBSection(ctx, chatID, assets.SectionAdminStats, text, rows)
@@ -81,6 +93,67 @@ func (a *App) setCabinetPath(ctx context.Context, chatID int64, text string) {
 	if a.botCfg != nil {
 		a.botCfg.Cabinet.Path = strings.TrimSpace(text)
 		a.botCfg.NormalizeCabinet()
+	}
+	a.mu.Unlock()
+	_ = a.saveBotConfig(ctx)
+	a.showCabinetAdmin(ctx, chatID)
+}
+
+func (a *App) notifyAdminWebRequest(ctx context.Context, userID int64, isEmail bool) {
+	lang := a.lang(a.cfg.AdminID)
+	id := strconv.FormatInt(userID, 10)
+	label := a.userLabelByID(ctx, userID)
+	kind := i18n.T(lang, "cabinet.req_tg")
+	if isEmail {
+		kind = i18n.T(lang, "cabinet.req_email")
+		if a.store != nil {
+			if wu, _ := a.store.GetWebUserByTgID(ctx, userID); wu != nil {
+				label = wu.Email
+			}
+		}
+	}
+	a.notifyKB(ctx, a.cfg.AdminID, i18n.T(lang, "cabinet.req", kind, label), [][]models.InlineKeyboardButton{{
+		btn(i18n.T(lang, "admin.btn_user_ok"), "adm:wok:"+id),
+		btn(i18n.T(lang, "admin.btn_user_no"), "adm:wno:"+id),
+	}})
+}
+
+func (a *App) adminApproveWebUser(ctx context.Context, adminChat int64, arg string, ok bool) {
+	uid, err := strconv.ParseInt(arg, 10, 64)
+	if err != nil {
+		return
+	}
+	alang := a.lang(adminChat)
+	cabNotifyMu.Lock()
+	delete(cabNotified, uid)
+	cabNotifyMu.Unlock()
+	if !ok {
+		a.sendHome(ctx, adminChat, i18n.T(alang, "admin.user_denied"))
+		return
+	}
+	if a.store != nil {
+		_ = a.store.SetWebApproved(ctx, uid, true)
+	}
+	if uid > 0 {
+		a.notify(ctx, uid, i18n.T(a.lang(uid), "cabinet.approved"))
+	}
+	a.sendHome(ctx, adminChat, i18n.T(alang, "admin.user_ok_done"))
+}
+
+func (a *App) cycleCabinetApproval(ctx context.Context, chatID int64) {
+	a.mu.Lock()
+	if a.botCfg != nil {
+		a.botCfg.NormalizeCabinet()
+		switch a.botCfg.Cabinet.Approval {
+		case model.CabinetApprovalOff:
+			a.botCfg.Cabinet.Approval = model.CabinetApprovalAll
+		case model.CabinetApprovalAll:
+			a.botCfg.Cabinet.Approval = model.CabinetApprovalTG
+		case model.CabinetApprovalTG:
+			a.botCfg.Cabinet.Approval = model.CabinetApprovalEmail
+		default:
+			a.botCfg.Cabinet.Approval = model.CabinetApprovalOff
+		}
 	}
 	a.mu.Unlock()
 	_ = a.saveBotConfig(ctx)

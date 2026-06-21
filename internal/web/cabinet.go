@@ -158,6 +158,10 @@ func (s *Server) handleCabinetTelegramAuth(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	s.mini.CabinetEnsureUser(ctx, tgID)
+	if err := s.mini.CabinetGate(ctx, tgID, false); err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
 	s.issueCabinetToken(w, tgID)
 }
 

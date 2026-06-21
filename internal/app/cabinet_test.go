@@ -35,3 +35,33 @@ func TestCabinetEmailRegisterLogin(t *testing.T) {
 		t.Fatal("short password must be rejected")
 	}
 }
+
+func TestCabinetApprovalGate(t *testing.T) {
+	a, _, fs := newTestApp(t)
+	a.store = fs
+	a.botCfg = &model.BotConfig{Installed: true}
+	a.botCfg.NormalizeCabinet()
+	a.botCfg.Cabinet.Enabled = true
+	a.botCfg.Cabinet.Approval = model.CabinetApprovalAll
+	ctx := context.Background()
+
+	if _, err := a.CabinetEmailRegister(ctx, "x@y.com", "password1"); err == nil {
+		t.Fatal("registration must be gated when approval=all")
+	}
+	wu, _ := fs.GetWebUserByEmail(ctx, "x@y.com")
+	if wu == nil {
+		t.Fatal("account should still be created while pending approval")
+	}
+	if _, err := a.CabinetEmailLogin(ctx, "x@y.com", "password1"); err == nil {
+		t.Fatal("login must be gated until approved")
+	}
+	_ = fs.SetWebApproved(ctx, wu.TgID, true)
+	if lid, err := a.CabinetEmailLogin(ctx, "x@y.com", "password1"); err != nil || lid != wu.TgID {
+		t.Fatalf("approved login should pass: %d %v", lid, err)
+	}
+	// email mode does not gate Telegram sign-ins
+	a.botCfg.Cabinet.Approval = model.CabinetApprovalEmail
+	if err := a.CabinetGate(ctx, 12345, false); err != nil {
+		t.Fatalf("tg sign-in must not be gated in email mode: %v", err)
+	}
+}

@@ -348,7 +348,7 @@ func (a *App) onAdmin(ctx context.Context, chatID int64, val string, srcMsgID in
 	action, arg, _ := strings.Cut(val, ":")
 
 	switch action {
-	case "uok", "uno", "pok", "pno":
+	case "uok", "uno", "pok", "pno", "wok", "wno":
 		if srcMsgID != 0 {
 			a.msg.Delete(ctx, chatID, srcMsgID)
 		}
@@ -391,6 +391,10 @@ func (a *App) onAdmin(ctx context.Context, chatID int64, val string, srcMsgID in
 		a.adminApproveUser(ctx, chatID, arg, true)
 	case "uno":
 		a.adminApproveUser(ctx, chatID, arg, false)
+	case "wok":
+		a.adminApproveWebUser(ctx, chatID, arg, true)
+	case "wno":
+		a.adminApproveWebUser(ctx, chatID, arg, false)
 	case "pok":
 		a.adminApprovePayment(ctx, chatID, arg)
 	case "pno":

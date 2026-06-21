@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -57,6 +58,45 @@ func (a *App) CabinetEnsureUser(ctx context.Context, tgID int64) {
 	}
 }
 
+var (
+	cabNotifyMu sync.Mutex
+	cabNotified = map[int64]bool{}
+)
+
+// cabinetNeedsApproval reports whether this sign-in type needs admin approval.
+func (a *App) cabinetNeedsApproval(isEmail bool) bool {
+	switch a.cabinetCfg().Approval {
+	case model.CabinetApprovalAll:
+		return true
+	case model.CabinetApprovalTG:
+		return !isEmail
+	case model.CabinetApprovalEmail:
+		return isEmail
+	}
+	return false
+}
+
+// CabinetGate enforces the "approve new web users" policy. It returns an error
+// (and notifies the admin once) when the account still needs approval.
+func (a *App) CabinetGate(ctx context.Context, tgID int64, isEmail bool) error {
+	if !a.cabinetNeedsApproval(isEmail) {
+		return nil
+	}
+	if a.store != nil {
+		if u, _ := a.store.GetUser(ctx, tgID); u != nil && u.WebApproved {
+			return nil
+		}
+	}
+	cabNotifyMu.Lock()
+	first := !cabNotified[tgID]
+	cabNotified[tgID] = true
+	cabNotifyMu.Unlock()
+	if first {
+		a.notifyAdminWebRequest(ctx, tgID, isEmail)
+	}
+	return errors.New("аккаунт ожидает одобрения администратором")
+}
+
 func normEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
 
 var errCabinetOff = errors.New("веб-кабинет выключен")
@@ -89,6 +129,9 @@ func (a *App) CabinetEmailRegister(ctx context.Context, email, password string) 
 		return 0, errors.New("этот email уже зарегистрирован")
 	}
 	_ = a.store.UpsertUser(ctx, tgID)
+	if err := a.CabinetGate(ctx, tgID, true); err != nil {
+		return 0, err
+	}
 	return tgID, nil
 }
 
@@ -103,6 +146,9 @@ func (a *App) CabinetEmailLogin(ctx context.Context, email, password string) (in
 	u, _ := a.store.GetWebUserByEmail(ctx, normEmail(email))
 	if u == nil || bcrypt.CompareHashAndPassword([]byte(u.PassHash), []byte(password)) != nil {
 		return 0, errors.New("неверный email или пароль")
+	}
+	if err := a.CabinetGate(ctx, u.TgID, true); err != nil {
+		return 0, err
 	}
 	return u.TgID, nil
 }

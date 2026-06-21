@@ -246,6 +246,7 @@ type User struct {
 	RefBonusPaid bool
 	RefEarned    int64
 	Whitelisted  bool
+	WebApproved  bool
 }
 
 type P2PRequest struct {
@@ -420,8 +421,19 @@ func (c *BotConfig) NormalizeMiniApp() {
 type CabinetConfig struct {
 	Enabled bool   `json:"enabled"`
 	Path    string `json:"path"`
-	Init    bool   `json:"init"`
+	// Approval gates new web sign-ins requiring admin approval:
+	// "" / "off" (none), "tg", "email", "all".
+	Approval string `json:"approval"`
+	Init     bool   `json:"init"`
 }
+
+// Cabinet approval modes.
+const (
+	CabinetApprovalOff   = "off"
+	CabinetApprovalTG    = "tg"
+	CabinetApprovalEmail = "email"
+	CabinetApprovalAll   = "all"
+)
 
 func (c *BotConfig) NormalizeCabinet() {
 	cab := &c.Cabinet
@@ -441,6 +453,11 @@ func (c *BotConfig) NormalizeCabinet() {
 		p += "/"
 	}
 	cab.Path = p
+	switch cab.Approval {
+	case CabinetApprovalTG, CabinetApprovalEmail, CabinetApprovalAll:
+	default:
+		cab.Approval = CabinetApprovalOff
+	}
 }
 
 // WebUser is an email+password account for the web cabinet. TgID is a synthetic
