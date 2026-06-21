@@ -118,6 +118,8 @@ type MiniMeDTO struct {
 	TgID     int64  `json:"tg_id"`
 	Lang     string `json:"lang"`
 	BalanceK int64  `json:"balance_kopecks"`
+	Name     string `json:"name,omitempty"`
+	Email    string `json:"email,omitempty"`
 }
 
 // MiniMenuDTO mirrors navRow predicates so the front-end shows exactly the

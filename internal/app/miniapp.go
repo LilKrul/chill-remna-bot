@@ -29,6 +29,12 @@ func (a *App) MiniMe(ctx context.Context, tgID int64) web.MiniMeDTO {
 	if a.store != nil {
 		if u, _ := a.store.GetUser(ctx, tgID); u != nil {
 			dto.BalanceK = u.Balance
+			dto.Name = displayName(u.FirstName, u.Username)
+		}
+		if tgID < 0 {
+			if wu, _ := a.store.GetWebUserByTgID(ctx, tgID); wu != nil {
+				dto.Email = wu.Email
+			}
 		}
 	}
 	return dto
