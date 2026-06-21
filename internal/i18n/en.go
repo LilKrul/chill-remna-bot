@@ -84,6 +84,7 @@ var en = map[string]string{
 	"buy.trial_locked":        "🎁 Your free trial is active until <b>%s</b>.\n\nYou can buy a paid plan on the trial expiry day — this way you won't lose paid days (time stacks on top of current).",
 	"buy.plan_btn":            "%d mo — %s",
 	"buy.choose_method":       "💳 <b>How would you like to pay?</b>\n\n💼 Balance: %s ₽\n\nPick a method below — the bot will show instructions.",
+	"buy.countries":           "🌍 <b>Countries available: %d</b>\n%s",
 	"balance.btn_pay":         "💼 Pay from balance (%s ₽)",
 	"balance.btn_topup":       "➕ Top up balance",
 	"btn.balance":             "💼 Wallet",

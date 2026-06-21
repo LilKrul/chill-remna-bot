@@ -157,6 +157,8 @@ svg{width:18px;height:18px;flex:none;vertical-align:middle}
 .frow:only-child{border-radius:14px}
 .frow .l{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
 .frow b{font-size:14.5px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chip2{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;padding:8px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--stroke);backdrop-filter:blur(10px)}
 
 /* skeletons */
 .sk{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--stroke);border-radius:var(--radius)}
@@ -206,7 +208,8 @@ const IC={
   dots:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
-  tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg>'
+  tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg>',
+  globe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>'
 };
 
 const app=document.getElementById('app');
@@ -303,7 +306,7 @@ function render(me,menu,sub,plans){
       const best=i===Math.min(2,plans.plans.length-1);
       const lab=esc(p.price)+' '+esc(p.currency);
       h+='<div class="plan'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+lab+'\')">'+
-        '<div class="pl"><span class="pm">'+p.months+' мес.</span><span class="ps">'+esc(planSub(p))+'</span></div>'+
+        '<div class="pl"><span class="pm">'+p.months+' мес.</span><span class="ps">'+esc(planSub(p))+(p.countries&&p.countries.length?(' · 🌍 '+p.countries.length+' '+plural(p.countries.length,'страна','страны','стран')):'')+'</span></div>'+
         '<span class="price">'+lab+'</span></div>';
     });
   }
@@ -326,6 +329,7 @@ function planTraffic(p){return (p&&p.traffic_gb>0)?(p.traffic_gb+' ГБ'):'Бе�
 function planDevices(p){return (p&&p.devices>0)?(p.devices+' устр.'):'';}
 function planSub(p){var d=planDevices(p);return planTraffic(p)+' трафик'+(d?(' · '+d):'');}
 function planByMonths(m){return (STATE.plans||[]).filter(function(x){return x.months==m;})[0]||{};}
+function plural(n,one,few,many){n=Math.abs(n)%100;var d=n%10;if(n>10&&n<20)return many;if(d>1&&d<5)return few;if(d===1)return one;return many;}
 var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
 function buyPlan(months,label){
   haptic('tap');
@@ -340,7 +344,14 @@ function buyPlan(months,label){
   h+='<div class="frow"><span class="l">'+IC.bolt+'Трафик</span><b>'+esc(planTraffic(p))+'</b></div>';
   if(p.devices>0)h+='<div class="frow"><span class="l">'+IC.device+'Устройства (HWID)</span><b>'+p.devices+'</b></div>';
   if(STATE.strategy&&STRAT_LABELS[STATE.strategy])h+='<div class="frow"><span class="l">'+IC.tag+'Сброс трафика</span><b>'+esc(STRAT_LABELS[STATE.strategy])+'</b></div>';
+  if(p.countries&&p.countries.length)h+='<div class="frow"><span class="l">'+IC.globe+'Страны</span><b>'+p.countries.length+'</b></div>';
+  if(p.configs>0)h+='<div class="frow"><span class="l">'+IC.shield+'Конфигов</span><b>'+p.configs+'</b></div>';
   h+='</div>';
+  if(p.countries&&p.countries.length){
+    h+='<div class="sec-title">'+IC.globe+'Доступные страны</div><div class="chips">';
+    p.countries.forEach(function(c){h+='<span class="chip2">'+esc(c)+'</span>';});
+    h+='</div>';
+  }
   h+='<div class="sec-title">Способ оплаты</div>';
   methods.forEach(function(m){
     h+='<button class="btn sec" onclick="pay('+months+',\''+m+'\')">'+(METHOD_LABELS[m]||m)+'</button>';

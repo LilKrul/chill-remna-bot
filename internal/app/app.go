@@ -77,6 +77,9 @@ type App struct {
 	subMu    sync.Mutex
 	subCache map[int64]subCacheEntry
 
+	infraMu    sync.Mutex
+	infraCache *infraCacheEntry
+
 	botUserMu sync.Mutex
 	botUser   string
 

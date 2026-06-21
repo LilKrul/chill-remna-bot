@@ -103,26 +103,44 @@ func (a *App) MiniSubscription(ctx context.Context, tgID int64) web.MiniSubDTO {
 // only — the bot does not show traffic/device details in the plan list.
 func (a *App) MiniPlans(ctx context.Context, tgID int64) web.MiniPlansDTO {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	var dto web.MiniPlansDTO
 	if a.botCfg == nil {
+		a.mu.Unlock()
 		return dto
 	}
 	p := a.botCfg.Pricing
+	type planRow struct {
+		months           int
+		price            string
+		traffic, devices int
+	}
+	var rows []planRow
 	for _, m := range model.PlanMonths {
 		price := p.Base[m]
 		if price == "" {
 			continue
 		}
+		rows = append(rows, planRow{m, price, p.Traffic[m], p.DeviceLimitFor(m)})
+	}
+	currency := p.Currency
+	strategy := p.ResetStrategy()
+	a.mu.Unlock()
+
+	// planCountries hits the panel (cached) and locks a.mu internally, so it
+	// must run AFTER releasing the lock above.
+	for _, r := range rows {
+		countries, configs := a.planCountries(ctx, r.months)
 		dto.Plans = append(dto.Plans, web.MiniPlanDTO{
-			Months:    m,
-			Price:     price,
-			Currency:  p.Currency,
-			TrafficGB: p.Traffic[m],
-			Devices:   p.DeviceLimitFor(m),
+			Months:    r.months,
+			Price:     r.price,
+			Currency:  currency,
+			TrafficGB: r.traffic,
+			Devices:   r.devices,
+			Countries: countries,
+			Configs:   configs,
 		})
 	}
-	dto.Strategy = p.ResetStrategy()
+	dto.Strategy = strategy
 	return dto
 }
 

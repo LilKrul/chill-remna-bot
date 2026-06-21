@@ -144,7 +144,11 @@ func (a *App) showMethods(ctx context.Context, chatID int64) {
 
 	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "balance.btn_topup"), "menu:topup")})
 	rows = append(rows, homeRow(lang))
-	a.sendPayKB(ctx, chatID, i18n.T(lang, "buy.choose_method", kopecksToRub(bal)), rows)
+	caption := i18n.T(lang, "buy.choose_method", kopecksToRub(bal))
+	if line := a.countriesLine(ctx, lang, months); line != "" {
+		caption = line + "\n\n" + caption
+	}
+	a.sendPayKB(ctx, chatID, caption, rows)
 }
 
 func (a *App) onMethod(ctx context.Context, chatID int64, val string) {

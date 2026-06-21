@@ -448,6 +448,104 @@ func (c *Client) ListExternalSquads(ctx context.Context) ([]ExternalSquad, error
 	return env.Response.ExternalSquads, nil
 }
 
+// SquadFull is an internal squad enriched with its inbound membership, used to
+// map a plan's squad to the hosts (and thus countries) available to it.
+type SquadFull struct {
+	UUID          string
+	Name          string
+	InboundsCount int
+	InboundUUIDs  []string
+}
+
+// ListSquadsFull returns internal squads with their inbound UUIDs and inbound
+// count (GET /api/internal-squads).
+func (c *Client) ListSquadsFull(ctx context.Context) ([]SquadFull, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/internal-squads", nil)
+	if err != nil {
+		return nil, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTP(resp)
+	}
+	var env struct {
+		Response struct {
+			InternalSquads []struct {
+				UUID string `json:"uuid"`
+				Name string `json:"name"`
+				Info struct {
+					InboundsCount int `json:"inboundsCount"`
+				} `json:"info"`
+				Inbounds []struct {
+					UUID string `json:"uuid"`
+				} `json:"inbounds"`
+			} `json:"internalSquads"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("разбор ответа панели: %w", err)
+	}
+	out := make([]SquadFull, 0, len(env.Response.InternalSquads))
+	for _, sq := range env.Response.InternalSquads {
+		sf := SquadFull{UUID: sq.UUID, Name: sq.Name, InboundsCount: sq.Info.InboundsCount}
+		for _, ib := range sq.Inbounds {
+			if ib.UUID != "" {
+				sf.InboundUUIDs = append(sf.InboundUUIDs, ib.UUID)
+			}
+		}
+		out = append(out, sf)
+	}
+	return out, nil
+}
+
+// Host is the subset of a panel host needed to derive available countries: its
+// human-readable remark (often "🇩🇪 Germany"), the inbound it exposes, and the
+// internal squads explicitly excluded from it.
+type Host struct {
+	Remark         string
+	InboundUUID    string
+	ExcludedSquads []string
+	Disabled       bool
+	Hidden         bool
+}
+
+// ListHosts returns all panel hosts (GET /api/hosts).
+func (c *Client) ListHosts(ctx context.Context) ([]Host, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/hosts", nil)
+	if err != nil {
+		return nil, fmt.Errorf("нет связи с панелью: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTP(resp)
+	}
+	var env struct {
+		Response []struct {
+			Remark  string `json:"remark"`
+			Inbound struct {
+				ConfigProfileInboundUUID string `json:"configProfileInboundUuid"`
+			} `json:"inbound"`
+			ExcludedInternalSquads []string `json:"excludedInternalSquads"`
+			IsDisabled             bool     `json:"isDisabled"`
+			IsHidden               bool     `json:"isHidden"`
+		} `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("разбор ответа панели: %w", err)
+	}
+	out := make([]Host, 0, len(env.Response))
+	for _, h := range env.Response {
+		out = append(out, Host{
+			Remark:         h.Remark,
+			InboundUUID:    h.Inbound.ConfigProfileInboundUUID,
+			ExcludedSquads: h.ExcludedInternalSquads,
+			Disabled:       h.IsDisabled,
+			Hidden:         h.IsHidden,
+		})
+	}
+	return out, nil
+}
+
 func (c *Client) ResetTraffic(ctx context.Context, uuid string) error {
 	resp, err := c.do(ctx, http.MethodPost, "/api/users/"+url.PathEscape(uuid)+"/actions/reset-traffic", nil)
 	if err != nil {

@@ -121,6 +121,11 @@ type MiniPlanDTO struct {
 	// Devices is the plan's HWID device limit; 0 means no explicit limit
 	// (panel default).
 	Devices int `json:"devices"`
+	// Countries are the distinct countries available to the plan's squad,
+	// as display strings with flags (e.g. "🇩🇪 Германия"), deduped.
+	Countries []string `json:"countries,omitempty"`
+	// Configs is the number of inbounds (configs) accessible to the plan.
+	Configs int `json:"configs,omitempty"`
 }
 
 type MiniPlansDTO struct {
