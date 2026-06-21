@@ -304,7 +304,16 @@ func (a *App) handleMessage(ctx context.Context, m *models.Message) {
 			return
 		}
 		if _, payload, ok := strings.Cut(text, " "); ok {
-			a.bindReferrer(ctx, chatID, strings.TrimSpace(payload))
+			payload = strings.TrimSpace(payload)
+			a.bindReferrer(ctx, chatID, payload)
+			if code, isPromo := strings.CutPrefix(payload, "promo_"); isPromo && code != "" {
+				if a.store != nil {
+					_ = a.store.UpsertUser(ctx, chatID)
+				}
+				if msg, _ := a.redeemPromo(ctx, chatID, code); msg != "" {
+					a.send(ctx, chatID, msg)
+				}
+			}
 		}
 		a.enterHome(ctx, chatID, isAdmin, firstName, username)
 		return
