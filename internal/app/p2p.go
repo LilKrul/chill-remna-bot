@@ -823,6 +823,9 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
 		a.showReferralAdmin(ctx, chatID)
+	case "cab_path":
+		ui.adminInput = ""
+		a.setCabinetPath(ctx, chatID, text)
 	case "device_per":
 		mo := ui.priceMonths
 		ui.adminInput = ""

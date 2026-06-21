@@ -337,7 +337,7 @@ func (a *App) showSystem(ctx context.Context, chatID int64) {
 		{btn(updLabel, "upd:toggle"), btn(i18n.T(lang, "btn.channel")+": "+a.channelName(lang), "upd:chan")},
 		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
 		{btn(i18n.T(lang, "btn.webhooks"), "menu:webhooks"), btn(i18n.T(lang, "btn.subdomain"), "menu:subdomain")},
-		{btn(i18n.T(lang, "btn.miniapp"), "menu:miniapp")},
+		{btn(i18n.T(lang, "btn.miniapp"), "menu:miniapp"), btn(i18n.T(lang, "btn.cabinet"), "menu:cabinet")},
 		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
 		homeRow(lang),
 	})
@@ -639,6 +639,19 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "miniapptoggle":
 		if isAdmin {
 			a.toggleMiniApp(ctx, chatID)
+		}
+	case "cabinet":
+		if isAdmin {
+			a.showCabinetAdmin(ctx, chatID)
+		}
+	case "cabtoggle":
+		if isAdmin {
+			a.toggleCabinet(ctx, chatID)
+		}
+	case "cabpath":
+		if isAdmin {
+			a.getUI(chatID).adminInput = "cab_path"
+			a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "cabinet.ask_path"), "menu:cabinet")
 		}
 	case "reconf":
 		if isAdmin {
