@@ -49,12 +49,16 @@ type MiniProvider interface {
 }
 
 type MiniReferralDTO struct {
-	Enabled    bool   `json:"enabled"`
-	Link       string `json:"link,omitempty"`
-	Count      int    `json:"count"`
-	BonusValue int    `json:"bonus_value"`
-	BonusKind  string `json:"bonus_kind"`
-	OnFirstPay bool   `json:"on_first_pay"`
+	Enabled       bool   `json:"enabled"`
+	Link          string `json:"link,omitempty"`
+	Count         int    `json:"count"`
+	BonusValue    int    `json:"bonus_value"`
+	BonusKind     string `json:"bonus_kind"`
+	OnFirstPay    bool   `json:"on_first_pay"`
+	EarnedKopecks int64  `json:"earned_kopecks"`
+	InviteeKind   string `json:"invitee_kind,omitempty"`
+	InviteeValue  int    `json:"invitee_value"`
+	Percent       int    `json:"percent"`
 }
 
 type MiniPromoDTO struct {

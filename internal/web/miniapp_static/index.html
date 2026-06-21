@@ -330,6 +330,7 @@ function openDeep(u){try{window.location.href=u;}catch(e){}}
 function isTgLink(u){return /^(https:\/\/t\.me\/|tg:\/\/)/i.test(String(u||''));}
 function openPay(u){if(isTgLink(u)&&tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return true;}catch(e){}}openL(u);return false;}
 function openSmart(u){if(isTgLink(u)&&tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return;}catch(e){}}openL(u);}
+function shareRef(link){haptic('tap');var u='https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent('Подключайся к VPN по моей ссылке — будет бонус 🎁');if(tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return;}catch(e){}}openL(u);}
 function armReturnRefresh(){
   var fired=false;
   function fire(){if(fired)return;fired=true;document.removeEventListener('visibilitychange',onv);boot();}
@@ -388,6 +389,7 @@ function render(me,menu,sub,plans){
   }
   if(menu.support_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.support_url)+'\')">'+IC.life+'Поддержка</button>';
   if(menu.group_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.group_url)+'\')">'+IC.users+'Наша группа</button>';
+  if(menu.referral_on)h+='<button class="btn sec" onclick="openMore()">'+IC.gift+'Пригласить друга</button>';
   h+='<button class="btn ghost" onclick="openMore()">'+IC.dots+'Ещё</button>';
   h+='</div>';
   view(h,null);
@@ -471,10 +473,17 @@ async function openMore(){
     '<button class="btn" style="margin-top:10px" onclick="promoApply(this)">'+IC.check+'Применить</button></div>';
   if(ref&&ref.enabled){
     var bonus=(ref.bonus_kind==='days')?(ref.bonus_value+' дн.'):(ref.bonus_value+' ₽');
-    h+='<div class="sec-title">'+IC.gift+'Пригласить друга</div><div class="card">'+
-      '<div class="hint">Бонус: <b style="color:var(--text)">'+esc(bonus)+'</b>'+(ref.on_first_pay?' за первую оплату':' за регистрацию')+'. Приглашено: '+(ref.count||0)+'</div>';
-    if(ref.link){h+='<div class="mono" style="margin-top:10px">'+esc(ref.link)+'</div>'+
-      '<button class="btn sec" style="margin-top:10px" onclick="copy(\''+jsq(ref.link)+'\')">'+IC.copy+'Скопировать ссылку</button>';}
+    h+='<div class="sec-title">'+IC.gift+'Пригласить друга</div><div class="card">';
+    var cond=ref.on_first_pay?' за первую оплату друга':' за регистрацию друга';
+    h+='<div class="hint">Тебе: <b style="color:var(--text)">'+esc(bonus)+'</b>'+cond+'.';
+    if(ref.invitee_value>0&&ref.invitee_kind){var ib=(ref.invitee_kind==='days')?(ref.invitee_value+' дн.'):(ref.invitee_value+' ₽');h+=' Другу — подарок <b style="color:var(--text)">'+esc(ib)+'</b>.';}
+    if(ref.percent>0)h+=' И ещё <b style="color:var(--text)">'+ref.percent+'%</b> с каждой его оплаты.';
+    h+='</div>';
+    h+='<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:13.5px"><span style="color:var(--muted)">Приглашено</span><b>'+(ref.count||0)+'</b></div>';
+    h+='<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13.5px"><span style="color:var(--muted)">Заработано</span><b>'+rub(ref.earned_kopecks||0)+' ₽</b></div>';
+    if(ref.link){h+='<div class="mono" style="margin-top:12px">'+esc(ref.link)+'</div>'+
+      '<button class="btn" style="margin-top:10px" onclick="shareRef(\''+jsq(ref.link)+'\')">'+IC.users+'Поделиться</button>'+
+      '<button class="btn sec" style="margin-top:8px" onclick="copy(\''+jsq(ref.link)+'\')">'+IC.copy+'Скопировать ссылку</button>';}
     h+='</div>';
   }
   h+='<button class="btn ghost" style="margin-top:16px" onclick="boot()">← Назад</button></div>';

@@ -121,16 +121,24 @@ func (a *App) MiniReferral(ctx context.Context, tgID int64) web.MiniReferralDTO 
 		return web.MiniReferralDTO{Enabled: false}
 	}
 	count := 0
+	earned := int64(0)
 	if a.store != nil {
 		count, _ = a.store.CountReferrals(ctx, tgID)
+		if u, _ := a.store.GetUser(ctx, tgID); u != nil {
+			earned = u.RefEarned
+		}
 	}
 	return web.MiniReferralDTO{
-		Enabled:    true,
-		Link:       a.referralLink(ctx, tgID),
-		Count:      count,
-		BonusValue: cfg.BonusValue,
-		BonusKind:  cfg.BonusKind,
-		OnFirstPay: cfg.OnFirstPay,
+		Enabled:       true,
+		Link:          a.referralLink(ctx, tgID),
+		Count:         count,
+		BonusValue:    cfg.BonusValue,
+		BonusKind:     cfg.BonusKind,
+		OnFirstPay:    cfg.OnFirstPay,
+		EarnedKopecks: earned,
+		InviteeKind:   cfg.InviteeKind,
+		InviteeValue:  cfg.InviteeValue,
+		Percent:       cfg.Percent,
 	}
 }
 
