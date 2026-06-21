@@ -130,6 +130,11 @@ func (s *fakeStore) PayLogs(_ context.Context, extID string, telegramID int64, _
 	return out, nil
 }
 
+func (s *fakeStore) AllPayLogs(_ context.Context, limit int) ([]model.PayLogEntry, error) {
+	out := append([]model.PayLogEntry(nil), s.paylogs...)
+	return out, nil
+}
+
 func (s *fakeStore) PurgePayLogs(_ context.Context, _ string) error { return nil }
 func (s *fakeStore) LoadConfig(context.Context) (*model.BotConfig, bool, error) {
 	if s.cfg == nil {

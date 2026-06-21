@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"strconv"
 	"strings"
@@ -69,4 +71,30 @@ func sanitizeFileName(s string) string {
 		return "query"
 	}
 	return b.String()
+}
+
+// exportPayLogCSV sends the full payment log (all sources, all stages, including
+// incomplete) as a CSV document for offline analysis.
+func (a *App) exportPayLogCSV(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	if a.store == nil {
+		return
+	}
+	entries, err := a.store.AllPayLogs(ctx, 50000)
+	if err != nil {
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
+		return
+	}
+	var buf bytes.Buffer
+	buf.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM for Excel
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"id", "created_at", "method", "stage", "ext_id", "telegram_id", "detail"})
+	for _, e := range entries {
+		_ = w.Write([]string{
+			strconv.FormatInt(e.ID, 10), e.CreatedAt, e.Method, e.Stage, e.ExtID,
+			strconv.FormatInt(e.TelegramID, 10), e.Detail,
+		})
+	}
+	w.Flush()
+	a.msg.SendDocument(ctx, chatID, "payments_log.csv", buf.Bytes(), i18n.T(lang, "paylog.csv_caption", len(entries)))
 }

@@ -101,6 +101,7 @@ type Storage interface {
 
 	AddPayLog(ctx context.Context, e *model.PayLogEntry) error
 	PayLogs(ctx context.Context, extID string, telegramID int64, limit int) ([]model.PayLogEntry, error)
+	AllPayLogs(ctx context.Context, limit int) ([]model.PayLogEntry, error)
 	PurgePayLogs(ctx context.Context, before string) error
 
 	Kind() string
@@ -815,6 +816,27 @@ func (b *base) AddPayLog(ctx context.Context, e *model.PayLogEntry) error {
 			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+")",
 		e.ID, e.ExtID, e.TelegramID, e.Method, e.Stage, e.Detail, e.CreatedAt)
 	return err
+}
+
+func (b *base) AllPayLogs(ctx context.Context, limit int) ([]model.PayLogEntry, error) {
+	if limit <= 0 {
+		limit = 20000
+	}
+	rows, err := b.db.QueryContext(ctx,
+		"SELECT id, ext_id, telegram_id, method, stage, detail, created_at FROM payment_log ORDER BY id DESC LIMIT "+b.ph(1), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.PayLogEntry
+	for rows.Next() {
+		var e model.PayLogEntry
+		if err := rows.Scan(&e.ID, &e.ExtID, &e.TelegramID, &e.Method, &e.Stage, &e.Detail, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func (b *base) PayLogs(ctx context.Context, extID string, telegramID int64, limit int) ([]model.PayLogEntry, error) {

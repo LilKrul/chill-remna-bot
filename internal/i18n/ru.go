@@ -325,6 +325,8 @@ var ru = map[string]string{
 	"payments.empty":        "📒 Оплат пока нет.",
 	"payments.st_paid":      "оплачено ✅",
 	"paylog.btn":            "🧾 Лог заказа",
+	"paylog.btn_csv":        "📥 Скачать CSV",
+	"paylog.csv_caption":    "📊 Полный лог платежей (все способы и этапы, включая незавершённые): %d записей.",
 	"paylog.ask":            "🧾 Пришлите ID платежа (ext_id из истории) или Telegram ID клиента — соберу весь журнал по нему и пришлю файлом.",
 	"paylog.empty":          "🧾 По запросу <code>%s</code> записей в журнале платежей нет.",
 	"paylog.caption":        "🧾 Журнал платежей по <code>%s</code> · записей: %d",

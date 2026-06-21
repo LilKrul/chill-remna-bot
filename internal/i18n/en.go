@@ -325,6 +325,8 @@ var en = map[string]string{
 	"payments.empty":        "📒 No payments yet.",
 	"payments.st_paid":      "paid ✅",
 	"paylog.btn":            "🧾 Order log",
+	"paylog.btn_csv":        "📥 Download CSV",
+	"paylog.csv_caption":    "📊 Full payment log (all methods and stages, including incomplete): %d rows.",
 	"paylog.ask":            "🧾 Send a payment ID (ext_id from the history) or the client's Telegram ID — I will collect the full journal and send it as a file.",
 	"paylog.empty":          "🧾 No payment journal entries for <code>%s</code>.",
 	"paylog.caption":        "🧾 Payment journal for <code>%s</code> · entries: %d",
