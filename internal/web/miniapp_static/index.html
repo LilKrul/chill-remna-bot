@@ -325,6 +325,8 @@ function copy(t){
 }
 function openL(u){if(tg&&tg.openLink)tg.openLink(u);else window.open(u,'_blank');}
 function openDeep(u){try{window.location.href=u;}catch(e){}}
+function isTgLink(u){return /^(https:\/\/t\.me\/|tg:\/\/)/i.test(String(u||''));}
+function openPay(u){if(isTgLink(u)&&tg&&tg.openTelegramLink){try{tg.openTelegramLink(u);return true;}catch(e){}}openL(u);return false;}
 function armReturnRefresh(){
   var fired=false;
   function fire(){if(fired)return;fired=true;document.removeEventListener('visibilitychange',onv);boot();}
@@ -444,7 +446,7 @@ async function pay(months,method,el){
     if(r.ok&&r.pay_url){
       if(r.invoice&&tg&&tg.openInvoice){
         tg.openInvoice(r.pay_url,function(st){if(st==='paid')boot();});
-      }else{openL(r.pay_url);armReturnRefresh();toast('Откройте оплату во вкладке, затем вернитесь — обновим сами','ok');}
+      }else{if(!openPay(r.pay_url)){armReturnRefresh();toast('Откройте оплату во вкладке, затем вернитесь — обновим сами','ok');}}
       return;
     }
     if(r.redirect){toast(r.message||'Этот способ оплаты доступен в боте','ok');if(tg&&tg.close)setTimeout(function(){try{tg.close();}catch(e){}},2200);return;}
@@ -511,7 +513,7 @@ function topupPick(kopecks,label){
 async function topupPay(kopecks,method,el){
   haptic('tap');busy(el,true);
   try{var r=await post('/api/miniapp/topup',{kopecks:kopecks,method:method});
-    if(r.ok&&r.pay_url){openL(r.pay_url);armReturnRefresh();toast('Откройте оплату, затем вернитесь — обновим сами','ok');return;}
+    if(r.ok&&r.pay_url){if(!openPay(r.pay_url)){armReturnRefresh();toast('Откройте оплату, затем вернитесь — обновим сами','ok');}return;}
     haptic('err');toast(r.error||'Не удалось создать пополнение','err');
   }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');}
   finally{busy(el,false);}
