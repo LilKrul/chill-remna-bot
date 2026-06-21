@@ -95,6 +95,25 @@ func (a *App) MiniP2P(ctx context.Context, tgID int64, months int) web.MiniActio
 	return web.MiniActionDTO{Redirect: true, Message: "Реквизиты для оплаты отправлены в бот. Откройте чат и завершите оплату."}
 }
 
+// MiniP2PWeb runs the P2P flow for the web cabinet: it returns the card + amount
+// to show in the browser (the screenshot is uploaded back via the cabinet).
+func (a *App) MiniP2PWeb(ctx context.Context, tgID int64, months int) web.MiniActionDTO {
+	if a.store == nil {
+		return web.MiniActionDTO{Error: "хранилище недоступно"}
+	}
+	_ = a.store.UpsertUser(ctx, tgID)
+	u, _ := a.store.GetUser(ctx, tgID)
+	if u == nil || !u.P2PApproved {
+		a.notifyAdminUserRequest(ctx, tgID)
+		return web.MiniActionDTO{Redirect: true, Message: "Доступ к оплате переводом ещё не подтверждён администратором — запрос отправлен. Попробуйте позже."}
+	}
+	card, price, reqID, err := a.prepareP2PCard(ctx, tgID, months)
+	if err != nil {
+		return web.MiniActionDTO{Error: "оплата переводом недоступна"}
+	}
+	return web.MiniActionDTO{OK: true, P2PCard: card, P2PAmount: price + curSuffix(curRUB), P2PReqID: reqID}
+}
+
 // miniDesc is a neutral invoice description for Mini App payments.
 func miniDesc(months int) string {
 	return "VPN " + itoaMonths(months)

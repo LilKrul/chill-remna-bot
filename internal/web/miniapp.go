@@ -55,6 +55,7 @@ type MiniProvider interface {
 	CabinetEmailRegister(ctx context.Context, email, password string) (int64, error)
 	CabinetEmailLogin(ctx context.Context, email, password string) (int64, error)
 	CabinetGate(ctx context.Context, tgID int64, isEmail bool) error
+	CabinetP2PScreenshot(ctx context.Context, tgID, reqID int64, filename string, data []byte) error
 	// MiniBlocked reports whether the user is blocked by an admin.
 	MiniBlocked(ctx context.Context, tgID int64) bool
 }
@@ -102,6 +103,11 @@ type MiniActionDTO struct {
 	// Telegram invoice link when Invoice=true (front opens it via openInvoice).
 	PayURL  string `json:"pay_url,omitempty"`
 	Invoice bool   `json:"invoice,omitempty"`
+	// P2P web flow: the card to transfer to + the request id the cabinet uploads
+	// a payment screenshot against.
+	P2PCard   string `json:"p2p_card,omitempty"`
+	P2PAmount string `json:"p2p_amount,omitempty"`
+	P2PReqID  int64  `json:"p2p_req_id,omitempty"`
 }
 
 type MiniMeDTO struct {

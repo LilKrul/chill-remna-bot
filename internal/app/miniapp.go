@@ -180,8 +180,8 @@ func (a *App) MiniCheckout(ctx context.Context, tgID int64, months int, method s
 		return web.MiniActionDTO{Error: "неверный период"}
 	}
 	if method == model.PayMethodP2P {
-		if web_ && tgID < 0 {
-			return web.MiniActionDTO{Error: "оплата переводом для email-аккаунтов появится позже — используйте карту или криптовалюту"}
+		if web_ {
+			return a.MiniP2PWeb(ctx, tgID, months)
 		}
 		return a.MiniP2P(ctx, tgID, months)
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -211,39 +212,56 @@ func (a *App) issueCard(ctx context.Context, chatID int64) {
 // which has no chat-side buyMonths state).
 func (a *App) issueCardMonths(ctx context.Context, chatID int64, months int) {
 	lang := a.lang(chatID)
+	card, price, reqID, err := a.prepareP2PCard(ctx, chatID, months)
+	if err != nil {
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
+		return
+	}
+	idStr := strconv.FormatInt(reqID, 10)
+	a.sendKB(ctx, chatID, i18n.T(lang, "p2p.card", months, price+curSuffix(curRUB), card),
+		[][]models.InlineKeyboardButton{{
+			btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+idStr),
+			btn(i18n.T(lang, "btn.cancel"), "p2p:cancel:"+idStr),
+		}})
+}
 
+// prepareP2PCard picks the next card, creates an awaiting P2P request and
+// returns the card + price + request id, without messaging the user (shared by
+// the chat flow and the web cabinet).
+func (a *App) prepareP2PCard(ctx context.Context, chatID int64, months int) (card, price string, reqID int64, err error) {
 	a.mu.Lock()
 	a.botCfg.NormalizePricing()
 	p2p := a.botCfg.P2P
 	pr := a.botCfg.Pricing
 	if len(p2p.Cards) == 0 {
 		a.mu.Unlock()
-		a.sendHome(ctx, chatID, i18n.T(lang, "p2p.no_cards"))
-		return
+		return "", "", 0, errors.New(i18n.T(a.lang(chatID), "p2p.no_cards"))
 	}
 	idx := 0
 	if p2p.Rotate && len(p2p.Cards) > 1 {
 		idx = p2p.RotateIdx % len(p2p.Cards)
 		a.botCfg.P2P.RotateIdx = idx + 1
 	}
-	card := p2p.Cards[idx]
-	price := pr.Fiat(model.PayMethodP2P, months)
-	cur := curRUB
+	card = p2p.Cards[idx]
+	price = pr.Fiat(model.PayMethodP2P, months)
 	a.mu.Unlock()
 	_ = a.saveBotConfig(ctx)
 
+	if a.store == nil {
+		return "", "", 0, errors.New("storage unavailable")
+	}
 	req := &model.P2PRequest{TelegramID: chatID, Months: months, Price: price, Status: model.P2PAwaiting}
-	if err := a.store.CreateP2PRequest(ctx, req); err != nil {
-		a.sendHome(ctx, chatID, "❌ "+err.Error())
-		return
+	if err = a.store.CreateP2PRequest(ctx, req); err != nil {
+		return "", "", 0, err
 	}
 	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "request_created", "months=%d price=%s", months, price)
-	idStr := strconv.FormatInt(req.ID, 10)
-	a.sendKB(ctx, chatID, i18n.T(lang, "p2p.card", months, price+curSuffix(cur), card),
-		[][]models.InlineKeyboardButton{{
-			btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+idStr),
-			btn(i18n.T(lang, "btn.cancel"), "p2p:cancel:"+idStr),
-		}})
+	return card, price, req.ID, nil
+}
+
+// sendAdminPhotoUpload forwards an uploaded image (bytes) to the admin chat.
+func (a *App) sendAdminPhotoUpload(ctx context.Context, filename string, data []byte, caption string, rows [][]models.InlineKeyboardButton) {
+	photo := &models.InputFileUpload{Filename: filename, Data: bytes.NewReader(data)}
+	a.msg.SendBanner(ctx, a.cfg.AdminID, photo, caption, nil, &models.InlineKeyboardMarkup{InlineKeyboard: rows})
 }
 
 func (a *App) onP2PUser(ctx context.Context, chatID int64, val string) {

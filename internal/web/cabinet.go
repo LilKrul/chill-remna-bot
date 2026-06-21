@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"net/http"
 	"sort"
@@ -210,6 +211,43 @@ func (s *Server) handleCabinetRegister(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) handleCabinetLogin(w http.ResponseWriter, r *http.Request) {
 	s.cabinetEmail(w, r, false)
+}
+
+// handleCabinetP2PScreenshot accepts a payment screenshot uploaded from the web
+// cabinet (multipart) and forwards it to the admin for approval.
+func (s *Server) handleCabinetP2PScreenshot(w http.ResponseWriter, r *http.Request) {
+	id, web, ok := s.miniGuard(w, r)
+	if !ok {
+		return
+	}
+	s.setSecurityHeaders(w, true)
+	if !web {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "только для веб-кабинета"})
+		return
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	reqID, _ := strconv.ParseInt(r.FormValue("req_id"), 10, 64)
+	file, hdr, err := r.FormFile("photo")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "файл не загружен"})
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 8<<20))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	if err := s.mini.CabinetP2PScreenshot(ctx, id, reqID, hdr.Filename, data); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // handleCabinetStatic serves the cabinet SPA at the live-configured path. It is

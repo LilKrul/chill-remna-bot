@@ -3,12 +3,15 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-telegram/bot/models"
 	"golang.org/x/crypto/bcrypt"
 
+	"remnabot/internal/i18n"
 	"remnabot/internal/model"
 )
 
@@ -151,4 +154,37 @@ func (a *App) CabinetEmailLogin(ctx context.Context, email, password string) (in
 		return 0, err
 	}
 	return u.TgID, nil
+}
+
+// CabinetP2PScreenshot accepts a payment screenshot uploaded from the web
+// cabinet, marks the request submitted and forwards the image to the admin for
+// the usual manual approval.
+func (a *App) CabinetP2PScreenshot(ctx context.Context, tgID, reqID int64, filename string, data []byte) error {
+	if a.store == nil {
+		return errors.New("хранилище недоступно")
+	}
+	req, err := a.store.GetP2PRequest(ctx, reqID)
+	if err != nil || req == nil || req.TelegramID != tgID {
+		return errors.New("заявка не найдена")
+	}
+	if req.Status != model.P2PAwaiting && req.Status != model.P2PSubmitted {
+		return errors.New("заявка уже обработана")
+	}
+	if len(data) == 0 {
+		return errors.New("пустой файл")
+	}
+	req.Screenshot = "web"
+	req.Status = model.P2PSubmitted
+	if err := a.store.UpdateP2PRequest(ctx, req); err != nil {
+		return err
+	}
+	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), tgID, "screenshot_submitted", "из веб-кабинета, ожидает проверки")
+	lang := a.lang(a.cfg.AdminID)
+	caption := i18n.T(lang, "admin.payment_caption", a.userLabelByID(ctx, req.TelegramID), req.Months, req.Price+curSuffix(a.curFor(model.PayMethodP2P)), req.ID)
+	id := strconv.FormatInt(req.ID, 10)
+	a.sendAdminPhotoUpload(ctx, filename, data, caption, [][]models.InlineKeyboardButton{{
+		btn(i18n.T(lang, "admin.btn_pay_ok"), "adm:pok:"+id),
+		btn(i18n.T(lang, "admin.btn_pay_no"), "adm:pno:"+id),
+	}})
+	return nil
 }
