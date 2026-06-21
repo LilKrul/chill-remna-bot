@@ -238,19 +238,35 @@ func (a *App) issueCardMonths(ctx context.Context, chatID int64, months int) {
 		return
 	}
 	a.payLog(ctx, model.PayMethodP2P, p2pExt(req.ID), chatID, "request_created", "months=%d price=%s", months, price)
+	idStr := strconv.FormatInt(req.ID, 10)
 	a.sendKB(ctx, chatID, i18n.T(lang, "p2p.card", months, price+curSuffix(cur), card),
-		[][]models.InlineKeyboardButton{{btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+strconv.FormatInt(req.ID, 10))}})
+		[][]models.InlineKeyboardButton{
+			{btn(i18n.T(lang, "p2p.paid_btn"), "p2p:paid:"+idStr)},
+			{btn(i18n.T(lang, "btn.cancel"), "p2p:cancel:"+idStr)},
+		})
 }
 
 func (a *App) onP2PUser(ctx context.Context, chatID int64, val string) {
 	action, arg, _ := strings.Cut(val, ":")
-	if action == "paid" {
-		id, err := strconv.ParseInt(arg, 10, 64)
-		if err != nil {
+	id, _ := strconv.ParseInt(arg, 10, 64)
+	switch action {
+	case "paid":
+		if id == 0 {
 			return
 		}
 		a.getUI(chatID).awaitShotReq = id
 		a.send(ctx, chatID, i18n.T(a.lang(chatID), "p2p.send_screenshot"))
+	case "cancel":
+		if id != 0 && a.store != nil {
+			if r, e := a.store.GetP2PRequest(ctx, id); e == nil && r != nil && r.TelegramID == chatID &&
+				(r.Status == model.P2PAwaiting || r.Status == model.P2PSubmitted) {
+				r.Status = model.P2PRejected
+				_ = a.store.UpdateP2PRequest(ctx, r)
+				a.payLog(ctx, model.PayMethodP2P, p2pExt(id), chatID, "cancelled", "отменено пользователем")
+			}
+		}
+		a.getUI(chatID).awaitShotReq = 0
+		a.showMenu(ctx, chatID, chatID == a.cfg.AdminID, a.displayNameByID(ctx, chatID))
 	}
 }
 
