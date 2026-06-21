@@ -2,53 +2,231 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Кабинет</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{
-  --color-bg:var(--tg-theme-bg-color,#17212b);
-  --color-surface:var(--tg-theme-section-bg-color,#1d2733);
-  --color-text:var(--tg-theme-text-color,#fff);
-  --color-hint:var(--tg-theme-hint-color,#7d8b99);
-  --color-accent:var(--tg-theme-button-color,#3390ec);
-  --color-accent-text:var(--tg-theme-button-text-color,#fff);
-  --color-line:color-mix(in srgb,var(--color-text) 14%,transparent);
-  --radius:14px; --space:14px; --safe:env(safe-area-inset-bottom,0px);
+  /* premium dark palette — independent of TG theme, but accent picks up tg.button_color */
+  --bg:#0b0f17;
+  --bg-2:#0e1320;
+  --surface:rgba(255,255,255,.045);
+  --surface-2:rgba(255,255,255,.07);
+  --stroke:rgba(255,255,255,.10);
+  --stroke-strong:rgba(255,255,255,.18);
+  --text:#eef2f8;
+  --muted:#8b94a7;
+  --muted-2:#5f6877;
+  --accent:var(--tg-theme-button-color,#5b8cff);
+  --accent-2:#9d7bff;
+  --accent-text:#fff;
+  --good:#34d399;
+  --good-glow:rgba(52,211,153,.35);
+  --bad:#f87171;
+  --radius:20px;
+  --radius-sm:14px;
+  --space:16px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--color-bg);
-  color:var(--color-text);padding:var(--space);padding-bottom:calc(var(--space) + var(--safe))}
-.card{background:var(--color-surface);border-radius:var(--radius);padding:16px;margin-bottom:12px}
-.hint{color:var(--color-hint);font-size:13px}
-.big{font-size:24px;font-weight:700;margin:2px 0}
-.row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
-.pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
-  background:color-mix(in srgb,var(--color-accent) 18%,transparent);color:var(--color-accent)}
-.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;color:var(--color-accent)}
-.btn{display:block;width:100%;border:0;border-radius:12px;background:var(--color-accent);
-  color:var(--color-accent-text);font-weight:600;font-size:15px;padding:13px;margin-top:8px;cursor:pointer}
-.btn.sec{background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text)}
-.tcard{border:1.5px solid var(--color-line);border-radius:12px;padding:13px;margin-bottom:10px;
-  display:flex;justify-content:space-between;align-items:center}
-.tcard.best{border-color:var(--color-accent)}
-.price{font-size:18px;font-weight:700}
-.skel{height:96px;border-radius:var(--radius);background:color-mix(in srgb,var(--color-text) 8%,transparent);
-  margin-bottom:12px;animation:p 1.2s ease-in-out infinite}
-@keyframes p{50%{opacity:.5}}
-h3{font-size:13px;color:var(--color-hint);text-transform:uppercase;letter-spacing:.5px;margin:6px 2px 10px}
-.err{color:#e5534b;font-size:14px}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:15px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* animated ambient background */
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:
+  radial-gradient(120% 80% at 50% -10%,rgba(91,140,255,.16),transparent 60%),
+  linear-gradient(180deg,var(--bg-2),var(--bg) 40%)}
+.bg::before,.bg::after{content:"";position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(70px);opacity:.45}
+.bg::before{background:radial-gradient(circle,var(--accent),transparent 60%);top:-25vmax;left:-15vmax;animation:drift1 18s ease-in-out infinite alternate}
+.bg::after{background:radial-gradient(circle,var(--accent-2),transparent 60%);bottom:-25vmax;right:-15vmax;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(12vmax,8vmax) scale(1.15)}}
+@keyframes drift2{to{transform:translate(-12vmax,-6vmax) scale(1.1)}}
+
+.wrap{max-width:520px;margin:0 auto;padding:calc(var(--safe-top) + 12px) var(--space) calc(var(--safe-bot) + 24px)}
+
+/* view transition */
+#app{animation:viewIn .42s cubic-bezier(.22,1,.36,1)}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.stagger>*{opacity:0;animation:rise .5s cubic-bezier(.22,1,.36,1) forwards}
+.stagger>*:nth-child(1){animation-delay:.02s}
+.stagger>*:nth-child(2){animation-delay:.07s}
+.stagger>*:nth-child(3){animation-delay:.12s}
+.stagger>*:nth-child(4){animation-delay:.17s}
+.stagger>*:nth-child(5){animation-delay:.22s}
+.stagger>*:nth-child(6){animation-delay:.27s}
+.stagger>*:nth-child(7){animation-delay:.32s}
+.stagger>*:nth-child(8){animation-delay:.37s}
+@keyframes rise{to{opacity:1;transform:none}}
+
+/* header */
+.head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 18px}
+.head h1{font-size:19px;font-weight:700;letter-spacing:-.2px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;
+  padding:7px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--stroke);backdrop-filter:blur(12px)}
+.chip svg{width:15px;height:15px;opacity:.9}
+
+/* glass card */
+.card{position:relative;background:var(--surface);border:1px solid var(--stroke);
+  border-radius:var(--radius);padding:18px;margin-bottom:14px;backdrop-filter:blur(18px) saturate(140%);
+  box-shadow:0 8px 30px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06)}
+.card.glow{border-color:var(--stroke-strong);box-shadow:0 10px 40px rgba(91,140,255,.20),inset 0 1px 0 rgba(255,255,255,.08)}
+
+/* hero subscription */
+.hero{overflow:hidden}
+.hero .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.status{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 var(--good-glow);animation:pulse 2.2s infinite}
+.dot.off{background:var(--muted-2);animation:none;box-shadow:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--good-glow)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.hero .title{font-size:27px;font-weight:800;letter-spacing:-.5px;margin:10px 0 2px;
+  background:linear-gradient(120deg,#fff,#cdd6ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.until{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 16%,transparent);padding:5px 11px;border-radius:999px;margin-top:6px}
+.metric{display:flex;align-items:center;justify-content:space-between;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--stroke)}
+.metric .l{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:14px}
+.metric .l svg{width:18px;height:18px;opacity:.8}
+.metric b{font-size:15px;font-variant-numeric:tabular-nums}
+
+.linkbox{margin-top:14px}
+.linkbox .lab{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+  word-break:break-all;color:var(--text);background:rgba(0,0,0,.25);border:1px solid var(--stroke);
+  border-radius:12px;padding:11px 12px;line-height:1.5}
+
+/* buttons */
+.btn{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  border:0;border-radius:14px;font-weight:650;font-size:15.5px;padding:15px;margin-top:10px;cursor:pointer;
+  color:var(--accent-text);overflow:hidden;
+  background:linear-gradient(120deg,var(--accent),var(--accent-2));
+  box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 40%,transparent);
+  transition:transform .12s ease,box-shadow .12s ease}
+.btn svg{width:18px;height:18px}
+.btn:active{transform:scale(.975)}
+.btn::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent,rgba(255,255,255,.35),transparent);
+  transform:translateX(-130%);transition:transform .6s}
+.btn:active::after{transform:translateX(130%)}
+.btn.sec{background:var(--surface);color:var(--text);border:1px solid var(--stroke);box-shadow:none;backdrop-filter:blur(12px);font-weight:600}
+.btn.sec:active{background:var(--surface-2)}
+.btn.ghost{background:transparent;border:1px solid var(--stroke);box-shadow:none;color:var(--muted);font-weight:600}
+
+/* plan cards */
+.sec-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin:20px 4px 12px;display:flex;align-items:center;gap:8px}
+.plan{position:relative;display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border:1px solid var(--stroke);border-radius:16px;padding:16px 18px;margin-bottom:10px;
+  cursor:pointer;backdrop-filter:blur(12px);transition:transform .12s ease,border-color .2s ease,background .2s ease}
+.plan:active{transform:scale(.98)}
+.plan .pl{display:flex;flex-direction:column;gap:2px}
+.plan .pm{font-size:16px;font-weight:700}
+.plan .ps{font-size:12px;color:var(--muted)}
+.plan .price{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.plan.best{border-color:transparent;background:
+  linear-gradient(var(--bg-2),var(--bg-2)) padding-box,
+  linear-gradient(120deg,var(--accent),var(--accent-2)) border-box;
+  box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
+.plan.best::before{content:"ВЫГОДНО";position:absolute;top:-8px;right:14px;font-size:9.5px;font-weight:800;letter-spacing:.6px;
+  padding:3px 8px;border-radius:999px;color:#fff;background:linear-gradient(120deg,var(--accent),var(--accent-2));box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 45%,transparent)}
+
+/* input */
+.field{width:100%;background:rgba(0,0,0,.25);border:1px solid var(--stroke);border-radius:12px;
+  color:var(--text);padding:14px;font-size:15px;outline:none;transition:border-color .2s}
+.field:focus{border-color:var(--accent)}
+.field::placeholder{color:var(--muted-2)}
+
+.hint{color:var(--muted);font-size:13.5px}
+.hint.center{text-align:center;margin-top:10px}
+.err{color:var(--bad);font-size:14.5px;font-weight:500}
+
+/* skeletons */
+.sk{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--stroke);border-radius:var(--radius)}
+.sk::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);animation:shimmer 1.5s infinite}
+@keyframes shimmer{100%{transform:translateX(100%)}}
+.sk-line{height:13px;border-radius:7px;background:rgba(255,255,255,.08);position:relative;overflow:hidden}
+.sk-line::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);animation:shimmer 1.5s infinite}
+.sk-hero{height:188px;border-radius:var(--radius);margin-bottom:14px}
+.sk-row{height:64px;border-radius:16px;margin-bottom:10px}
+.toast{position:fixed;left:50%;bottom:calc(var(--safe-bot) + 22px);transform:translateX(-50%) translateY(20px);
+  background:rgba(20,26,38,.92);border:1px solid var(--stroke-strong);color:var(--text);font-size:14px;font-weight:600;
+  padding:12px 18px;border-radius:14px;backdrop-filter:blur(16px);box-shadow:0 12px 40px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;display:flex;align-items:center;gap:9px;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{width:18px;height:18px;flex:0 0 auto}
 </style>
 </head>
 <body>
-<div id="app"><div class="skel"></div><div class="skel"></div></div>
+<div class="bg"></div>
+<div class="wrap">
+  <div class="head">
+    <h1>Личный кабинет</h1>
+    <span id="balchip" class="chip" style="display:none" onclick="openMore()"></span>
+  </div>
+  <div id="app">
+    <div class="sk sk-hero"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+    <div class="sk sk-row"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
 <script>
 const tg=window.Telegram&&window.Telegram.WebApp;
-if(tg){tg.ready();tg.expand();}
+/* ---- icons ---- */
+const IC={
+  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 12h-6a2 2 0 0 0 0 4h6v-4Z"/></svg>',
+  device:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7a3 3 0 1 0-3-3 4 7 0 0 0 3 3Zm0 0a3 3 0 1 1 3-3 4 7 0 0 1-3 3Z"/></svg>',
+  bolt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>',
+  help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+  tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><path d="M7 7h.01"/></svg>'
+};
+
 const app=document.getElementById('app');
+const balchip=document.getElementById('balchip');
 let TOKEN=null;
 let STATE={balanceK:0,methods:[]};
+let backFn=null; // current back handler for TG BackButton
+
+/* ---- TG init + premium chrome ---- */
+if(tg){
+  try{tg.ready();tg.expand();}catch(e){}
+  try{tg.setHeaderColor&&tg.setHeaderColor('#0b0f17');}catch(e){}
+  try{tg.setBackgroundColor&&tg.setBackgroundColor('#0b0f17');}catch(e){}
+  try{tg.setBottomBarColor&&tg.setBottomBarColor('#0b0f17');}catch(e){}
+  try{tg.disableVerticalSwipes&&tg.disableVerticalSwipes();}catch(e){}
+  try{tg.BackButton&&tg.BackButton.onClick(function(){if(backFn)backFn();});}catch(e){}
+}
+function haptic(kind){try{if(tg&&tg.HapticFeedback){if(kind==='ok')tg.HapticFeedback.notificationOccurred('success');
+  else if(kind==='err')tg.HapticFeedback.notificationOccurred('error');
+  else tg.HapticFeedback.impactOccurred('light');}}catch(e){}}
+function setBack(fn){
+  backFn=fn;
+  try{if(tg&&tg.BackButton){if(fn)tg.BackButton.show();else tg.BackButton.hide();}}catch(e){}
+}
+/* swap the #app content with a fresh fade-in */
+function view(html,back){
+  setBack(back||null);
+  app.innerHTML=html;
+  app.style.animation='none'; void app.offsetWidth; app.style.animation='';
+}
+
 function esc(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function rub(k){return (Math.round(k)/100).toLocaleString('ru-RU');}
+
 async function api(path,opts={}){
   const h=Object.assign({'Content-Type':'application/json'},opts.headers||{});
   if(TOKEN)h['Authorization']='Bearer '+TOKEN;
@@ -56,137 +234,186 @@ async function api(path,opts={}){
   if(!r.ok)throw new Error('http '+r.status);
   return r.json();
 }
+async function post(path,body){return api(path,{method:'POST',body:JSON.stringify(body||{})});}
+
+/* ---- toast ---- */
+let toastT=null;
+function toast(msg,kind){
+  const t=document.getElementById('toast');
+  t.innerHTML=(kind==='ok'?IC.check:kind==='err'?IC.help:'')+'<span>'+esc(msg)+'</span>';
+  t.style.color=kind==='err'?'var(--bad)':kind==='ok'?'var(--good)':'var(--text)';
+  t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function copy(t){
+  try{if(navigator.clipboard)navigator.clipboard.writeText(t);}catch(e){}
+  haptic('ok');toast('Скопировано',  'ok');
+}
+function openL(u){if(tg)tg.openLink(u);else window.open(u,'_blank');}
+function busy(el,on){if(el){el.disabled=on;el.style.opacity=on?'0.6':'';el.style.pointerEvents=on?'none':'';}}
+
 function devicesText(s){
   if(!s.devices_ok)return null;
   return s.has_limit? (s.devices_used+' / '+s.device_limit) : (''+s.devices_used);
 }
+
+/* ---- skeletons ---- */
+function skMain(){
+  app.innerHTML='<div class="sk sk-hero"></div><div class="sk sk-row" style="height:50px;width:40%;background:transparent;border:0"></div>'+
+    '<div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>';
+}
+function skSimple(){app.innerHTML='<div class="sk sk-hero" style="height:120px"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>';}
+
+/* ---- main screen ---- */
 function render(me,menu,sub,plans){
-  let h='';
+  let h='<div class="stagger">';
   if(sub.active){
-    h+='<div class="card"><div class="hint">Подписка</div><div class="big">Активна</div>';
-    if(sub.expire_at)h+='<span class="pill">до '+esc(sub.expire_at)+'</span>';
+    h+='<div class="card hero glow"><div class="top"><span class="status"><span class="dot"></span>Подписка активна</span>'+IC.shield+'</div>';
+    h+='<div class="title">Доступ открыт</div>';
+    if(sub.expire_at)h+='<div class="until">'+IC.bolt+'активна до '+esc(sub.expire_at)+'</div>';
     const d=devicesText(sub);
-    if(d!==null)h+='<div class="row"><span class="hint">📱 Устройства</span><b>'+esc(d)+'</b></div>';
-    if(sub.sub_url)h+='<div class="row" style="display:block"><div class="hint" style="margin-bottom:4px">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div>';
+    if(d!==null)h+='<div class="metric"><span class="l">'+IC.device+'Устройства</span><b>'+esc(d)+'</b></div>';
+    if(sub.sub_url)h+='<div class="linkbox"><div class="lab">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div>';
     h+='</div>';
-    if(sub.sub_url)h+='<button class="btn" onclick="copy(\''+esc(sub.sub_url)+'\')">Скопировать ссылку</button>';
-    if(menu.can_renew)h+='<div class="hint" style="text-align:center;margin-top:8px">Для продления выберите период ниже.</div>';
+    if(sub.sub_url)h+='<button class="btn" onclick="copy(\''+esc(sub.sub_url)+'\')">'+IC.copy+'Скопировать ссылку</button>';
+    if(menu.can_renew)h+='<div class="hint center">Для продления выберите период ниже</div>';
   }else{
-    h+='<div class="card"><div class="big">Подписка не активна</div><div class="hint">Выберите тариф ниже.</div></div>';
-    if(menu.trial_available)h+='<button class="btn sec" onclick="doTrial(this)">Попробовать бесплатно</button>';
+    h+='<div class="card hero"><div class="top"><span class="status"><span class="dot off"></span>Нет активной подписки</span>'+IC.shield+'</div>';
+    h+='<div class="title">Выберите тариф</div><div class="hint" style="margin-top:4px">Подключитесь за минуту и получите доступ ко всем серверам.</div></div>';
+    if(menu.trial_available)h+='<button class="btn" onclick="doTrial(this)">'+IC.bolt+'Попробовать бесплатно</button>';
   }
   if(plans.plans&&plans.plans.length){
-    h+='<h3>Тарифы</h3>';
+    h+='<div class="sec-title">'+IC.tag+'Тарифы</div>';
     plans.plans.forEach((p,i)=>{
       const best=i===Math.min(2,plans.plans.length-1);
-      h+='<div class="tcard'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+esc(p.price)+' '+esc(p.currency)+'\')"><div><b>'+p.months+' мес.</b></div><div class="price">'+esc(p.price)+' '+esc(p.currency)+'</div></div>';
+      const lab=esc(p.price)+' '+esc(p.currency);
+      h+='<div class="plan'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+lab+'\')">'+
+        '<div class="pl"><span class="pm">'+p.months+' мес.</span><span class="ps">безлимитный трафик</span></div>'+
+        '<span class="price">'+lab+'</span></div>';
     });
   }
-  if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">Поддержка</button>';
-  h+='<button class="btn sec" onclick="openMore()">Ещё</button>';
-  app.innerHTML=h;
+  if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">'+IC.help+'Поддержка</button>';
+  h+='<button class="btn ghost" onclick="openMore()">'+IC.dots+'Ещё</button>';
+  h+='</div>';
+  view(h,null);
 }
-function copy(t){if(tg&&navigator.clipboard)navigator.clipboard.writeText(t);if(tg)tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}
-function openL(u){if(tg)tg.openLink(u);else window.open(u,'_blank');}
-async function post(path,body){return api(path,{method:'POST',body:JSON.stringify(body||{})});}
-function busy(el,on){if(el){el.disabled=on;el.style.opacity=on?'0.6':'';}}
+
 async function doTrial(el){
-  busy(el,true);
+  haptic('tap');busy(el,true);
   try{const r=await post('/api/miniapp/trial');
-    if(r.ok){if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success');boot();}
-    else{alert(r.error||'Не удалось активировать триал');busy(el,false);}
-  }catch(e){alert('Ошибка: '+e.message);busy(el,false);}
+    if(r.ok){haptic('ok');boot();}
+    else{haptic('err');toast(r.error||'Не удалось активировать триал','err');busy(el,false);}
+  }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');busy(el,false);}
 }
+
 var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
 function buyPlan(months,label){
+  haptic('tap');
   var methods=[];
   if(STATE.balanceK>0)methods.push('balance');
   (STATE.methods||[]).forEach(function(m){if(m!=='balance')methods.push(m);});
-  if(!methods.length){alert('Оплата временно недоступна. Попробуйте через бота.');return;}
-  var h='<div class="card"><div class="big">'+months+' мес.</div><div class="hint">'+esc(label)+'</div></div><h3>Способ оплаты</h3>';
+  if(!methods.length){toast('Оплата временно недоступна. Попробуйте через бота.','err');return;}
+  var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status"><span class="dot"></span>Оформление</span>'+IC.bolt+'</div>'+
+    '<div class="title">'+months+' мес.</div><div class="until">'+esc(label)+'</div></div>'+
+    '<div class="sec-title">Способ оплаты</div>';
   methods.forEach(function(m){
     h+='<button class="btn sec" onclick="pay('+months+',\''+m+'\')">'+(METHOD_LABELS[m]||m)+'</button>';
   });
-  h+='<button class="btn sec" style="margin-top:14px" onclick="boot()">← Назад</button>';
-  app.innerHTML=h;
+  h+='<button class="btn ghost" style="margin-top:16px" onclick="boot()">← Назад</button></div>';
+  view(h,boot);
 }
 async function pay(months,method){
+  haptic('tap');
   try{const r=await post('/api/miniapp/checkout',{months:months,method:method});
-    if(r.ok&&r.sub_url){ // balance: provisioned immediately
-      if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success');boot();return;
-    }
+    if(r.ok&&r.sub_url){haptic('ok');boot();return;}
     if(r.ok&&r.pay_url){
       if(r.invoice&&tg&&tg.openInvoice){
         tg.openInvoice(r.pay_url,function(st){if(st==='paid')boot();});
-      }else{openL(r.pay_url);
-        alert('Откройте оплату во вкладке. После оплаты вернитесь и обновите экран.');
-      }
+      }else{openL(r.pay_url);toast('Откройте оплату во вкладке, затем обновите экран','ok');}
       return;
     }
-    if(r.redirect){alert('Этот способ оплаты доступен в боте.');return;}
-    alert(r.error||'Не удалось оплатить');
-  }catch(e){alert('Ошибка: '+e.message);}
+    if(r.redirect){toast('Этот способ оплаты доступен в боте','err');return;}
+    haptic('err');toast(r.error||'Не удалось оплатить','err');
+  }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');}
 }
-function rub(k){return (Math.round(k)/100).toLocaleString('ru-RU');}
+
+/* ---- "more": balance, promo, referral ---- */
 async function openMore(){
-  app.innerHTML='<div class="skel"></div>';
+  haptic('tap');skSimple();setBack(boot);
   var ref={enabled:false};
   try{ref=await api('/api/miniapp/referral');}catch(e){}
-  var h='<div class="card"><div class="hint">Баланс</div><div class="big">'+rub(STATE.balanceK)+' ₽</div>';
-  h+='<button class="btn" style="margin-top:8px" onclick="topupOpen()">Пополнить баланс</button></div>';
-  h+='<h3>Промокод</h3><div class="card"><input id="promoIn" placeholder="Введите код" style="width:100%;background:var(--color-surface-2);border:0;border-radius:10px;color:var(--color-text);padding:11px;font-size:14px">';
-  h+='<button class="btn" style="margin-top:8px" onclick="promoApply()">Применить</button></div>';
+  var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status">'+IC.wallet+' Баланс</span></div>'+
+    '<div class="title">'+rub(STATE.balanceK)+' ₽</div>'+
+    '<button class="btn" style="margin-top:14px" onclick="topupOpen()">'+IC.plus+'Пополнить баланс</button></div>';
+  h+='<div class="sec-title">'+IC.tag+'Промокод</div><div class="card"><input id="promoIn" class="field" placeholder="Введите код">'+
+    '<button class="btn" style="margin-top:10px" onclick="promoApply()">'+IC.check+'Применить</button></div>';
   if(ref&&ref.enabled){
     var bonus=(ref.bonus_kind==='days')?(ref.bonus_value+' дн.'):(ref.bonus_value+' ₽');
-    h+='<h3>Пригласить друга</h3><div class="card"><div class="hint">Бонус: '+esc(bonus)+(ref.on_first_pay?' за первую оплату':' за регистрацию')+'. Приглашено: '+(ref.count||0)+'</div>';
-    if(ref.link){h+='<div class="mono" style="margin-top:8px">'+esc(ref.link)+'</div><button class="btn sec" style="margin-top:8px" onclick="copy(\''+esc(ref.link)+'\')">Скопировать ссылку</button>';}
+    h+='<div class="sec-title">'+IC.gift+'Пригласить друга</div><div class="card">'+
+      '<div class="hint">Бонус: <b style="color:var(--text)">'+esc(bonus)+'</b>'+(ref.on_first_pay?' за первую оплату':' за регистрацию')+'. Приглашено: '+(ref.count||0)+'</div>';
+    if(ref.link){h+='<div class="mono" style="margin-top:10px">'+esc(ref.link)+'</div>'+
+      '<button class="btn sec" style="margin-top:10px" onclick="copy(\''+esc(ref.link)+'\')">'+IC.copy+'Скопировать ссылку</button>';}
     h+='</div>';
   }
-  h+='<button class="btn sec" style="margin-top:14px" onclick="boot()">← Назад</button>';
-  app.innerHTML=h;
+  h+='<button class="btn ghost" style="margin-top:16px" onclick="boot()">← Назад</button></div>';
+  view(h,boot);
 }
 async function promoApply(){
   var el=document.getElementById('promoIn'); var code=el?el.value.trim():'';
   if(!code)return;
+  haptic('tap');
   try{var r=await post('/api/miniapp/promo',{code:code});
-    alert(r.message||(r.ok?'Готово':'Не удалось'));
-    if(r.ok)boot();
-  }catch(e){alert('Ошибка: '+e.message);}
+    if(r.ok){haptic('ok');toast(r.message||'Готово','ok');boot();}
+    else{haptic('err');toast(r.message||'Не удалось','err');}
+  }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');}
 }
+
+/* ---- top-up ---- */
 async function topupOpen(){
+  haptic('tap');skSimple();setBack(openMore);
   try{var o=await api('/api/miniapp/topup/options');
-    if(!o.amounts||!o.amounts.length||!o.methods||!o.methods.length){alert('Пополнение недоступно.');return;}
+    if(!o.amounts||!o.amounts.length||!o.methods||!o.methods.length){toast('Пополнение недоступно','err');openMore();return;}
     STATE.tuMethods=o.methods;
-    var h='<div class="card"><div class="big">Пополнение баланса</div><div class="hint">Выберите сумму</div></div>';
+    var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status">'+IC.wallet+' Пополнение</span></div>'+
+      '<div class="title">Выберите сумму</div></div>';
     o.amounts.forEach(function(a){h+='<button class="btn sec" onclick="topupPick('+a.kopecks+',\''+esc(a.label)+'\')">'+esc(a.label)+'</button>';});
-    h+='<button class="btn sec" style="margin-top:14px" onclick="openMore()">← Назад</button>';
-    app.innerHTML=h;
-  }catch(e){alert('Ошибка: '+e.message);}
+    h+='<button class="btn ghost" style="margin-top:16px" onclick="openMore()">← Назад</button></div>';
+    view(h,openMore);
+  }catch(e){toast('Ошибка: '+e.message,'err');openMore();}
 }
 var METHOD_LABELS2={yk:'💳 Банковская карта',cb:'🪙 Криптовалюта'};
 function topupPick(kopecks,label){
-  var h='<div class="card"><div class="big">'+esc(label)+'</div><div class="hint">Способ пополнения</div></div>';
+  haptic('tap');
+  var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status">'+IC.wallet+' Пополнение</span></div>'+
+    '<div class="title">'+esc(label)+'</div><div class="until">Способ пополнения</div></div>';
   (STATE.tuMethods||[]).forEach(function(m){h+='<button class="btn sec" onclick="topupPay('+kopecks+',\''+m+'\')">'+(METHOD_LABELS2[m]||m)+'</button>';});
-  h+='<button class="btn sec" style="margin-top:14px" onclick="topupOpen()">← Назад</button>';
-  app.innerHTML=h;
+  h+='<button class="btn ghost" style="margin-top:16px" onclick="topupOpen()">← Назад</button></div>';
+  view(h,topupOpen);
 }
 async function topupPay(kopecks,method){
+  haptic('tap');
   try{var r=await post('/api/miniapp/topup',{kopecks:kopecks,method:method});
-    if(r.ok&&r.pay_url){openL(r.pay_url);alert('Откройте оплату. После пополнения вернитесь и обновите экран.');return;}
-    alert(r.error||'Не удалось создать пополнение');
-  }catch(e){alert('Ошибка: '+e.message);}
+    if(r.ok&&r.pay_url){openL(r.pay_url);toast('Откройте оплату, затем обновите экран','ok');return;}
+    haptic('err');toast(r.error||'Не удалось создать пополнение','err');
+  }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');}
 }
+
+/* ---- boot ---- */
 async function boot(){
+  setBack(null);
   try{
-    if(!tg||!tg.initData){app.innerHTML='<div class="card err">Откройте через Telegram.</div>';return;}
+    if(!tg||!tg.initData){view('<div class="card err">Откройте через Telegram.</div>',null);return;}
+    skMain();
     const a=await api('/api/miniapp/auth',{method:'POST',body:JSON.stringify({init_data:tg.initData})});
     TOKEN=a.token;
     const [me,menu,sub,plans]=await Promise.all([
       api('/api/miniapp/me'),api('/api/miniapp/menu'),
       api('/api/miniapp/subscription'),api('/api/miniapp/plans')]);
     STATE.balanceK=me.balance_kopecks||0; STATE.methods=menu.pay_methods||[]; STATE.menu=menu;
+    balchip.style.display='inline-flex';
+    balchip.innerHTML=IC.wallet+rub(STATE.balanceK)+' ₽';
     render(me,menu,sub,plans);
-  }catch(e){app.innerHTML='<div class="card err">Не удалось загрузить: '+esc(e.message)+'</div>';}
+  }catch(e){view('<div class="card err">Не удалось загрузить: '+esc(e.message)+'</div>',null);}
 }
 boot();
 </script>
