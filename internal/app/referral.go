@@ -96,23 +96,65 @@ func (a *App) payReferralBonus(ctx context.Context, telegramID int64) {
 		return
 	}
 	cfg := a.referralCfg()
-	if !cfg.Enabled || cfg.BonusValue <= 0 {
+	if !cfg.Enabled {
 		return
 	}
 	ref := u.ReferredBy
-	switch cfg.BonusKind {
-	case model.ReferralBonusDays:
-		if ok, _ := a.addReferralDays(ctx, ref, cfg.BonusValue); !ok {
-			return
+	// One-time bonus to the referrer.
+	if cfg.BonusValue > 0 {
+		switch cfg.BonusKind {
+		case model.ReferralBonusDays:
+			if ok, _ := a.addReferralDays(ctx, ref, cfg.BonusValue); ok {
+				a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.bonus_days", cfg.BonusValue))
+			}
+		default:
+			if err := a.store.AddBalance(ctx, ref, int64(cfg.BonusValue)*100); err == nil {
+				_ = a.store.AddRefEarned(ctx, ref, int64(cfg.BonusValue)*100)
+				a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.bonus_balance", cfg.BonusValue))
+			}
 		}
-		a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.bonus_days", cfg.BonusValue))
-	default:
-		if err := a.store.AddBalance(ctx, ref, int64(cfg.BonusValue)*100); err != nil {
-			return
+	}
+	// One-time welcome bonus to the invited friend (paid together, once).
+	if cfg.InviteeValue > 0 {
+		switch cfg.InviteeKind {
+		case model.ReferralBonusDays:
+			if ok, _ := a.addReferralDays(ctx, telegramID, cfg.InviteeValue); ok {
+				a.notify(ctx, telegramID, i18n.T(a.lang(telegramID), "ref.invitee_days", cfg.InviteeValue))
+			}
+		case model.ReferralBonusBalance:
+			if err := a.store.AddBalance(ctx, telegramID, int64(cfg.InviteeValue)*100); err == nil {
+				a.notify(ctx, telegramID, i18n.T(a.lang(telegramID), "ref.invitee_balance", cfg.InviteeValue))
+			}
 		}
-		a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.bonus_balance", cfg.BonusValue))
 	}
 	_ = a.store.SetRefBonusPaid(ctx, telegramID)
+}
+
+// creditReferralPercent credits the referrer a share of the buyer's payment on
+// every purchase (recurring), independent of the one-time bonus.
+func (a *App) creditReferralPercent(ctx context.Context, telegramID int64, amount string) {
+	if a.store == nil {
+		return
+	}
+	cfg := a.referralCfg()
+	if !cfg.Enabled || cfg.Percent <= 0 {
+		return
+	}
+	u, _ := a.store.GetUser(ctx, telegramID)
+	if u == nil || u.ReferredBy == 0 {
+		return
+	}
+	kopecks := int64(parseAmountRub(amount)*100 + 0.5)
+	earn := kopecks * int64(cfg.Percent) / 100
+	if earn <= 0 {
+		return
+	}
+	ref := u.ReferredBy
+	if err := a.store.AddBalance(ctx, ref, earn); err != nil {
+		return
+	}
+	_ = a.store.AddRefEarned(ctx, ref, earn)
+	a.notify(ctx, ref, i18n.T(a.lang(ref), "ref.percent_earned", kopecksToRub(earn)))
 }
 
 func (a *App) addReferralDays(ctx context.Context, ref int64, days int) (ok, found bool) {
@@ -167,7 +209,24 @@ func (a *App) showReferral(ctx context.Context, chatID int64) {
 	if !cfg.OnFirstPay {
 		when = i18n.T(lang, "ref.when_reg")
 	}
-	text := i18n.T(lang, "ref.user", bonus, when, count, link)
+	earned := int64(0)
+	if a.store != nil {
+		if u, _ := a.store.GetUser(ctx, chatID); u != nil {
+			earned = u.RefEarned
+		}
+	}
+	extra := ""
+	if cfg.InviteeValue > 0 && cfg.InviteeKind != "" {
+		inv := i18n.T(lang, "ref.bonus_balance_n", cfg.InviteeValue)
+		if cfg.InviteeKind == model.ReferralBonusDays {
+			inv = i18n.T(lang, "ref.bonus_days_n", cfg.InviteeValue)
+		}
+		extra += "\n" + i18n.T(lang, "ref.also_friend", inv)
+	}
+	if cfg.Percent > 0 {
+		extra += "\n" + i18n.T(lang, "ref.also_percent", cfg.Percent)
+	}
+	text := i18n.T(lang, "ref.user", bonus, when, extra, count, kopecksToRub(earned), link)
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, text, [][]models.InlineKeyboardButton{backHomeRow(lang)})
 }
 
@@ -188,11 +247,21 @@ func (a *App) showReferralAdmin(ctx context.Context, chatID int64) {
 	if !cfg.OnFirstPay {
 		when = i18n.T(lang, "refadm.when_reg")
 	}
-	text := i18n.T(lang, "refadm.title", mark(cfg.Enabled), kind, cfg.BonusValue, when)
+	inviteeDesc := i18n.T(lang, "refadm.invitee_off")
+	if cfg.InviteeValue > 0 && cfg.InviteeKind != "" {
+		ik := i18n.T(lang, "refadm.kind_balance")
+		if cfg.InviteeKind == model.ReferralBonusDays {
+			ik = i18n.T(lang, "refadm.kind_days")
+		}
+		inviteeDesc = strconv.Itoa(cfg.InviteeValue) + " (" + ik + ")"
+	}
+	text := i18n.T(lang, "refadm.title", mark(cfg.Enabled), kind, cfg.BonusValue, when, inviteeDesc, cfg.Percent)
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, text, [][]models.InlineKeyboardButton{
 		{btn(i18n.T(lang, "refadm.btn_toggle"), "ref:toggle")},
 		{btn(i18n.T(lang, "refadm.btn_kind"), "ref:kind"), btn(i18n.T(lang, "refadm.btn_value"), "ref:value")},
 		{btn(i18n.T(lang, "refadm.btn_when"), "ref:when")},
+		{btn(i18n.T(lang, "refadm.btn_invitee_kind"), "ref:ikind"), btn(i18n.T(lang, "refadm.btn_invitee_value"), "ref:ivalue")},
+		{btn(i18n.T(lang, "refadm.btn_percent"), "ref:percent")},
 		navBack(lang, "menu:marketing"),
 	})
 }
@@ -233,5 +302,27 @@ func (a *App) onReferralAdmin(ctx context.Context, chatID int64, val string) {
 	case "value":
 		a.getUI(chatID).adminInput = "ref_value"
 		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "refadm.ask_value"), "menu:refadmin")
+	case "ikind":
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.NormalizeReferral()
+			switch a.botCfg.Referral.InviteeKind {
+			case "":
+				a.botCfg.Referral.InviteeKind = model.ReferralBonusBalance
+			case model.ReferralBonusBalance:
+				a.botCfg.Referral.InviteeKind = model.ReferralBonusDays
+			default:
+				a.botCfg.Referral.InviteeKind = ""
+			}
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showReferralAdmin(ctx, chatID)
+	case "ivalue":
+		a.getUI(chatID).adminInput = "ref_invitee_value"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "refadm.ask_invitee_value"), "menu:refadmin")
+	case "percent":
+		a.getUI(chatID).adminInput = "ref_percent"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "refadm.ask_percent"), "menu:refadmin")
 	}
 }

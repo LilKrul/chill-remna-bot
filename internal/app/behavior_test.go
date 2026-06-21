@@ -394,6 +394,16 @@ func (s *fakeStore) SetRefBonusPaid(_ context.Context, id int64) error {
 	}
 	return nil
 }
+func (s *fakeStore) AddRefEarned(_ context.Context, id int64, kopecks int64) error {
+	if s.users == nil {
+		s.users = map[int64]*model.User{}
+	}
+	if s.users[id] == nil {
+		s.users[id] = &model.User{TelegramID: id}
+	}
+	s.users[id].RefEarned += kopecks
+	return nil
+}
 func (s *fakeStore) CreatePromo(_ context.Context, p *model.PromoCode) error {
 	if s.promos == nil {
 		s.promos = map[string]*model.PromoCode{}

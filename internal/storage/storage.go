@@ -64,6 +64,7 @@ type Storage interface {
 
 	SetReferredBy(ctx context.Context, telegramID, referrerID int64) error
 	SetRefBonusPaid(ctx context.Context, telegramID int64) error
+	AddRefEarned(ctx context.Context, telegramID int64, kopecks int64) error
 	CountReferrals(ctx context.Context, referrerID int64) (int, error)
 
 	CreateP2PRequest(ctx context.Context, r *model.P2PRequest) error
@@ -232,16 +233,17 @@ func (b *base) GetUser(ctx context.Context, telegramID int64) (*model.User, erro
 	var subExp, notifyKind, notifySent string
 	var balance, referredBy int64
 	var refBonusPaid, whitelisted int
+	var refEarned int64
 	err := b.db.QueryRowContext(ctx,
-		"SELECT username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted FROM users WHERE telegram_id = "+b.ph(1), telegramID).
-		Scan(&username, &firstName, &approved, &blocked, &created, &terms, &trial, &subExp, &notifyKind, &notifySent, &balance, &referredBy, &refBonusPaid, &whitelisted)
+		"SELECT username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted, ref_earned FROM users WHERE telegram_id = "+b.ph(1), telegramID).
+		Scan(&username, &firstName, &approved, &blocked, &created, &terms, &trial, &subExp, &notifyKind, &notifySent, &balance, &referredBy, &refBonusPaid, &whitelisted, &refEarned)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms.String, TrialUsedAt: trial.String, SubExpireAt: subExp, NotifyKind: notifyKind, NotifySent: notifySent, Balance: balance, ReferredBy: referredBy, RefBonusPaid: refBonusPaid != 0, Whitelisted: whitelisted != 0}, nil
+	return &model.User{TelegramID: telegramID, Username: username, FirstName: firstName, P2PApproved: approved != 0, Blocked: blocked != 0, CreatedAt: created, TermsAcceptedAt: terms.String, TrialUsedAt: trial.String, SubExpireAt: subExp, NotifyKind: notifyKind, NotifySent: notifySent, Balance: balance, ReferredBy: referredBy, RefBonusPaid: refBonusPaid != 0, Whitelisted: whitelisted != 0, RefEarned: refEarned}, nil
 }
 
 func (b *base) SetP2PApproved(ctx context.Context, telegramID int64, approved bool) error {
@@ -594,15 +596,16 @@ func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 	}
 
 	urows, err := b.db.QueryContext(ctx,
-		"SELECT telegram_id, username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted FROM users")
+		"SELECT telegram_id, username, first_name, p2p_approved, blocked, created_at, terms_accepted_at, trial_used_at, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted, ref_earned FROM users")
 	if err != nil {
 		return nil, err
 	}
 	for urows.Next() {
 		var u model.User
 		var approved, blocked, refBonusPaid, whitelisted int
+		var refEarned int64
 		var terms, trial sql.NullString
-		if err := urows.Scan(&u.TelegramID, &u.Username, &u.FirstName, &approved, &blocked, &u.CreatedAt, &terms, &trial, &u.SubExpireAt, &u.NotifyKind, &u.NotifySent, &u.Balance, &u.ReferredBy, &refBonusPaid, &whitelisted); err != nil {
+		if err := urows.Scan(&u.TelegramID, &u.Username, &u.FirstName, &approved, &blocked, &u.CreatedAt, &terms, &trial, &u.SubExpireAt, &u.NotifyKind, &u.NotifySent, &u.Balance, &u.ReferredBy, &refBonusPaid, &whitelisted, &refEarned); err != nil {
 			urows.Close()
 			return nil, err
 		}
@@ -610,6 +613,7 @@ func (b *base) Export(ctx context.Context) (*Snapshot, error) {
 		u.Blocked = blocked != 0
 		u.RefBonusPaid = refBonusPaid != 0
 		u.Whitelisted = whitelisted != 0
+		u.RefEarned = refEarned
 		u.TermsAcceptedAt = terms.String
 		u.TrialUsedAt = trial.String
 		snap.Users = append(snap.Users, u)
@@ -767,15 +771,15 @@ func (b *base) Import(ctx context.Context, s *Snapshot) error {
 
 func (b *base) importUser(ctx context.Context, u *model.User) error {
 	_, err := b.db.ExecContext(ctx,
-		"INSERT INTO users (telegram_id, p2p_approved, blocked, created_at, username, first_name, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted) "+
-			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+", "+b.ph(8)+", "+b.ph(9)+", "+b.ph(10)+", "+b.ph(11)+", "+b.ph(12)+", "+b.ph(13)+") "+
+		"INSERT INTO users (telegram_id, p2p_approved, blocked, created_at, username, first_name, sub_expire_at, notify_kind, notify_sent, balance, referred_by, ref_bonus_paid, whitelisted, ref_earned) "+
+			"VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+", "+b.ph(5)+", "+b.ph(6)+", "+b.ph(7)+", "+b.ph(8)+", "+b.ph(9)+", "+b.ph(10)+", "+b.ph(11)+", "+b.ph(12)+", "+b.ph(13)+", "+b.ph(14)+") "+
 			"ON CONFLICT (telegram_id) DO UPDATE SET "+
 			"p2p_approved = excluded.p2p_approved, blocked = excluded.blocked, "+
 			"created_at = excluded.created_at, username = excluded.username, first_name = excluded.first_name, "+
 			"sub_expire_at = excluded.sub_expire_at, notify_kind = excluded.notify_kind, notify_sent = excluded.notify_sent, "+
-			"balance = excluded.balance, referred_by = excluded.referred_by, ref_bonus_paid = excluded.ref_bonus_paid, whitelisted = excluded.whitelisted",
+			"balance = excluded.balance, referred_by = excluded.referred_by, ref_bonus_paid = excluded.ref_bonus_paid, whitelisted = excluded.whitelisted, ref_earned = excluded.ref_earned",
 		u.TelegramID, boolToInt(u.P2PApproved), boolToInt(u.Blocked), u.CreatedAt, u.Username, u.FirstName,
-		u.SubExpireAt, u.NotifyKind, u.NotifySent, u.Balance, u.ReferredBy, boolToInt(u.RefBonusPaid), boolToInt(u.Whitelisted))
+		u.SubExpireAt, u.NotifyKind, u.NotifySent, u.Balance, u.ReferredBy, boolToInt(u.RefBonusPaid), boolToInt(u.Whitelisted), u.RefEarned)
 	if err != nil {
 		return err
 	}
@@ -897,6 +901,13 @@ func (b *base) SetReferredBy(ctx context.Context, telegramID, referrerID int64) 
 	_, err := b.db.ExecContext(ctx,
 		"UPDATE users SET referred_by = "+b.ph(1)+" WHERE telegram_id = "+b.ph(2)+" AND referred_by = 0",
 		referrerID, telegramID)
+	return err
+}
+
+func (b *base) AddRefEarned(ctx context.Context, telegramID int64, kopecks int64) error {
+	_, err := b.db.ExecContext(ctx,
+		"UPDATE users SET ref_earned = ref_earned + "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
+		kopecks, telegramID)
 	return err
 }
 

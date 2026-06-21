@@ -514,6 +514,7 @@ func (a *App) finalizePurchase(ctx context.Context, telegramID int64, months int
 	}
 	a.payLog(ctx, method, extID, telegramID, "done", "подписка выдана, ссылка отправляется")
 	a.grantReferralBonus(ctx, telegramID)
+	a.creditReferralPercent(ctx, telegramID, amount)
 	if method != "balance" && method != model.PayMethodStars && method != model.PayMethodTribute {
 		a.fiscalize(parseAmountRub(amount), fmt.Sprintf("Подписка %d мес.", months))
 	}
@@ -784,6 +785,37 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		if a.botCfg != nil {
 			a.botCfg.NormalizeReferral()
 			a.botCfg.Referral.BonusValue = n
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showReferralAdmin(ctx, chatID)
+	case "ref_invitee_value":
+		ui.adminInput = ""
+		n, _ := strconv.Atoi(strings.TrimSpace(text))
+		if n < 0 {
+			n = 0
+		}
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.NormalizeReferral()
+			a.botCfg.Referral.InviteeValue = n
+		}
+		a.mu.Unlock()
+		_ = a.saveBotConfig(ctx)
+		a.showReferralAdmin(ctx, chatID)
+	case "ref_percent":
+		ui.adminInput = ""
+		n, _ := strconv.Atoi(strings.TrimSpace(text))
+		if n < 0 {
+			n = 0
+		}
+		if n > 100 {
+			n = 100
+		}
+		a.mu.Lock()
+		if a.botCfg != nil {
+			a.botCfg.NormalizeReferral()
+			a.botCfg.Referral.Percent = n
 		}
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)

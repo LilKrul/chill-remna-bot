@@ -239,6 +239,7 @@ type User struct {
 
 	ReferredBy   int64
 	RefBonusPaid bool
+	RefEarned    int64
 	Whitelisted  bool
 }
 
@@ -316,7 +317,13 @@ type ReferralConfig struct {
 	BonusKind  string `json:"bonus_kind"`
 	BonusValue int    `json:"bonus_value"`
 	OnFirstPay bool   `json:"on_first_pay"`
-	Init       bool   `json:"init"`
+	// InviteeKind/InviteeValue: a welcome bonus for the invited friend
+	// ("" = off, balance, days). Paid together with the referrer bonus (once).
+	InviteeKind  string `json:"invitee_kind"`
+	InviteeValue int    `json:"invitee_value"`
+	// Percent: share of every invitee payment credited to the referrer balance.
+	Percent int  `json:"percent"`
+	Init    bool `json:"init"`
 }
 
 func (c *BotConfig) NormalizeReferral() {
@@ -333,6 +340,18 @@ func (c *BotConfig) NormalizeReferral() {
 	}
 	if r.BonusValue < 0 {
 		r.BonusValue = 0
+	}
+	if r.InviteeKind != ReferralBonusBalance && r.InviteeKind != ReferralBonusDays {
+		r.InviteeKind = ""
+	}
+	if r.InviteeValue < 0 {
+		r.InviteeValue = 0
+	}
+	if r.Percent < 0 {
+		r.Percent = 0
+	}
+	if r.Percent > 100 {
+		r.Percent = 100
 	}
 }
 
