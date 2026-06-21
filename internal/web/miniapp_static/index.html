@@ -414,4 +414,14 @@ async function boot(){
     TOKEN=a.token;
     const [me,menu,sub,plans]=await Promise.all([
       api('/api/miniapp/me'),api('/api/miniapp/menu'),
-      api('/api/miniapp/subscription'),api('/api/miniapp
+      api('/api/miniapp/subscription'),api('/api/miniapp/plans')]);
+    STATE.balanceK=me.balance_kopecks||0; STATE.methods=menu.pay_methods||[]; STATE.menu=menu;
+    balchip.style.display='inline-flex';
+    balchip.innerHTML=IC.wallet+rub(STATE.balanceK)+' ₽';
+    render(me,menu,sub,plans);
+  }catch(e){view('<div class="card err">Не удалось загрузить: '+esc(e.message)+'</div>',null);}
+}
+boot();
+</script>
+</body>
+</html>
