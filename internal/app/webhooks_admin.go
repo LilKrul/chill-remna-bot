@@ -80,6 +80,7 @@ func (a *App) showWebhooksAdmin(ctx context.Context, chatID int64) {
 		{btn(i18n.T(lang, "wh.btn_guide"), "wh:guide")},
 		{btn(i18n.T(lang, "wh.btn_public"), "wh:public"), btn(i18n.T(lang, "wh.btn_domain"), "wh:domain")},
 		{btn(i18n.T(lang, "wh.btn_apply"), "wh:apply")},
+		{btn(i18n.T(lang, "wh.btn_port"), "wh:addr")},
 		{btn(i18n.T(lang, "wh.btn_base"), "wh:base"), btn(i18n.T(lang, "admin.wh_btn_secret"), "wh:secret")},
 		{btn(i18n.T(lang, "btn.back"), "menu:system"), btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
@@ -123,6 +124,9 @@ func (a *App) onWebhooksAdmin(ctx context.Context, chatID int64, val string) {
 	case "domain":
 		a.getUI(chatID).adminInput = "wh_domain"
 		a.askInput(ctx, chatID, i18n.T(lang, "wh.ask_domain"), "menu:webhooks")
+	case "addr":
+		a.getUI(chatID).adminInput = "wh_addr"
+		a.askInput(ctx, chatID, i18n.T(lang, "wh.ask_addr"), "menu:webhooks")
 	case "apply":
 		a.applyWebhookServer(ctx, chatID)
 	}

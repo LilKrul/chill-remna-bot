@@ -636,6 +636,11 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		a.setSubdomain(ctx, chatID, text)
 	case "wh_addr":
 		text = strings.TrimSpace(text)
+		// Accept a bare port ("18080") or a full bind addr (":18080",
+		// "0.0.0.0:18080"); normalize a bare number to ":port".
+		if text != "" && !strings.Contains(text, ":") {
+			text = ":" + text
+		}
 		a.mu.Lock()
 		if a.botCfg != nil {
 			a.botCfg.Webhook.ListenAddr = text
