@@ -284,6 +284,7 @@ var ru = map[string]string{
 	"miniapp.btn_on":        "✅ Включить",
 	"miniapp.btn_off":       "⛔ Выключить",
 	"miniapp.url":           "🔗 Адрес: %s\n\nУкажите его в @BotFather (Menu Button / Web App), чтобы у пользователей появилась кнопка запуска.",
+	"miniapp.steps":         "📋 <b>Как запустить:</b>\n1. Включите Mini App кнопкой ниже.\n2. Задайте домен/публичный URL в разделе «Вебхуки».\n3. Скопируйте адрес выше и вставьте в @BotFather → Bot Settings → Menu Button.\n4. Обновите контейнер бота до свежей сборки.",
 	"miniapp.no_url":        "⚠️ Публичный адрес не задан. Настройте домен/публичный URL в разделе «Вебхуки», тогда здесь появится ссылка на Mini App.",
 	"btn.stars":             "⭐ Telegram Stars",
 	"btn.payments":          "📒 История платежей",

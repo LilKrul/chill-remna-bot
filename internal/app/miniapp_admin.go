@@ -47,6 +47,7 @@ func (a *App) showMiniAppAdmin(ctx context.Context, chatID int64) {
 	} else {
 		text += "\n\n" + i18n.T(lang, "miniapp.no_url")
 	}
+	text += "\n\n" + i18n.T(lang, "miniapp.steps")
 
 	rows := [][]models.InlineKeyboardButton{
 		{btn(toggle, "menu:miniapptoggle")},

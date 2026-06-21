@@ -284,6 +284,7 @@ var en = map[string]string{
 	"miniapp.btn_on":        "✅ Enable",
 	"miniapp.btn_off":       "⛔ Disable",
 	"miniapp.url":           "🔗 URL: %s\n\nSet it in @BotFather (Menu Button / Web App) so users get a launch button.",
+	"miniapp.steps":         "📋 <b>How to launch:</b>\n1. Enable the Mini App with the button below.\n2. Set a domain/public URL under “Webhooks”.\n3. Copy the URL above into @BotFather → Bot Settings → Menu Button.\n4. Update the bot container to the latest build.",
 	"miniapp.no_url":        "⚠️ Public URL is not set. Configure a domain/public URL under “Webhooks”, then the Mini App link appears here.",
 	"btn.stars":             "⭐ Telegram Stars",
 	"btn.payments":          "📒 Payment history",
