@@ -39,6 +39,8 @@ type Storage interface {
 	AllUserIDs(ctx context.Context) ([]int64, error)
 
 	CreatePromo(ctx context.Context, p *model.PromoCode) error
+	CreateWebUser(ctx context.Context, u *model.WebUser) error
+	GetWebUserByEmail(ctx context.Context, email string) (*model.WebUser, error)
 	GetPromo(ctx context.Context, code string) (*model.PromoCode, error)
 	ListPromos(ctx context.Context) ([]model.PromoCode, error)
 	DeletePromo(ctx context.Context, code string) error
@@ -939,6 +941,27 @@ func (b *base) AllUserIDs(ctx context.Context) ([]int64, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+func (b *base) CreateWebUser(ctx context.Context, u *model.WebUser) error {
+	if u.CreatedAt == "" {
+		u.CreatedAt = nowStr()
+	}
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO web_users (tg_id, email, pass_hash, created_at) VALUES ("+b.ph(1)+", "+b.ph(2)+", "+b.ph(3)+", "+b.ph(4)+")",
+		u.TgID, u.Email, u.PassHash, u.CreatedAt)
+	return err
+}
+
+func (b *base) GetWebUserByEmail(ctx context.Context, email string) (*model.WebUser, error) {
+	u := &model.WebUser{}
+	err := b.db.QueryRowContext(ctx,
+		"SELECT tg_id, email, pass_hash, created_at FROM web_users WHERE email = "+b.ph(1), email).
+		Scan(&u.TgID, &u.Email, &u.PassHash, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 func (b *base) CreatePromo(ctx context.Context, p *model.PromoCode) error {

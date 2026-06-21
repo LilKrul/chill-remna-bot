@@ -88,15 +88,16 @@ func hmacSHA256(key, msg []byte) []byte {
 
 type jwtClaims struct {
 	TgID int64 `json:"tg"`
+	Web  bool  `json:"w,omitempty"`
 	Exp  int64 `json:"exp"`
 }
 
 func b64url(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
 // issueJWT signs {tg,exp} with HS256 using key.
-func issueJWT(tgID int64, key []byte, ttl time.Duration) string {
+func issueJWT(tgID int64, web bool, key []byte, ttl time.Duration) string {
 	header := b64url([]byte(`{"alg":"HS256","typ":"JWT"}`))
-	cl, _ := json.Marshal(jwtClaims{TgID: tgID, Exp: time.Now().Add(ttl).Unix()})
+	cl, _ := json.Marshal(jwtClaims{TgID: tgID, Web: web, Exp: time.Now().Add(ttl).Unix()})
 	payload := b64url(cl)
 	signing := header + "." + payload
 	sig := b64url(hmacSHA256(key, []byte(signing)))
@@ -104,28 +105,28 @@ func issueJWT(tgID int64, key []byte, ttl time.Duration) string {
 }
 
 // parseJWT verifies the signature and expiry, returning the Telegram id.
-func parseJWT(token string, key []byte) (int64, error) {
+func parseJWT(token string, key []byte) (int64, bool, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return 0, errAuth
+		return 0, false, errAuth
 	}
 	signing := parts[0] + "." + parts[1]
 	want := b64url(hmacSHA256(key, []byte(signing)))
 	if !hmac.Equal([]byte(want), []byte(parts[2])) {
-		return 0, errAuth
+		return 0, false, errAuth
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return 0, errAuth
+		return 0, false, errAuth
 	}
 	var cl jwtClaims
 	if err := json.Unmarshal(raw, &cl); err != nil || cl.TgID == 0 {
-		return 0, errAuth
+		return 0, false, errAuth
 	}
 	if time.Now().Unix() > cl.Exp {
-		return 0, errAuth
+		return 0, false, errAuth
 	}
-	return cl.TgID, nil
+	return cl.TgID, cl.Web, nil
 }
 
 // jwtKey derives the JWT signing key from the bot token, so no extra secret

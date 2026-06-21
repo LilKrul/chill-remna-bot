@@ -46,6 +46,14 @@ type MiniProvider interface {
 	// MiniConnect returns install apps + deeplinks for the user's subscription,
 	// sourced from their subscription page (iOS + Android only).
 	MiniConnect(ctx context.Context, tgID int64) MiniConnectDTO
+
+	// --- web cabinet (browser site; reuses everything above except trial) ---
+	CabinetEnabled() bool
+	CabinetPath() string
+	CabinetBotUsername() string
+	CabinetEnsureUser(ctx context.Context, tgID int64)
+	CabinetEmailRegister(ctx context.Context, email, password string) (int64, error)
+	CabinetEmailLogin(ctx context.Context, email, password string) (int64, error)
 }
 
 type MiniReferralDTO struct {
@@ -185,19 +193,19 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 // requireAuth extracts and verifies the Bearer JWT, returning the Telegram id.
-func (s *Server) miniAuth(r *http.Request) (int64, bool) {
+func (s *Server) miniAuth(r *http.Request) (id int64, web bool, ok bool) {
 	if s.mini == nil {
-		return 0, false
+		return 0, false, false
 	}
 	h := r.Header.Get("Authorization")
 	if !strings.HasPrefix(h, "Bearer ") {
-		return 0, false
+		return 0, false, false
 	}
-	id, err := parseJWT(strings.TrimPrefix(h, "Bearer "), jwtKey(s.mini.MiniBotToken()))
+	id, web, err := parseJWT(strings.TrimPrefix(h, "Bearer "), jwtKey(s.mini.MiniBotToken()))
 	if err != nil {
-		return 0, false
+		return 0, false, false
 	}
-	return id, true
+	return id, web, true
 }
 
 // handleMiniAuth exchanges Telegram init data for a short-lived JWT.
@@ -223,25 +231,25 @@ func (s *Server) handleMiniAuth(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
-	tok := issueJWT(tgID, jwtKey(s.mini.MiniBotToken()), jwtTTL)
+	tok := issueJWT(tgID, false, jwtKey(s.mini.MiniBotToken()), jwtTTL)
 	writeJSON(w, http.StatusOK, map[string]any{"token": tok, "expires_in": int(jwtTTL.Seconds())})
 }
 
-func (s *Server) miniGuard(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	if s.mini == nil || !s.mini.MiniEnabled() {
+func (s *Server) miniGuard(w http.ResponseWriter, r *http.Request) (id int64, web bool, ok bool) {
+	if s.mini == nil || (!s.mini.MiniEnabled() && !s.mini.CabinetEnabled()) {
 		http.NotFound(w, r)
-		return 0, false
+		return 0, false, false
 	}
-	id, ok := s.miniAuth(r)
+	id, web, ok = s.miniAuth(r)
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
-		return 0, false
+		return 0, false, false
 	}
-	return id, true
+	return id, web, true
 }
 
 func (s *Server) handleMiniMe(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -251,7 +259,7 @@ func (s *Server) handleMiniMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniMenu(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -261,7 +269,7 @@ func (s *Server) handleMiniMenu(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniSubscription(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -271,7 +279,7 @@ func (s *Server) handleMiniSubscription(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleMiniPlans(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -281,8 +289,12 @@ func (s *Server) handleMiniPlans(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniTrial(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, web, ok := s.miniGuard(w, r)
 	if !ok {
+		return
+	}
+	if web {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "триал недоступен в веб-кабинете"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -291,7 +303,7 @@ func (s *Server) handleMiniTrial(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniCheckout(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -314,7 +326,7 @@ func (s *Server) handleMiniCheckout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniReferral(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -324,7 +336,7 @@ func (s *Server) handleMiniReferral(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniPromo(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -346,7 +358,7 @@ func (s *Server) handleMiniPromo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniTopUpOptions(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -356,7 +368,7 @@ func (s *Server) handleMiniTopUpOptions(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleMiniTopUp(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}
@@ -379,7 +391,7 @@ func (s *Server) handleMiniTopUp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMiniConnect(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.miniGuard(w, r)
+	id, _, ok := s.miniGuard(w, r)
 	if !ok {
 		return
 	}

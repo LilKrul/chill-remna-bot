@@ -105,6 +105,7 @@ type fakeStore struct {
 	pending   map[int64]*model.PendingInvoice
 	promos    map[string]*model.PromoCode
 	promoUses map[string]bool
+	webUsers  map[string]*model.WebUser
 	paylogs   []model.PayLogEntry
 	seq       int64
 }
@@ -403,6 +404,23 @@ func (s *fakeStore) AddRefEarned(_ context.Context, id int64, kopecks int64) err
 	}
 	s.users[id].RefEarned += kopecks
 	return nil
+}
+func (s *fakeStore) CreateWebUser(_ context.Context, u *model.WebUser) error {
+	if s.webUsers == nil {
+		s.webUsers = map[string]*model.WebUser{}
+	}
+	cp := *u
+	s.webUsers[u.Email] = &cp
+	return nil
+}
+func (s *fakeStore) GetWebUserByEmail(_ context.Context, email string) (*model.WebUser, error) {
+	if s.webUsers != nil {
+		if u, ok := s.webUsers[email]; ok {
+			cp := *u
+			return &cp, nil
+		}
+	}
+	return nil, nil
 }
 func (s *fakeStore) CreatePromo(_ context.Context, p *model.PromoCode) error {
 	if s.promos == nil {

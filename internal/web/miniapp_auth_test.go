@@ -64,15 +64,19 @@ func TestValidateInitDataExpired(t *testing.T) {
 
 func TestJWTRoundTrip(t *testing.T) {
 	key := jwtKey("123:abc")
-	tok := issueJWT(777, key, time.Hour)
-	id, err := parseJWT(tok, key)
-	if err != nil || id != 777 {
-		t.Fatalf("id=%d err=%v", id, err)
+	tok := issueJWT(777, false, key, time.Hour)
+	id, web, err := parseJWT(tok, key)
+	if err != nil || id != 777 || web {
+		t.Fatalf("id=%d web=%v err=%v", id, web, err)
 	}
-	if _, err := parseJWT(tok, jwtKey("other")); err == nil {
+	wtok := issueJWT(888, true, key, time.Hour)
+	if id, web, err := parseJWT(wtok, key); err != nil || id != 888 || !web {
+		t.Fatalf("web token: id=%d web=%v err=%v", id, web, err)
+	}
+	if _, _, err := parseJWT(tok, jwtKey("other")); err == nil {
 		t.Fatal("expected failure with wrong key")
 	}
-	if _, err := parseJWT(issueJWT(1, key, -time.Minute), key); err == nil {
+	if _, _, err := parseJWT(issueJWT(1, false, key, -time.Minute), key); err == nil {
 		t.Fatal("expected failure for expired jwt")
 	}
 }

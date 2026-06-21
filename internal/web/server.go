@@ -60,6 +60,11 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("POST /api/miniapp/topup", s.handleMiniTopUp)
 	mux.HandleFunc("GET /api/miniapp/connect", s.handleMiniConnect)
 	mux.HandleFunc("GET /miniapp/", s.handleMiniStatic)
+	mux.HandleFunc("GET /api/cabinet/config", s.handleCabinetConfig)
+	mux.HandleFunc("POST /api/cabinet/auth/telegram", s.handleCabinetTelegramAuth)
+	mux.HandleFunc("POST /api/cabinet/auth/register", s.handleCabinetRegister)
+	mux.HandleFunc("POST /api/cabinet/auth/login", s.handleCabinetLogin)
+	mux.HandleFunc("GET /", s.handleCabinetStatic)
 	return mux
 }
 

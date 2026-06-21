@@ -1,6 +1,9 @@
 package model
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	DBSQLite   = "sqlite"
@@ -66,6 +69,8 @@ type BotConfig struct {
 	AddSub AddSubConfig `json:"addsub"`
 
 	MiniApp MiniAppConfig `json:"miniapp"`
+
+	Cabinet CabinetConfig `json:"cabinet"`
 }
 
 type UpdateCheckConfig struct {
@@ -408,4 +413,43 @@ func (c *BotConfig) NormalizeMiniApp() {
 		c.MiniApp.Enabled = false
 		c.MiniApp.Init = true
 	}
+}
+
+// CabinetConfig toggles the web cabinet (a browser site, not inside Telegram)
+// and the URL path it is served at. Disabled by default.
+type CabinetConfig struct {
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
+	Init    bool   `json:"init"`
+}
+
+func (c *BotConfig) NormalizeCabinet() {
+	cab := &c.Cabinet
+	if !cab.Init {
+		cab.Enabled = false
+		cab.Path = "/cabinet/"
+		cab.Init = true
+	}
+	p := strings.TrimSpace(cab.Path)
+	if p == "" {
+		p = "/cabinet/"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	if !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	cab.Path = p
+}
+
+// WebUser is an email+password account for the web cabinet. TgID is a synthetic
+// negative identity that maps the account into the bot's telegram-id-keyed
+// system (so it can buy/manage like any user); it never collides with a real
+// Telegram id (those are positive).
+type WebUser struct {
+	TgID      int64
+	Email     string
+	PassHash  string
+	CreatedAt string
 }
