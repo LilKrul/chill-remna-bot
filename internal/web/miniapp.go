@@ -82,11 +82,9 @@ type MiniSubDTO struct {
 }
 
 type MiniPlanDTO struct {
-	Months    int    `json:"months"`
-	Price     string `json:"price"`
-	Currency  string `json:"currency"`
-	TrafficGB int    `json:"traffic_gb"`
-	Devices   int    `json:"devices"`
+	Months   int    `json:"months"`
+	Price    string `json:"price"`
+	Currency string `json:"currency"`
 }
 
 type MiniPlansDTO struct {

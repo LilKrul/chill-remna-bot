@@ -99,8 +99,8 @@ func (a *App) MiniSubscription(ctx context.Context, tgID int64) web.MiniSubDTO {
 	return dto
 }
 
-// MiniPlans mirrors the storefront periods (model.PlanMonths) with base prices
-// and included limits from model.Pricing.
+// MiniPlans mirrors the chat storefront (showPlans): period + base price
+// only — the bot does not show traffic/device details in the plan list.
 func (a *App) MiniPlans(ctx context.Context, tgID int64) web.MiniPlansDTO {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -115,11 +115,9 @@ func (a *App) MiniPlans(ctx context.Context, tgID int64) web.MiniPlansDTO {
 			continue
 		}
 		dto.Plans = append(dto.Plans, web.MiniPlanDTO{
-			Months:    m,
-			Price:     price,
-			Currency:  p.Currency,
-			TrafficGB: p.Traffic[m],
-			Devices:   p.DeviceLimitFor(m),
+			Months:   m,
+			Price:    price,
+			Currency: p.Currency,
 		})
 	}
 	return dto

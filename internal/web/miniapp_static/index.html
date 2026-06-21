@@ -79,9 +79,7 @@ function render(me,menu,sub,plans){
     h+='<h3>Тарифы</h3>';
     plans.plans.forEach((p,i)=>{
       const best=i===Math.min(2,plans.plans.length-1);
-      h+='<div class="tcard'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+esc(p.price)+' '+esc(p.currency)+'\')"><div><b>'+p.months+' мес.</b>';
-      if(p.traffic_gb)h+='<div class="hint">'+p.traffic_gb+' ГБ'+(p.devices?' · '+p.devices+' устр.':'')+'</div>';
-      h+='</div><div class="price">'+esc(p.price)+' '+esc(p.currency)+'</div></div>';
+      h+='<div class="tcard'+(best?' best':'')+'" onclick="buyPlan('+p.months+',\''+esc(p.price)+' '+esc(p.currency)+'\')"><div><b>'+p.months+' мес.</b></div><div class="price">'+esc(p.price)+' '+esc(p.currency)+'</div></div>';
     });
   }
   if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">Поддержка</button>';
