@@ -98,14 +98,34 @@ async function doTrial(el){
     else{alert(r.error||'Не удалось активировать триал');busy(el,false);}
   }catch(e){alert('Ошибка: '+e.message);busy(el,false);}
 }
-async function buyPlan(months,label){
-  var hasBal=STATE.methods.indexOf('balance')>=0 || STATE.balanceK>0;
-  if(!hasBal){alert('Оплата этого тарифа — через бота. Откройте бота и выберите способ оплаты.');return;}
-  if(!confirm('Оплатить '+months+' мес. ('+label+') с баланса?'))return;
-  try{const r=await post('/api/miniapp/checkout',{months:months,method:'balance'});
-    if(r.ok){if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success');boot();}
-    else if(r.redirect){alert('Этот способ оплаты пока доступен в боте.');}
-    else{alert(r.error||'Не удалось оплатить');}
+var METHOD_LABELS={balance:'👛 С баланса',stars:'⭐ Telegram Stars',yookassa:'💳 Банковская карта',cryptobot:'🪙 Криптовалюта',platega:'💳 Platega',tribute:'💳 Tribute'};
+function buyPlan(months,label){
+  var methods=[];
+  if(STATE.balanceK>0)methods.push('balance');
+  (STATE.methods||[]).forEach(function(m){if(m!=='balance')methods.push(m);});
+  if(!methods.length){alert('Оплата временно недоступна. Попробуйте через бота.');return;}
+  var h='<div class="card"><div class="big">'+months+' мес.</div><div class="hint">'+esc(label)+'</div></div><h3>Способ оплаты</h3>';
+  methods.forEach(function(m){
+    h+='<button class="btn sec" onclick="pay('+months+',\''+m+'\')">'+(METHOD_LABELS[m]||m)+'</button>';
+  });
+  h+='<button class="btn sec" style="margin-top:14px" onclick="boot()">← Назад</button>';
+  app.innerHTML=h;
+}
+async function pay(months,method){
+  try{const r=await post('/api/miniapp/checkout',{months:months,method:method});
+    if(r.ok&&r.sub_url){ // balance: provisioned immediately
+      if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success');boot();return;
+    }
+    if(r.ok&&r.pay_url){
+      if(r.invoice&&tg&&tg.openInvoice){
+        tg.openInvoice(r.pay_url,function(st){if(st==='paid')boot();});
+      }else{openL(r.pay_url);
+        alert('Откройте оплату во вкладке. После оплаты вернитесь и обновите экран.');
+      }
+      return;
+    }
+    if(r.redirect){alert('Этот способ оплаты доступен в боте.');return;}
+    alert(r.error||'Не удалось оплатить');
   }catch(e){alert('Ошибка: '+e.message);}
 }
 async function boot(){

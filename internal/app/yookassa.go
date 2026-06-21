@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -59,21 +60,14 @@ func (a *App) startYooKassa(ctx context.Context, chatID int64) {
 		currency = "RUB"
 	}
 	desc := i18n.T(lang, "yk.invoice_desc", months)
-	pay, err := client.CreatePayment(ctx, value, currency, desc, returnURL, chatID, months)
+	payURL, extID, err := a.ykCreatePayment(ctx, chatID, months, value, currency, returnURL, desc)
 	if err != nil {
-		a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.sendHome(ctx, chatID, i18n.T(lang, "yk.fail", err.Error()))
 		return
 	}
-	a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "purchase months=%d amount=%s %s", months, value, currency)
-	if a.store != nil {
-		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
-			Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Months: months,
-		})
-	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "yk.pay_prompt", months, value+curSuffix(pr.Currency)), [][]models.InlineKeyboardButton{
-		{{Text: i18n.T(lang, "yk.btn_pay"), URL: pay.Confirmation.ConfirmationURL}},
-		{btn(i18n.T(lang, "yk.btn_check"), "ykc:"+pay.ID)},
+		{{Text: i18n.T(lang, "yk.btn_pay"), URL: payURL}},
+		{btn(i18n.T(lang, "yk.btn_check"), "ykc:"+extID)},
 		{btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
@@ -190,4 +184,27 @@ func (a *App) onYKAdmin(ctx context.Context, chatID int64, val string) {
 		ui.priceMonths = mo
 		a.askInput(ctx, chatID, i18n.T(lang, "admin.yk_ask_price", mo), "menu:yookassa")
 	}
+}
+
+// ykCreatePayment creates a YooKassa payment + pending invoice and returns the
+// confirmation URL. Shared by the chat flow and the Mini App so the pending
+// ExtID/format stay identical.
+func (a *App) ykCreatePayment(ctx context.Context, chatID int64, months int, value, currency, returnURL, desc string) (payURL, extID string, err error) {
+	client := a.ykClient()
+	if client == nil {
+		return "", "", fmt.Errorf("yookassa не настроена")
+	}
+	if a.store != nil {
+		_ = a.store.UpsertUser(ctx, chatID)
+	}
+	pay, err := client.CreatePayment(ctx, value, currency, desc, returnURL, chatID, months)
+	if err != nil {
+		a.payLog(ctx, model.PayMethodYooKassa, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
+		return "", "", err
+	}
+	a.payLog(ctx, model.PayMethodYooKassa, pay.ID, chatID, "invoice_created", "purchase months=%d amount=%s %s", months, value, currency)
+	if a.store != nil {
+		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{Method: model.PayMethodYooKassa, ExtID: pay.ID, TelegramID: chatID, Months: months})
+	}
+	return pay.Confirmation.ConfirmationURL, pay.ID, nil
 }

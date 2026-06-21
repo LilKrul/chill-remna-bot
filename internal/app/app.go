@@ -43,6 +43,7 @@ type messenger interface {
 	EditCaption(ctx context.Context, chatID int64, msgID int, caption string, rows [][]models.InlineKeyboardButton) bool
 
 	SendInvoice(ctx context.Context, chatID int64, title, description, payload, currency string, amount int)
+	CreateInvoiceLink(ctx context.Context, title, description, payload, currency string, amount int) (string, error)
 	AnswerPreCheckout(ctx context.Context, id string, ok bool, errMsg string)
 
 	SendDocument(ctx context.Context, chatID int64, filename string, data []byte, caption string)
@@ -1031,6 +1032,16 @@ func (m botMessenger) SendInvoice(ctx context.Context, chatID int64, title, desc
 	}); err != nil {
 		m.log.Error("send invoice", "err", err)
 	}
+}
+
+func (m botMessenger) CreateInvoiceLink(ctx context.Context, title, description, payload, currency string, amount int) (string, error) {
+	return m.b.CreateInvoiceLink(ctx, &bot.CreateInvoiceLinkParams{
+		Title:       title,
+		Description: description,
+		Payload:     payload,
+		Currency:    currency,
+		Prices:      []models.LabeledPrice{{Label: title, Amount: amount}},
+	})
 }
 
 func (m botMessenger) SendPhotoCacheable(ctx context.Context, chatID int64, cachedFileID string, embedBytes []byte, urlFallback, caption string, rows [][]models.InlineKeyboardButton) (int, string) {

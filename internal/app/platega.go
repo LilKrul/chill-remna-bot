@@ -85,21 +85,14 @@ func (a *App) startPlatega(ctx context.Context, chatID int64) {
 	}
 	amount := parseAmountRub(value)
 	desc := i18n.T(lang, "pl.invoice_desc", months)
-	tx, err := client.CreateTransaction(ctx, a.plMethod(), amount, "RUB", desc, returnURL, plPayload(chatID, months))
+	redirect, txID, err := a.plCreateTransaction(ctx, chatID, months, amount, desc, returnURL)
 	if err != nil {
-		a.payLog(ctx, model.PayMethodPlatega, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.sendHome(ctx, chatID, i18n.T(lang, "pl.fail", err.Error()))
 		return
 	}
-	a.payLog(ctx, model.PayMethodPlatega, tx.ID, chatID, "invoice_created", "purchase months=%d amount=%.2f RUB method=%d", months, amount, a.plMethod())
-	if a.store != nil {
-		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
-			Method: model.PayMethodPlatega, ExtID: tx.ID, TelegramID: chatID, Months: months,
-		})
-	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "pl.pay_prompt", months, value+curSuffix(curRUB)), [][]models.InlineKeyboardButton{
-		{{Text: i18n.T(lang, "pl.btn_pay"), URL: tx.Redirect}},
-		{btn(i18n.T(lang, "pl.btn_check"), "plc:"+tx.ID)},
+		{{Text: i18n.T(lang, "pl.btn_pay"), URL: redirect}},
+		{btn(i18n.T(lang, "pl.btn_check"), "plc:"+txID)},
 		{btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
@@ -246,4 +239,26 @@ func (a *App) setPlategaField(ctx context.Context, chatID int64, field, text str
 	a.mu.Unlock()
 	_ = a.saveBotConfig(ctx)
 	a.showPlategaAdmin(ctx, chatID)
+}
+
+// plCreateTransaction creates a Platega transaction + pending record and
+// returns the redirect URL. Shared by chat flow and Mini App.
+func (a *App) plCreateTransaction(ctx context.Context, chatID int64, months int, amount float64, desc, returnURL string) (redirect, txID string, err error) {
+	client := a.plClient()
+	if client == nil {
+		return "", "", fmt.Errorf("platega не настроена")
+	}
+	if a.store != nil {
+		_ = a.store.UpsertUser(ctx, chatID)
+	}
+	tx, err := client.CreateTransaction(ctx, a.plMethod(), amount, "RUB", desc, returnURL, plPayload(chatID, months))
+	if err != nil {
+		a.payLog(ctx, model.PayMethodPlatega, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
+		return "", "", err
+	}
+	a.payLog(ctx, model.PayMethodPlatega, tx.ID, chatID, "invoice_created", "purchase months=%d amount=%.2f RUB method=%d", months, amount, a.plMethod())
+	if a.store != nil {
+		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{Method: model.PayMethodPlatega, ExtID: tx.ID, TelegramID: chatID, Months: months})
+	}
+	return tx.Redirect, tx.ID, nil
 }

@@ -70,26 +70,14 @@ func (a *App) startCryptoBot(ctx context.Context, chatID int64) {
 	if a.store != nil {
 		_ = a.store.UpsertUser(ctx, chatID)
 	}
-	inv, err := client.CreateInvoice(ctx, price, cfg.Asset, chatID, months)
+	payURL, invoiceID, err := a.cbCreateInvoice(ctx, chatID, months, price)
 	if err != nil {
-		a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
 		a.sendHome(ctx, chatID, i18n.T(lang, "cb.fail", err.Error()))
 		return
 	}
-	a.payLog(ctx, model.PayMethodCryptoBot, "cb:"+strconv.FormatInt(inv.InvoiceID, 10), chatID, "invoice_created", "purchase months=%d price=%s RUB assets=%s", months, price, cfg.Asset)
-	if a.store != nil {
-		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{
-			Method: model.PayMethodCryptoBot, ExtID: "cb:" + strconv.FormatInt(inv.InvoiceID, 10),
-			TelegramID: chatID, Months: months,
-		})
-	}
-	payURL := inv.MiniAppInvoiceURL
-	if payURL == "" {
-		payURL = inv.BotInvoiceURL
-	}
 	a.sendKB(ctx, chatID, i18n.T(lang, "cb.pay_prompt", months, price+curSuffix(curRUB)), [][]models.InlineKeyboardButton{
 		{{Text: i18n.T(lang, "cb.btn_pay"), URL: payURL}},
-		{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+strconv.FormatInt(inv.InvoiceID, 10)+":"+strconv.Itoa(months))},
+		{btn(i18n.T(lang, "cb.btn_check"), "cbc:"+strconv.FormatInt(invoiceID, 10)+":"+strconv.Itoa(months))},
 		{btn(i18n.T(lang, "btn.home"), "menu:home")},
 	})
 }
@@ -206,4 +194,31 @@ func (a *App) onCBAdmin(ctx context.Context, chatID int64, val string) {
 		a.getUI(chatID).adminInput = "cb_asset"
 		a.askInput(ctx, chatID, i18n.T(lang, "admin.cb_ask_asset"), "menu:cryptobot")
 	}
+}
+
+// cbCreateInvoice creates a CryptoBot invoice + pending record and returns the
+// pay URL and invoice id. Shared by chat flow and Mini App.
+func (a *App) cbCreateInvoice(ctx context.Context, chatID int64, months int, price string) (string, int64, error) {
+	client := a.cbClient()
+	if client == nil {
+		return "", 0, errors.New("cryptobot не настроен")
+	}
+	cfg := a.cbConfig()
+	if a.store != nil {
+		_ = a.store.UpsertUser(ctx, chatID)
+	}
+	inv, err := client.CreateInvoice(ctx, price, cfg.Asset, chatID, months)
+	if err != nil {
+		a.payLog(ctx, model.PayMethodCryptoBot, "", chatID, "invoice_error", "purchase months=%d: %v", months, err)
+		return "", 0, err
+	}
+	a.payLog(ctx, model.PayMethodCryptoBot, "cb:"+strconv.FormatInt(inv.InvoiceID, 10), chatID, "invoice_created", "purchase months=%d price=%s RUB assets=%s", months, price, cfg.Asset)
+	if a.store != nil {
+		_ = a.store.AddPendingInvoice(ctx, &model.PendingInvoice{Method: model.PayMethodCryptoBot, ExtID: "cb:" + strconv.FormatInt(inv.InvoiceID, 10), TelegramID: chatID, Months: months})
+	}
+	payURL := inv.MiniAppInvoiceURL
+	if payURL == "" {
+		payURL = inv.BotInvoiceURL
+	}
+	return payURL, inv.InvoiceID, nil
 }

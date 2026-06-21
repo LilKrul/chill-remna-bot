@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -147,4 +148,28 @@ func (a *App) formatStarPrices() string {
 		return "—"
 	}
 	return strings.Join(parts, " ")
+}
+
+// starsInvoiceLink builds a Telegram Stars invoice LINK (for Mini App
+// openInvoice). Uses the same payload as the chat invoice so the
+// pre-checkout/successful-payment handlers treat them identically.
+var errStarsUnavailable = errors.New("оплата звёздами недоступна")
+
+func (a *App) starsInvoiceLink(ctx context.Context, chatID int64, months int) (string, error) {
+	amount := a.pricing().StarPrice(months)
+	if !a.starsConfig().Enabled || amount <= 0 {
+		return "", errStarsUnavailable
+	}
+	if a.store != nil {
+		_ = a.store.UpsertUser(ctx, chatID)
+	}
+	lang := a.lang(chatID)
+	title := i18n.T(lang, "stars.invoice_title", months)
+	desc := i18n.T(lang, "stars.invoice_desc", months)
+	link, err := a.msg.CreateInvoiceLink(ctx, title, desc, "stars:"+strconv.Itoa(months), "XTR", amount)
+	if err != nil {
+		return "", err
+	}
+	a.payLog(ctx, model.PayMethodStars, "", chatID, "invoice_link", "purchase months=%d stars=%d", months, amount)
+	return link, nil
 }

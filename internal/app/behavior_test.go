@@ -63,6 +63,9 @@ func (f *fakeMsg) SendInvoice(_ context.Context, _ int64, title, _, payload, cur
 	f.invoices = append(f.invoices, currency+":"+strconv.Itoa(amount)+":"+payload)
 	f.mu.Unlock()
 }
+func (f *fakeMsg) CreateInvoiceLink(_ context.Context, _, _, payload, currency string, amount int) (string, error) {
+	return "https://t.me/$invoice_" + currency + "_" + strconv.Itoa(amount) + "_" + payload, nil
+}
 func (f *fakeMsg) AnswerPreCheckout(_ context.Context, _ string, _ bool, _ string) {}
 func (f *fakeMsg) SendDocument(_ context.Context, _ int64, filename string, _ []byte, _ string) {
 	f.add("DOC:" + filename)

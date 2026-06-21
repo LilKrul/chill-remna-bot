@@ -46,6 +46,10 @@ type MiniActionDTO struct {
 	ExpireAt string `json:"expire_at,omitempty"`
 	Error    string `json:"error,omitempty"`
 	Redirect bool   `json:"redirect,omitempty"`
+	// PayURL is set for external methods: a payment page/redirect URL, or a
+	// Telegram invoice link when Invoice=true (front opens it via openInvoice).
+	PayURL  string `json:"pay_url,omitempty"`
+	Invoice bool   `json:"invoice,omitempty"`
 }
 
 type MiniMeDTO struct {

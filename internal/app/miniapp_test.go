@@ -15,10 +15,20 @@ func TestMiniCheckoutInvalidMonths(t *testing.T) {
 	}
 }
 
-func TestMiniCheckoutNonBalanceRedirects(t *testing.T) {
+func TestMiniCheckoutUnknownMethod(t *testing.T) {
 	a := &App{}
+	r := a.MiniCheckout(context.Background(), 1, 1, "nope")
+	if r.OK || r.Error == "" {
+		t.Fatalf("expected error for unknown method, got %+v", r)
+	}
+}
+
+func TestMiniCheckoutUnconfiguredExternal(t *testing.T) {
+	a := &App{}
+	// External method with no panel/config configured must fail cleanly
+	// (not OK, not a redirect) rather than pretend success.
 	r := a.MiniCheckout(context.Background(), 1, 1, "yookassa")
-	if r.OK || !r.Redirect {
-		t.Fatalf("expected redirect for non-balance method, got %+v", r)
+	if r.OK || r.Error == "" {
+		t.Fatalf("expected error for unconfigured yookassa, got %+v", r)
 	}
 }

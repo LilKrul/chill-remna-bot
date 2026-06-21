@@ -153,7 +153,11 @@ func (a *App) MiniCheckout(ctx context.Context, tgID int64, months int, method s
 		return web.MiniActionDTO{Error: "неверный период"}
 	}
 	if method != model.PayMethodBalance {
-		return web.MiniActionDTO{Redirect: true, Error: "этот способ оплаты пока доступен в боте"}
+		payURL, invoice, err := a.miniPayURL(ctx, tgID, months, method)
+		if err != nil {
+			return web.MiniActionDTO{Error: err.Error()}
+		}
+		return web.MiniActionDTO{OK: true, PayURL: payURL, Invoice: invoice}
 	}
 
 	priceStr := a.pricing().Base[months]
