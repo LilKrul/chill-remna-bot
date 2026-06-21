@@ -248,7 +248,7 @@ func (a *App) showReferralAdmin(ctx context.Context, chatID int64) {
 		when = i18n.T(lang, "refadm.when_reg")
 	}
 	inviteeDesc := i18n.T(lang, "refadm.invitee_off")
-	if cfg.InviteeValue > 0 && cfg.InviteeKind != "" {
+	if cfg.InviteeKind != "" {
 		ik := i18n.T(lang, "refadm.kind_balance")
 		if cfg.InviteeKind == model.ReferralBonusDays {
 			ik = i18n.T(lang, "refadm.kind_days")

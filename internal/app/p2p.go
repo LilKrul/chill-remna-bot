@@ -799,6 +799,9 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		if a.botCfg != nil {
 			a.botCfg.NormalizeReferral()
 			a.botCfg.Referral.InviteeValue = n
+			if n > 0 && a.botCfg.Referral.InviteeKind == "" {
+				a.botCfg.Referral.InviteeKind = model.ReferralBonusBalance
+			}
 		}
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
