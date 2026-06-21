@@ -145,6 +145,20 @@ func (a *App) applyWebhookServer(ctx context.Context, chatID int64) {
 		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_unavailable"))
 		return
 	}
+	// Pre-flight: if host ports 80/443 are already taken (FastPanel/nginx, the
+	// panel proxy, etc.), publishing them would fail to bind and crash-loop the
+	// bot. Refuse here and steer the admin to option A (behind the proxy).
+	if busy, err := a.ctl.WebhookPortsBusy(ctx); err == nil && len(busy) > 0 {
+		ports := ""
+		for i, p := range busy {
+			if i > 0 {
+				ports += ", "
+			}
+			ports += strconv.Itoa(p)
+		}
+		a.sendHome(ctx, chatID, i18n.T(lang, "wh.apply_ports_busy", ports))
+		return
+	}
 	msgID := a.msg.SendKB(ctx, chatID, a.applyPremium(i18n.T(lang, "wh.applying")), nil)
 	marker := filepath.Join(a.cfg.DataDir, "webhook.pending")
 	_ = os.WriteFile(marker, []byte(strconv.FormatInt(chatID, 10)+":"+strconv.Itoa(msgID)), 0o600)

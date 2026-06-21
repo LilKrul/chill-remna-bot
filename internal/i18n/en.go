@@ -574,6 +574,7 @@ var en = map[string]string{
 	"wh.ask_domain":             "Send a domain/subdomain with an A-record pointing to this server (e.g. bot.example.com):",
 	"wh.apply_need_domain":      "First enable “Public HTTPS” and set a domain.",
 	"wh.apply_unavailable":      "Docker self-management unavailable (no docker.sock/compose). Open ports 80/443 manually.",
+	"wh.apply_ports_busy":       "⛔ Ports %s are already in use on the server (FastPanel/nginx or the panel proxy). Do NOT enable built-in HTTPS — the container can't bind those ports and would crash.\n\nUse option A “Behind the panel proxy” (the “📋 Guide” button) — the right path when the ports are taken. The bot was NOT restarted; everything keeps working.",
 	"wh.applying":               "🚀 Opening ports 80/443 and restarting the bot… ~10–20s, then the cert is fetched on first request.",
 	"wh.apply_fail":             "❌ Failed to apply: %s",
 	"wh.applied":                "✅ Public HTTPS enabled, bot restarted. The certificate is fetched on the first request.",

@@ -237,6 +237,32 @@ func (c *Controller) SetImageChannel(tag string) error {
 	return os.WriteFile(c.composeFile, out, 0o644)
 }
 
+// WebhookPortsBusy probes whether host ports 80/443 are already in use (e.g. by
+// FastPanel/nginx or the panel proxy). It runs a throwaway container in the
+// HOST network namespace and inspects /proc/net/tcp{,6} for LISTEN sockets, so
+// it needs no extra tools and no privileges beyond docker. Returns the busy
+// ports (subset of 80,443). Used to refuse built-in HTTPS before recreating the
+// bot container, which would otherwise fail to bind and crash-loop the bot.
+func (c *Controller) WebhookPortsBusy(ctx context.Context) ([]int, error) {
+	script := `awk '{print $2, $4}' /proc/net/tcp /proc/net/tcp6 2>/dev/null | while read la st; do ` +
+		`p=${la##*:}; [ "$st" = "0A" ] && { [ "$p" = "0050" ] && echo 80; [ "$p" = "01BB" ] && echo 443; }; done | sort -u`
+	args := []string{"run", "--rm", "--network", "host", "busybox", "sh", "-c", script}
+	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("проверка портов: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	var busy []int
+	for _, ln := range strings.Fields(string(out)) {
+		switch ln {
+		case "80":
+			busy = append(busy, 80)
+		case "443":
+			busy = append(busy, 443)
+		}
+	}
+	return busy, nil
+}
+
 func (c *Controller) PublishWebhookPorts(ctx context.Context) error {
 	if err := c.addWebhookPortsToCompose(); err != nil {
 		return fmt.Errorf("правка compose: %w", err)
