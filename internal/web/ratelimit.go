@@ -90,6 +90,7 @@ func (s *Server) setSecurityHeaders(w http.ResponseWriter, frameDeny bool) {
 	h := w.Header()
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet")
 	if frameDeny {
 		h.Set("X-Frame-Options", "DENY")
 	}

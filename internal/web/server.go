@@ -42,6 +42,7 @@ func (s *Server) SetMiniApp(p MiniProvider) { s.mini = p }
 func (s *Server) mux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	mux.HandleFunc("GET /robots.txt", s.handleRobots)
 	mux.HandleFunc("POST /webhook/yookassa", s.handleYooKassa)
 	mux.HandleFunc("POST /webhook/cryptobot", s.handleCryptoBot)
 	mux.HandleFunc("POST /webhook/remnawave", s.handleRemnawave)

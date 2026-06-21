@@ -66,6 +66,14 @@ func validateTelegramLogin(fields map[string]string, botToken string, ttl time.D
 	return id, nil
 }
 
+// handleRobots blocks search engines/crawlers across the whole bot domain
+// (webhooks, mini-app, cabinet) — none of it should be indexable.
+func (s *Server) handleRobots(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+	_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
+}
+
 func (s *Server) cabinetOK() bool { return s.mini != nil && s.mini.CabinetEnabled() }
 
 // requireHTTPS makes sure the cabinet is never served over plain HTTP. Static
