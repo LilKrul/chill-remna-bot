@@ -138,6 +138,7 @@ func (a *App) loadConfigIfStore(ctx context.Context) error {
 		cfg.NormalizeReferral()
 		cfg.NormalizeUpdateCheck()
 		cfg.NormalizeAddSub()
+		cfg.NormalizeMiniApp()
 		a.botCfg = cfg
 		a.panel = remnawave.New(cfg.Panel)
 		if cfg.Panel.Mode == model.ModeLocal && a.ctl != nil && a.ctl.Available() {

@@ -30,7 +30,13 @@ type Server struct {
 	srv      *http.Server
 	domain   string
 	cacheDir string
+	mini     MiniProvider
 }
+
+// SetMiniApp wires the Mini App data provider. Routes read it live, so it may
+// be set after construction (before Run). When nil or disabled, /api/miniapp/*
+// and the static app return 404.
+func (s *Server) SetMiniApp(p MiniProvider) { s.mini = p }
 
 func (s *Server) mux() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -40,6 +46,13 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("POST /webhook/remnawave", s.handleRemnawave)
 	mux.HandleFunc("POST /webhook/platega", s.handlePlatega)
 	mux.HandleFunc("POST /webhook/tribute", s.handleTribute)
+
+	mux.HandleFunc("POST /api/miniapp/auth", s.handleMiniAuth)
+	mux.HandleFunc("GET /api/miniapp/me", s.handleMiniMe)
+	mux.HandleFunc("GET /api/miniapp/menu", s.handleMiniMenu)
+	mux.HandleFunc("GET /api/miniapp/subscription", s.handleMiniSubscription)
+	mux.HandleFunc("GET /api/miniapp/plans", s.handleMiniPlans)
+	mux.HandleFunc("GET /miniapp/", s.handleMiniStatic)
 	return mux
 }
 

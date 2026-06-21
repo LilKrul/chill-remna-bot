@@ -328,6 +328,7 @@ func (a *App) showSystem(ctx context.Context, chatID int64) {
 		{btn(updLabel, "upd:toggle"), btn(i18n.T(lang, "btn.channel")+": "+a.channelName(lang), "upd:chan")},
 		{btn(i18n.T(lang, "btn.status"), "menu:status"), btn(i18n.T(lang, "btn.apilog"), "menu:apilog")},
 		{btn(i18n.T(lang, "btn.webhooks"), "menu:webhooks"), btn(i18n.T(lang, "btn.subdomain"), "menu:subdomain")},
+		{btn(i18n.T(lang, "btn.miniapp"), "menu:miniapp")},
 		{btn(i18n.T(lang, "btn.reconfig"), "menu:reconf")},
 		homeRow(lang),
 	})
@@ -618,6 +619,14 @@ func (a *App) onMenu(ctx context.Context, chatID int64, val string, isAdmin bool
 	case "system":
 		if isAdmin {
 			a.showSystem(ctx, chatID)
+		}
+	case "miniapp":
+		if isAdmin {
+			a.showMiniAppAdmin(ctx, chatID)
+		}
+	case "miniapptoggle":
+		if isAdmin {
+			a.toggleMiniApp(ctx, chatID)
 		}
 	case "reconf":
 		if isAdmin {

@@ -54,6 +54,7 @@ func main() {
 	} else {
 		webSrv = web.New(addr, a, log)
 	}
+	webSrv.SetMiniApp(a)
 
 	var wg sync.WaitGroup
 	wg.Add(5)

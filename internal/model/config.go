@@ -64,6 +64,8 @@ type BotConfig struct {
 	UpdateCheck UpdateCheckConfig `json:"update_check"`
 
 	AddSub AddSubConfig `json:"addsub"`
+
+	MiniApp MiniAppConfig `json:"miniapp"`
 }
 
 type UpdateCheckConfig struct {
@@ -372,4 +374,18 @@ type TributeConfig struct {
 	Enabled bool   `json:"enabled"`
 	APIKey  string `json:"api_key"`
 	PayURL  string `json:"pay_url"`
+}
+
+// MiniAppConfig toggles the Telegram Mini App / web cabinet. Disabled by
+// default; when off, the /api/miniapp/* routes and static app are not served.
+type MiniAppConfig struct {
+	Enabled bool `json:"enabled"`
+	Init    bool `json:"init"`
+}
+
+func (c *BotConfig) NormalizeMiniApp() {
+	if !c.MiniApp.Init {
+		c.MiniApp.Enabled = false
+		c.MiniApp.Init = true
+	}
 }

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Кабинет</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --color-bg:var(--tg-theme-bg-color,#17212b);
+  --color-surface:var(--tg-theme-section-bg-color,#1d2733);
+  --color-text:var(--tg-theme-text-color,#fff);
+  --color-hint:var(--tg-theme-hint-color,#7d8b99);
+  --color-accent:var(--tg-theme-button-color,#3390ec);
+  --color-accent-text:var(--tg-theme-button-text-color,#fff);
+  --color-line:color-mix(in srgb,var(--color-text) 14%,transparent);
+  --radius:14px; --space:14px; --safe:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--color-bg);
+  color:var(--color-text);padding:var(--space);padding-bottom:calc(var(--space) + var(--safe))}
+.card{background:var(--color-surface);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.hint{color:var(--color-hint);font-size:13px}
+.big{font-size:24px;font-weight:700;margin:2px 0}
+.row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+  background:color-mix(in srgb,var(--color-accent) 18%,transparent);color:var(--color-accent)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;color:var(--color-accent)}
+.btn{display:block;width:100%;border:0;border-radius:12px;background:var(--color-accent);
+  color:var(--color-accent-text);font-weight:600;font-size:15px;padding:13px;margin-top:8px;cursor:pointer}
+.btn.sec{background:color-mix(in srgb,var(--color-text) 8%,transparent);color:var(--color-text)}
+.tcard{border:1.5px solid var(--color-line);border-radius:12px;padding:13px;margin-bottom:10px;
+  display:flex;justify-content:space-between;align-items:center}
+.tcard.best{border-color:var(--color-accent)}
+.price{font-size:18px;font-weight:700}
+.skel{height:96px;border-radius:var(--radius);background:color-mix(in srgb,var(--color-text) 8%,transparent);
+  margin-bottom:12px;animation:p 1.2s ease-in-out infinite}
+@keyframes p{50%{opacity:.5}}
+h3{font-size:13px;color:var(--color-hint);text-transform:uppercase;letter-spacing:.5px;margin:6px 2px 10px}
+.err{color:#e5534b;font-size:14px}
+</style>
+</head>
+<body>
+<div id="app"><div class="skel"></div><div class="skel"></div></div>
+<script>
+const tg=window.Telegram&&window.Telegram.WebApp;
+if(tg){tg.ready();tg.expand();}
+const app=document.getElementById('app');
+let TOKEN=null;
+function esc(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+async function api(path,opts={}){
+  const h=Object.assign({'Content-Type':'application/json'},opts.headers||{});
+  if(TOKEN)h['Authorization']='Bearer '+TOKEN;
+  const r=await fetch(path,Object.assign({},opts,{headers:h}));
+  if(!r.ok)throw new Error('http '+r.status);
+  return r.json();
+}
+function devicesText(s){
+  if(!s.devices_ok)return null;
+  return s.has_limit? (s.devices_used+' / '+s.device_limit) : (''+s.devices_used);
+}
+function render(me,menu,sub,plans){
+  let h='';
+  if(sub.active){
+    h+='<div class="card"><div class="hint">Подписка</div><div class="big">Активна</div>';
+    if(sub.expire_at)h+='<span class="pill">до '+esc(sub.expire_at)+'</span>';
+    const d=devicesText(sub);
+    if(d!==null)h+='<div class="row"><span class="hint">📱 Устройства</span><b>'+esc(d)+'</b></div>';
+    if(sub.sub_url)h+='<div class="row" style="display:block"><div class="hint" style="margin-bottom:4px">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div>';
+    h+='</div>';
+    if(sub.sub_url)h+='<button class="btn" onclick="copy(\''+esc(sub.sub_url)+'\')">Скопировать ссылку</button>';
+    if(menu.can_renew)h+='<button class="btn sec" onclick="alert(\'Продление будет на след. этапе\')">Продлить</button>';
+  }else{
+    h+='<div class="card"><div class="big">Подписка не активна</div><div class="hint">Выберите тариф ниже.</div></div>';
+    if(menu.trial_available)h+='<button class="btn sec" onclick="alert(\'Триал — на след. этапе\')">Попробовать бесплатно</button>';
+  }
+  if(plans.plans&&plans.plans.length){
+    h+='<h3>Тарифы</h3>';
+    plans.plans.forEach((p,i)=>{
+      const best=i===Math.min(2,plans.plans.length-1);
+      h+='<div class="tcard'+(best?' best':'')+'"><div><b>'+p.months+' мес.</b>';
+      if(p.traffic_gb)h+='<div class="hint">'+p.traffic_gb+' ГБ'+(p.devices?' · '+p.devices+' устр.':'')+'</div>';
+      h+='</div><div class="price">'+esc(p.price)+' '+esc(p.currency)+'</div></div>';
+    });
+  }
+  if(menu.support_url)h+='<button class="btn sec" onclick="openL(\''+esc(menu.support_url)+'\')">Поддержка</button>';
+  app.innerHTML=h;
+}
+function copy(t){if(tg&&navigator.clipboard)navigator.clipboard.writeText(t);if(tg)tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}
+function openL(u){if(tg)tg.openLink(u);else window.open(u,'_blank');}
+async function boot(){
+  try{
+    if(!tg||!tg.initData){app.innerHTML='<div class="card err">Откройте через Telegram.</div>';return;}
+    const a=await api('/api/miniapp/auth',{method:'POST',body:JSON.stringify({init_data:tg.initData})});
+    TOKEN=a.token;
+    const [me,menu,sub,plans]=await Promise.all([
+      api('/api/miniapp/me'),api('/api/miniapp/menu'),
+      api('/api/miniapp/subscription'),api('/api/miniapp/plans')]);
+    render(me,menu,sub,plans);
+  }catch(e){app.innerHTML='<div class="card err">Не удалось загрузить: '+esc(e.message)+'</div>';}
+}
+boot();
+</script>
+</body>
+</html>
