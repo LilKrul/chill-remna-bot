@@ -62,6 +62,8 @@ type MiniProvider interface {
 	CabinetP2PScreenshot(ctx context.Context, tgID, reqID int64, filename string, data []byte) error
 	// MiniBlocked reports whether the user is blocked by an admin.
 	MiniBlocked(ctx context.Context, tgID int64) bool
+	// CabinetFlag returns a self-hosted country-flag SVG by ISO code.
+	CabinetFlag(code string) ([]byte, bool)
 }
 
 type MiniReferralDTO struct {
@@ -194,11 +196,18 @@ type MiniConnectAppDTO struct {
 }
 
 // MiniConnectDTO carries the subscription URL plus the iOS/Android app lists.
+type MiniConnectPlatformDTO struct {
+	Key   string              `json:"key"`
+	Label string              `json:"label"`
+	Apps  []MiniConnectAppDTO `json:"apps"`
+}
+
 type MiniConnectDTO struct {
-	SubURL   string              `json:"sub_url,omitempty"`
-	Username string              `json:"username,omitempty"`
-	Android  []MiniConnectAppDTO `json:"android,omitempty"`
-	IOS      []MiniConnectAppDTO `json:"ios,omitempty"`
+	SubURL    string                   `json:"sub_url,omitempty"`
+	Username  string                   `json:"username,omitempty"`
+	Platforms []MiniConnectPlatformDTO `json:"platforms,omitempty"`
+	Android   []MiniConnectAppDTO      `json:"android,omitempty"`
+	IOS       []MiniConnectAppDTO      `json:"ios,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

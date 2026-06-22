@@ -25,11 +25,11 @@ func TestParseV2Sample(t *testing.T) {
 	if err := json.Unmarshal(body, &v2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(v2.Platforms.IOS.Apps) != 2 {
-		t.Fatalf("ios apps = %d, want 2", len(v2.Platforms.IOS.Apps))
+	if len(v2.Platforms["ios"].Apps) != 2 {
+		t.Fatalf("ios apps = %d, want 2", len(v2.Platforms["ios"].Apps))
 	}
 	sub := "https://sub.example.com/AbCd"
-	out := acBuildV2(v2.Platforms.IOS.Apps, sub, "tg_99", "en")
+	out := acBuildV2(v2.Platforms["ios"].Apps, sub, "tg_99", "en")
 	if len(out) != 2 {
 		t.Fatalf("built %d apps, want 2", len(out))
 	}

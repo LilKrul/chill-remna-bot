@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -55,10 +56,7 @@ type acApp struct {
 }
 
 type appConfig struct {
-	Platforms struct {
-		IOS     []acApp `json:"ios"`
-		Android []acApp `json:"android"`
-	} `json:"platforms"`
+	Platforms map[string][]acApp `json:"platforms"`
 }
 
 // --- v2 app-config (platforms.<os>.apps[].blocks[].buttons[]) ---
@@ -81,14 +79,64 @@ type acV2App struct {
 }
 
 type acV2Platform struct {
-	Apps []acV2App `json:"apps"`
+	DisplayName string    `json:"displayName"`
+	Apps        []acV2App `json:"apps"`
 }
 
 type appConfigV2 struct {
-	Platforms struct {
-		IOS     acV2Platform `json:"ios"`
-		Android acV2Platform `json:"android"`
-	} `json:"platforms"`
+	Platforms map[string]acV2Platform `json:"platforms"`
+}
+
+// platformOrder is the display order for known platform keys; unknown keys are
+// appended afterwards (sorted) so any future platform still shows up.
+var platformOrder = []string{"android", "ios", "windows", "macos", "linux", "androidtv", "appletv", "tv", "harmony"}
+
+// platformLabels maps a platform key to a human label (used when the config
+// carries no displayName of its own).
+var platformLabels = map[string]string{
+	"android":   "Android",
+	"ios":       "iPhone / iOS",
+	"windows":   "Windows",
+	"macos":     "macOS",
+	"linux":     "Linux",
+	"androidtv": "Android TV",
+	"appletv":   "Apple TV",
+	"tv":        "TV",
+	"harmony":   "HarmonyOS",
+}
+
+func platformLabel(key, displayName string) string {
+	if strings.TrimSpace(displayName) != "" {
+		return displayName
+	}
+	if l, ok := platformLabels[strings.ToLower(key)]; ok {
+		return l
+	}
+	if key == "" {
+		return ""
+	}
+	return strings.ToUpper(key[:1]) + key[1:]
+}
+
+// orderedPlatformKeys returns the platform keys present, known ones first (per
+// platformOrder) then any extras alphabetically.
+func orderedPlatformKeys(present map[string]bool) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, k := range platformOrder {
+		if present[k] {
+			out = append(out, k)
+			seen[k] = true
+		}
+	}
+	var extra []string
+	for k := range present {
+		if !seen[k] {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	return append(out, extra...)
 }
 
 type connectCacheEntry struct {
@@ -191,13 +239,13 @@ func (a *App) tryFetchParse(ctx context.Context, client *http.Client, base, path
 		return nil, nil, false
 	}
 	var v2 appConfigV2
-	if json.Unmarshal(body, &v2) == nil && (len(v2.Platforms.IOS.Apps) > 0 || len(v2.Platforms.Android.Apps) > 0) {
-		a.log.Info("miniapp connect: app-config loaded (v2)", "url", full, "ios", len(v2.Platforms.IOS.Apps), "android", len(v2.Platforms.Android.Apps))
+	if json.Unmarshal(body, &v2) == nil && v2AppCount(&v2) > 0 {
+		a.log.Info("miniapp connect: app-config loaded (v2)", "url", full, "platforms", len(v2.Platforms), "apps", v2AppCount(&v2))
 		return &v2, nil, true
 	}
 	var std appConfig
-	if json.Unmarshal(body, &std) == nil && (len(std.Platforms.IOS) > 0 || len(std.Platforms.Android) > 0) {
-		a.log.Info("miniapp connect: app-config loaded (standard)", "url", full, "ios", len(std.Platforms.IOS), "android", len(std.Platforms.Android))
+	if json.Unmarshal(body, &std) == nil && stdAppCount(&std) > 0 {
+		a.log.Info("miniapp connect: app-config loaded (standard)", "url", full, "platforms", len(std.Platforms), "apps", stdAppCount(&std))
 		return nil, &std, true
 	}
 	a.log.Warn("miniapp connect: app-config parsed but has no apps", "url", full, "bytes", len(body))
@@ -350,11 +398,71 @@ func (a *App) MiniConnect(ctx context.Context, tgID int64) web.MiniConnectDTO {
 	lang := a.lang(tgID)
 	switch {
 	case ce.v2 != nil:
-		dto.Android = acBuildV2(ce.v2.Platforms.Android.Apps, subURL, u.Username, lang)
-		dto.IOS = acBuildV2(ce.v2.Platforms.IOS.Apps, subURL, u.Username, lang)
+		dto.Platforms = buildV2Platforms(ce.v2, subURL, u.Username, lang)
 	case ce.std != nil:
-		dto.Android = acBuildStd(ce.std.Platforms.Android, subURL, lang)
-		dto.IOS = acBuildStd(ce.std.Platforms.IOS, subURL, lang)
+		dto.Platforms = buildStdPlatforms(ce.std, subURL, lang)
+	}
+	// Keep the legacy mobile fields populated so the Telegram mini-app (iOS +
+	// Android only) works unchanged; the web cabinet uses dto.Platforms (all).
+	for _, p := range dto.Platforms {
+		switch p.Key {
+		case "ios":
+			dto.IOS = p.Apps
+		case "android":
+			dto.Android = p.Apps
+		}
 	}
 	return dto
+
+}
+
+func v2AppCount(c *appConfigV2) int {
+	n := 0
+	for _, p := range c.Platforms {
+		n += len(p.Apps)
+	}
+	return n
+}
+
+func stdAppCount(c *appConfig) int {
+	n := 0
+	for _, apps := range c.Platforms {
+		n += len(apps)
+	}
+	return n
+}
+
+// buildV2Platforms builds the ordered, non-empty platform list from a v2 config.
+func buildV2Platforms(c *appConfigV2, subURL, username, lang string) []web.MiniConnectPlatformDTO {
+	present := map[string]bool{}
+	for k := range c.Platforms {
+		present[k] = true
+	}
+	var out []web.MiniConnectPlatformDTO
+	for _, k := range orderedPlatformKeys(present) {
+		p := c.Platforms[k]
+		apps := acBuildV2(p.Apps, subURL, username, lang)
+		if len(apps) == 0 {
+			continue
+		}
+		out = append(out, web.MiniConnectPlatformDTO{Key: k, Label: platformLabel(k, p.DisplayName), Apps: apps})
+	}
+	return out
+}
+
+// buildStdPlatforms builds the ordered, non-empty platform list from a standard config.
+func buildStdPlatforms(c *appConfig, subURL, lang string) []web.MiniConnectPlatformDTO {
+	present := map[string]bool{}
+	for k := range c.Platforms {
+		present[k] = true
+	}
+	var out []web.MiniConnectPlatformDTO
+	for _, k := range orderedPlatformKeys(present) {
+		apps := acBuildStd(c.Platforms[k], subURL, lang)
+		if len(apps) == 0 {
+			continue
+		}
+		out = append(out, web.MiniConnectPlatformDTO{Key: k, Label: platformLabel(k, ""), Apps: apps})
+	}
+	return out
 }

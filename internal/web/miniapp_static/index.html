@@ -225,6 +225,17 @@ body.web .wrap{max-width:960px}
 .payhead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 .payhead .title{margin:6px 0 0}
 .bigprice{font-size:26px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;white-space:nowrap;background:linear-gradient(120deg,#fff,#cdd6ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+/* ---- web cabinet desktop layout: independent design, grouped, never stretched ---- */
+.seg{flex-wrap:wrap}
+.segbtn{flex:1 1 auto;min-width:96px}
+.btnrow .btn{margin-top:10px}
+body.web .authwrap{max-width:420px;margin:0 auto}
+@media(min-width:700px){
+  body.web .acctgrp{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+  body.web .acctgrp>.ublock,body.web .acctgrp>.pass{margin-bottom:0}
+  body.web .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  body.web .btnrow>.btn{margin-top:0}
+}
 </style>
 </head>
 <body>
@@ -374,14 +385,14 @@ function skSimple(){app.innerHTML='<div class="sk sk-hero" style="height:120px">
 /* ---- main screen ---- */
 function render(me,menu,sub,plans){
   STATE.plans=(plans&&plans.plans)||[]; STATE.strategy=(plans&&plans.strategy)||'';
-  let h='';
-  if(WEB){var who=STATE.me_email||STATE.me_name||'Аккаунт';var ini=(String(who).trim().charAt(0)||'?').toUpperCase();h+='<div class="ublock"><div class="uava">'+esc(ini)+'</div><div class="uinfo"><div class="uname">'+esc(who)+'</div><div class="usub">'+(STATE.me_email?'email-аккаунт':'Telegram')+'</div></div><button class="btn sec ulogout" onclick="cabLogout()">Выйти</button></div>';}
-  h+='<div class="stagger">';
+  var ub='';
+  if(WEB){var who=STATE.me_email||STATE.me_name||'Аккаунт';var ini=(String(who).trim().charAt(0)||'?').toUpperCase();ub='<div class="ublock"><div class="uava">'+esc(ini)+'</div><div class="uinfo"><div class="uname">'+esc(who)+'</div><div class="usub">'+(STATE.me_email?'email-аккаунт':'Telegram')+'</div></div><button class="btn sec ulogout" onclick="cabLogout()">Выйти</button></div>';}
+  let h='<div class="stagger">';
   if(sub.active){
     var dleft=sub.expire_ts?daysLeft(sub.expire_ts):null;
     var dshort=sub.expire_ts?shortDate(sub.expire_ts):(sub.expire_at||'');
     var dtext=devicesText(sub);
-    h+='<div class="pass"><div class="sheen"></div><div class="ph">'+
+    var pass='<div class="pass"><div class="sheen"></div><div class="ph">'+
       '<div class="pl"><span class="brand">ДОСТУП · BOARDING</span><span class="pstat"><span class="dot"></span>активно</span></div>'+
       '<div class="route"><span class="pt">Ты</span><span class="ln"></span><span class="pic">'+IC.plane+'</span><span class="ln"></span><span class="pt">Сеть</span></div></div>'+
       '<div class="perf"></div><div class="stub">'+
@@ -389,11 +400,13 @@ function render(me,menu,sub,plans){
         (dleft!==null?'<div class="c"><div class="k">ОСТАЛОСЬ</div><div class="v">'+dleft+' '+daysWord(dleft)+'</div></div>':'')+
         (dtext!==null?'<div class="c"><div class="k">УСТРОЙСТВА</div><div class="v">'+esc(dtext)+'</div></div>':'')+
       '</div></div>';
+    h+='<div class="acctgrp">'+ub+pass+'</div>';
     if(sub.sub_url)h+='<div class="card"><div class="linkbox" style="margin-top:0"><div class="lab">Ссылка подписки</div><div class="mono">'+esc(sub.sub_url)+'</div></div></div>';
-    if(sub.sub_url){h+='<button class="btn" onclick="openConnect()">'+IC.download+'Подключить</button>';
-      h+='<button class="btn sec" onclick="copy(\''+jsq(sub.sub_url)+'\')">'+IC.copy+'Скопировать ссылку</button>';}
+    if(sub.sub_url){h+='<div class="btnrow"><button class="btn" onclick="openConnect()">'+IC.download+'Подключить</button>'+
+      '<button class="btn sec" onclick="copy(\''+jsq(sub.sub_url)+'\')">'+IC.copy+'Скопировать ссылку</button></div>';}
     if(menu.can_renew)h+='<div class="hint center">Для продления выберите период ниже</div>';
   }else{
+    if(ub)h+='<div class="acctgrp">'+ub+'</div>';
     h+='<div class="card hero"><div class="top"><span class="status"><span class="dot off"></span>Нет активной подписки</span>'+IC.shield+'</div>';
     h+='<div class="title">Выберите тариф</div><div class="hint" style="margin-top:4px">Подключитесь за минуту и получите доступ ко всем серверам.</div></div>';
     if(menu.trial_available&&!WEB)h+='<button class="btn" onclick="doTrial(this)">'+IC.gift+'Попробовать бесплатно</button>';
@@ -409,10 +422,12 @@ function render(me,menu,sub,plans){
     });
     h+='</div>';
   }
-  if(menu.support_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.support_url)+'\')">'+IC.life+'Поддержка</button>';
-  if(menu.group_url)h+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.group_url)+'\')">'+IC.users+'Наша группа</button>';
-  if(menu.referral_on)h+='<button class="btn sec" onclick="openMore()">'+IC.gift+'Пригласить друга</button>';
-  h+='<button class="btn ghost" onclick="openMore()">'+IC.dots+'Ещё</button>';
+  var acts='';
+  if(menu.support_url)acts+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.support_url)+'\')">'+IC.life+'Поддержка</button>';
+  if(menu.group_url)acts+='<button class="btn sec" onclick="openSmart(\''+jsq(menu.group_url)+'\')">'+IC.users+'Наша группа</button>';
+  if(menu.referral_on)acts+='<button class="btn sec" onclick="openMore()">'+IC.gift+'Пригласить друга</button>';
+  acts+='<button class="btn ghost" onclick="openMore()">'+IC.dots+'Ещё</button>';
+  h+='<div class="btnrow">'+acts+'</div>';
   h+='</div>';
   view(h,null);
 }
@@ -455,7 +470,7 @@ function buyPlan(months,label){
   if(p.countries&&p.countries.length){
     h+='<div class="sec-title">'+IC.globe+'Доступные страны</div><div class="chips">';
     p.countries.forEach(function(c){
-      var fl=c.code?('<img class="flag" loading="lazy" alt="" src="https://flagcdn.com/'+esc(c.code)+'.svg">'):(c.flag?esc(c.flag)+' ':'');
+      var fl=c.code?('<img class="flag" loading="lazy" alt="" src="/flags/'+esc(c.code)+'.svg" onerror="this.remove()">'):(c.flag?esc(c.flag)+' ':'');
       h+='<span class="chip2">'+fl+esc(c.name||c.flag||'')+'</span>';
     });
     h+='</div>';
@@ -581,14 +596,27 @@ async function topupPay(kopecks,method,el){
 }
 
 /* ---- connect (apps + deeplinks + QR) ---- */
-var CONNECT=null,CONNECT_OS='android';
+var CONNECT=null,CONNECT_KEY='';
 function detectOS(){
-  try{var p=(tg&&tg.platform)||'';if(p==='ios'||p==='macos')return 'ios';if(p==='android')return 'android';}catch(e){}
+  try{var p=(tg&&tg.platform)||'';if(p==='ios')return 'ios';if(p==='android')return 'android';if(p==='windows')return 'windows';if(p==='linux')return 'linux';if(p==='macos')return WEB?'macos':'ios';}catch(e){}
   var ua=(navigator.userAgent||'').toLowerCase();
-  if(/iphone|ipad|ipod|mac os|macintosh/.test(ua))return 'ios';
-  return 'android';
+  if(/iphone|ipad|ipod/.test(ua))return 'ios';
+  if(/android/.test(ua))return 'android';
+  if(/windows|win64|win32/.test(ua))return 'windows';
+  if(/mac os|macintosh/.test(ua))return WEB?'macos':'ios';
+  if(/linux|x11|cros/.test(ua))return 'linux';
+  return WEB?'windows':'android';
 }
-function connectList(){return (CONNECT_OS==='ios'?(CONNECT&&CONNECT.ios):(CONNECT&&CONNECT.android))||[];}
+// all platforms the backend returned (with a legacy ios/android fallback)
+function cnPlatforms(){
+  if(CONNECT&&CONNECT.platforms&&CONNECT.platforms.length)return CONNECT.platforms;
+  var out=[];
+  if(CONNECT&&CONNECT.android&&CONNECT.android.length)out.push({key:'android',label:'Android',apps:CONNECT.android});
+  if(CONNECT&&CONNECT.ios&&CONNECT.ios.length)out.push({key:'ios',label:'iPhone / iOS',apps:CONNECT.ios});
+  return out;
+}
+function curPlatform(){var ps=cnPlatforms();for(var i=0;i<ps.length;i++)if(ps[i].key===CONNECT_KEY)return ps[i];return ps[0]||null;}
+function connectList(){var p=curPlatform();return (p&&p.apps)||[];}
 var APP_CONFIG_PATHS=['/assets/.app-config-v2.json','/assets/app-config.json','/assets/app-config-v2.json'];
 function subOrigin(u){try{return new URL(u).origin;}catch(e){return '';}}
 function locJS(m,lang){if(!m||typeof m!=='object')return '';return m[lang]||m.en||m.ru||(function(){for(var k in m){if(m[k])return m[k];}return '';})();}
@@ -638,14 +666,12 @@ async function openConnect(){
   haptic('tap');skSimple();setBack(boot);
   try{
     var d=await api('/api/miniapp/connect');CONNECT=d;
-    var hasI=CONNECT.ios&&CONNECT.ios.length,hasA=CONNECT.android&&CONNECT.android.length;
-    CONNECT_OS=detectOS();
-    if(CONNECT_OS==='ios'&&!hasI&&hasA)CONNECT_OS='android';
-    if(CONNECT_OS==='android'&&!hasA&&hasI)CONNECT_OS='ios';
+    var ps=cnPlatforms();var want=detectOS();
+    CONNECT_KEY=(ps.some(function(p){return p.key===want;})?want:((ps[0]&&ps[0].key)||''));
     renderConnect();
   }catch(e){haptic('err');toast('Ошибка: '+e.message,'err');boot();}
 }
-function setOS(os){haptic('tap');CONNECT_OS=os;renderConnect();}
+function setPlat(key){haptic('tap');CONNECT_KEY=key;renderConnect();}
 function drawQR(text){
   if(!text)return;
   var el=document.getElementById('qrbox');if(!el)return;
@@ -663,10 +689,11 @@ function renderConnect(){
   if(d.sub_url)h+='<div id="qrwrap" style="display:flex;flex-direction:column;align-items:center;margin-top:16px"><div id="qrbox" class="qrbox"></div>'+
     '<div class="hint center" style="margin-top:8px">Наведите камеру другого устройства, чтобы перенести подписку</div></div>';
   h+='</div>';
-  var hasI=d.ios&&d.ios.length,hasA=d.android&&d.android.length;
-  if(hasI&&hasA){
-    h+='<div class="seg"><button class="segbtn'+(CONNECT_OS==='android'?' on':'')+'" onclick="setOS(\'android\')">Android</button>'+
-      '<button class="segbtn'+(CONNECT_OS==='ios'?' on':'')+'" onclick="setOS(\'ios\')">iPhone / iOS</button></div>';
+  var ps=cnPlatforms();
+  if(ps.length>1){
+    h+='<div class="seg">';
+    ps.forEach(function(p){h+='<button class="segbtn'+(p.key===CONNECT_KEY?' on':'')+'" onclick="setPlat(\''+jsq(p.key)+'\')">'+esc(p.label)+'</button>';});
+    h+='</div>';
   }
   var list=connectList();
   var grid=list.length>1;
@@ -695,16 +722,16 @@ function cabLogout(){clearToken();renderLogin();}
 async function renderLogin(){
   setBack(null);
   var cfg={};try{cfg=await api('/api/cabinet/config');}catch(e){}
-  var h='<div class="stagger"><div class="card hero glow"><div class="top"><span class="status">'+IC.shield+' Вход</span></div>'+
+  var h='<div class="stagger"><div class="authwrap"><div class="card hero glow"><div class="top"><span class="status">'+IC.shield+' Вход</span></div>'+
     '<div class="title">Личный кабинет</div><div class="hint" style="margin-top:4px">Войдите через Telegram или по email.</div></div>';
   if(cfg.bot_username)h+='<div class="sec-title">'+IC.bolt+'Через Telegram</div><div class="card" style="display:flex;justify-content:center"><div id="tglogin"></div></div>';
   h+='<div class="sec-title">'+IC.tag+'По email</div><div class="card">'+
     '<input id="lemail" class="field" type="email" placeholder="Email" autocomplete="email">'+
-    '<input id="lpass" class="field" style="margin-top:8px" type="password" placeholder="Пароль (мин. 6)" autocomplete="current-password">'+
+    '<input id="lpass" class="field" style="margin-top:8px" type="password" placeholder="Пароль (мин. 8)" autocomplete="current-password">'+
     '<button class="btn" style="margin-top:10px" onclick="cabLogin(this)">'+IC.check+'Войти</button>'+
     '<button class="btn sec" style="margin-top:8px" onclick="cabRegister(this)">'+IC.plus+'Зарегистрироваться</button>'+
     '<div class="hint" style="margin-top:8px;font-size:12px">Регистрация без подтверждения почты. Восстановление пароля недоступно — сохраните пароль.</div></div>';
-  h+='</div>';
+  h+='</div></div>';
   view(h,null);
   if(cfg.bot_username){var sc=document.createElement('script');sc.async=true;sc.src='https://telegram.org/js/telegram-widget.js?22';
     sc.setAttribute('data-telegram-login',cfg.bot_username);sc.setAttribute('data-size','large');sc.setAttribute('data-onauth','onTGAuth(user)');sc.setAttribute('data-request-access','write');

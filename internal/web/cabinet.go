@@ -68,6 +68,26 @@ func validateTelegramLogin(fields map[string]string, botToken string, ttl time.D
 	return id, nil
 }
 
+// handleFlag serves a self-hosted country-flag SVG (see privacy F1: flags are
+// fetched once at startup and served from this server, never from a third-party
+// CDN at the visitor's browser).
+func (s *Server) handleFlag(w http.ResponseWriter, r *http.Request) {
+	if s.mini == nil {
+		http.NotFound(w, r)
+		return
+	}
+	code := strings.TrimSuffix(r.PathValue("code"), ".svg")
+	b, ok := s.mini.CabinetFlag(code)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+	_, _ = w.Write(b)
+}
+
 // handleRobots blocks search engines/crawlers across the whole bot domain
 // (webhooks, mini-app, cabinet) — none of it should be indexable.
 func (s *Server) handleRobots(w http.ResponseWriter, r *http.Request) {
@@ -311,15 +331,24 @@ func (s *Server) serveCabinetHTML(w http.ResponseWriter) {
 	out := string(data)
 	antifp := s.mini.CabinetAntiFP()
 
+	// Title drives BOTH the browser tab (<title>) and the visible page heading.
+	// Description is ONLY a <meta> tag — it never alters a page element.
 	title := s.mini.CabinetTitle()
+	tabTitle := title // <title> text
+	heading := title  // visible "Личный кабинет" heading text
 	if title == "" {
 		if antifp {
-			title = randToken(6)
+			r := randToken(6)
+			tabTitle, heading = r, r
 		} else {
-			title = "Кабинет"
+			tabTitle = "Кабинет"
+			heading = "Личный кабинет"
 		}
 	}
-	out = strings.Replace(out, "<title>Кабинет</title>", "<title>"+html.EscapeString(title)+"</title>", 1)
+	out = strings.Replace(out, "<title>Кабинет</title>", "<title>"+html.EscapeString(tabTitle)+"</title>", 1)
+	// Always reflect the configured title in the visible heading (login screen +
+	// header), regardless of anti-fingerprint mode.
+	out = strings.ReplaceAll(out, "Личный кабинет", html.EscapeString(heading))
 
 	head := ""
 	if d := s.mini.CabinetDescription(); d != "" {
@@ -329,9 +358,8 @@ func (s *Server) serveCabinetHTML(w http.ResponseWriter) {
 		head += "<link rel=\"icon\" href=\"" + html.EscapeString(fav) + "\">\n"
 	}
 	if antifp {
-		// vary the served bytes per request and drop a couple of obvious markers
+		// vary the served bytes per request to avoid a static byte-for-byte fingerprint
 		head += "<!-- " + randToken(16) + " -->\n"
-		out = strings.ReplaceAll(out, "Личный кабинет", html.EscapeString(title))
 	}
 	if head != "" {
 		out = strings.Replace(out, "<title>", head+"<title>", 1)

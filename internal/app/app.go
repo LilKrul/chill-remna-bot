@@ -83,6 +83,10 @@ type App struct {
 	connectMu    sync.Mutex
 	connectCache *connectCacheEntry
 
+	flagMu       sync.RWMutex
+	flags        map[string][]byte
+	flagsStarted bool
+
 	botUserMu sync.Mutex
 	botUser   string
 
@@ -220,6 +224,9 @@ func (a *App) Run(ctx context.Context) error {
 	a.notifyUpdated(ctx)
 	a.cleanupWebhookApplyMsg(ctx)
 	a.cleanupBotPortMsg(ctx)
+	if a.MiniEnabled() || a.CabinetEnabled() {
+		a.ensureFlagsAsync(ctx)
+	}
 	a.log.Info("бот запущен")
 	b.Start(ctx)
 	return nil

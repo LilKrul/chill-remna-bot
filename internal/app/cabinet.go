@@ -111,6 +111,16 @@ func normEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
 
 var errCabinetOff = errors.New("веб-кабинет выключен")
 
+// errCabinetAuth is the single, uniform error returned for every email
+// sign-in/registration failure so the endpoints never reveal whether an
+// account exists (anti-enumeration / anti-«пробив»).
+var errCabinetAuth = errors.New("неверный email или пароль")
+
+// dummyBcryptHash is a valid bcrypt hash (cost 10 = bcrypt.DefaultCost). When a
+// login/register targets a non-existent email we still run a bcrypt comparison
+// against it, so the response time does not leak whether the email is known.
+const dummyBcryptHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+
 // CabinetEmailRegister creates an email+password account and returns its
 // synthetic identity. No email confirmation (by design).
 func (a *App) CabinetEmailRegister(ctx context.Context, email, password string) (int64, error) {
@@ -128,7 +138,16 @@ func (a *App) CabinetEmailRegister(ctx context.Context, email, password string) 
 		return 0, errCabinetOff
 	}
 	if u, _ := a.store.GetWebUserByEmail(ctx, email); u != nil {
-		return 0, errors.New("этот email уже зарегистрирован")
+		// Email already exists: instead of revealing that, treat the attempt as
+		// a login — a correct password signs them in, a wrong one returns the
+		// same generic error a normal login would.
+		if bcrypt.CompareHashAndPassword([]byte(u.PassHash), []byte(password)) != nil {
+			return 0, errCabinetAuth
+		}
+		if err := a.CabinetGate(ctx, u.TgID, true); err != nil {
+			return 0, err
+		}
+		return u.TgID, nil
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -136,7 +155,7 @@ func (a *App) CabinetEmailRegister(ctx context.Context, email, password string) 
 	}
 	tgID := -time.Now().UnixNano() // synthetic negative identity
 	if err := a.store.CreateWebUser(ctx, &model.WebUser{TgID: tgID, Email: email, PassHash: string(hash)}); err != nil {
-		return 0, errors.New("этот email уже зарегистрирован")
+		return 0, errCabinetAuth
 	}
 	_ = a.store.UpsertUser(ctx, tgID)
 	if err := a.CabinetGate(ctx, tgID, true); err != nil {
@@ -154,8 +173,14 @@ func (a *App) CabinetEmailLogin(ctx context.Context, email, password string) (in
 		return 0, errCabinetOff
 	}
 	u, _ := a.store.GetWebUserByEmail(ctx, normEmail(email))
-	if u == nil || bcrypt.CompareHashAndPassword([]byte(u.PassHash), []byte(password)) != nil {
-		return 0, errors.New("неверный email или пароль")
+	if u == nil {
+		// Spend the same work as a real comparison so timing does not reveal
+		// that the email is unknown.
+		_ = bcrypt.CompareHashAndPassword([]byte(dummyBcryptHash), []byte(password))
+		return 0, errCabinetAuth
+	}
+	if bcrypt.CompareHashAndPassword([]byte(u.PassHash), []byte(password)) != nil {
+		return 0, errCabinetAuth
 	}
 	if err := a.CabinetGate(ctx, u.TgID, true); err != nil {
 		return 0, err

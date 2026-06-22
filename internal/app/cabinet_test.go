@@ -22,8 +22,14 @@ func TestCabinetEmailRegisterLogin(t *testing.T) {
 	if u, _ := fs.GetUser(ctx, id); u == nil {
 		t.Fatal("local user not created for web account")
 	}
-	if _, err := a.CabinetEmailRegister(ctx, "user@example.com", "secret12"); err == nil {
-		t.Fatal("duplicate email must be rejected (case-insensitive)")
+	// Anti-enumeration: re-registering an existing email no longer reveals it
+	// exists. With the CORRECT password it logs the user in (same id, no error);
+	// with a WRONG password it returns the generic auth error.
+	if rid, err := a.CabinetEmailRegister(ctx, "user@example.com", "secret12"); err != nil || rid != id {
+		t.Fatalf("re-register w/ correct pass should log in (case-insensitive): rid=%d err=%v", rid, err)
+	}
+	if _, err := a.CabinetEmailRegister(ctx, "user@example.com", "wrongpass9"); err == nil {
+		t.Fatal("re-register with wrong password must be rejected")
 	}
 	if lid, err := a.CabinetEmailLogin(ctx, "user@example.com", "secret12"); err != nil || lid != id {
 		t.Fatalf("login: lid=%d err=%v", lid, err)

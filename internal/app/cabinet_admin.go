@@ -102,7 +102,11 @@ func (a *App) toggleCabinet(ctx context.Context, chatID int64) {
 		a.botCfg.NormalizeCabinet()
 		a.botCfg.Cabinet.Enabled = !a.botCfg.Cabinet.Enabled
 	}
+	on := a.botCfg != nil && a.botCfg.Cabinet.Enabled
 	a.mu.Unlock()
+	if on {
+		a.ensureFlagsAsync(a.bgContext())
+	}
 	_ = a.saveBotConfig(ctx)
 	a.showCabinetAdmin(ctx, chatID)
 }
