@@ -43,7 +43,13 @@ func (a *App) denyAccess(ctx context.Context, chatID int64, isAdmin bool) bool {
 	a.mu.Unlock()
 	if wl && a.store != nil {
 		u, _ := a.store.GetUser(ctx, chatID)
-		if u == nil || !u.Whitelisted {
+		allowed := u != nil && u.Whitelisted
+		if !allowed {
+			if ok, _ := a.store.IsWhitelistID(ctx, chatID); ok {
+				allowed = true
+			}
+		}
+		if !allowed {
 			a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.not_whitelisted"))
 			return true
 		}
@@ -78,7 +84,10 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	if wlMode {
 		wlLabel = i18n.T(lang, "users.wl_on")
 	}
-	rows := [][]models.InlineKeyboardButton{{btn(wlLabel, "usr:wlmode")}}
+	rows := [][]models.InlineKeyboardButton{
+		{btn(wlLabel, "usr:wlmode")},
+		{btn(i18n.T(lang, "btn.wl_add_id"), "usr:wladd"), btn(i18n.T(lang, "btn.wl_list"), "usr:wllist")},
+	}
 	for _, u := range users {
 		label := "👤 " + userLabel(&u)
 		if u.Blocked {
@@ -95,6 +104,33 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	rows = append(rows, homeRow(lang))
 
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, i18n.T(lang, "users.title", total, page+1, pages), rows)
+}
+
+func (a *App) showWhitelist(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	if a.store == nil {
+		return
+	}
+	ids, err := a.store.ListWhitelistIDs(ctx)
+	if err != nil {
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
+		return
+	}
+	rows := [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.wl_add_id"), "usr:wladd")},
+	}
+	for _, id := range ids {
+		sid := strconv.FormatInt(id, 10)
+		rows = append(rows, []models.InlineKeyboardButton{
+			btn("🗑 "+sid, "usr:wldel:"+sid),
+		})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:users")})
+	title := i18n.T(lang, "wl.list_title", len(ids))
+	if len(ids) == 0 {
+		title = i18n.T(lang, "wl.list_empty")
+	}
+	a.sendKB(ctx, chatID, title, rows)
 }
 
 func (a *App) showUser(ctx context.Context, chatID, uid int64) {
@@ -256,6 +292,18 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
 		a.showUsers(ctx, chatID, 0)
+	case "wladd":
+		a.getUI(chatID).adminInput = "wl_add"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "wl.ask_ids"), "menu:users")
+	case "wllist":
+		a.showWhitelist(ctx, chatID)
+	case "wldel":
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		if a.store != nil && uid != 0 {
+			_ = a.store.RemoveWhitelistID(ctx, uid)
+			_ = a.store.SetWhitelisted(ctx, uid, false)
+		}
+		a.showWhitelist(ctx, chatID)
 	case "p2pon", "p2poff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		allow := action == "p2pon"

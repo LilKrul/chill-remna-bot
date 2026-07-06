@@ -107,6 +107,7 @@ type fakeStore struct {
 	promoUses map[string]bool
 	webUsers  map[string]*model.WebUser
 	paylogs   []model.PayLogEntry
+	wlIDs     map[int64]bool
 	seq       int64
 }
 
@@ -486,6 +487,27 @@ func (s *fakeStore) SetWhitelisted(_ context.Context, id int64, on bool) error {
 		s.users[id].Whitelisted = on
 	}
 	return nil
+}
+func (s *fakeStore) AddWhitelistID(_ context.Context, id int64) error {
+	if s.wlIDs == nil {
+		s.wlIDs = map[int64]bool{}
+	}
+	s.wlIDs[id] = true
+	return nil
+}
+func (s *fakeStore) RemoveWhitelistID(_ context.Context, id int64) error {
+	delete(s.wlIDs, id)
+	return nil
+}
+func (s *fakeStore) IsWhitelistID(_ context.Context, id int64) (bool, error) {
+	return s.wlIDs[id], nil
+}
+func (s *fakeStore) ListWhitelistIDs(_ context.Context) ([]int64, error) {
+	var ids []int64
+	for id := range s.wlIDs {
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 func (s *fakeStore) AllUserIDs(_ context.Context) ([]int64, error) {
 	var ids []int64

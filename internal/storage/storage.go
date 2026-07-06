@@ -35,6 +35,10 @@ type Storage interface {
 	ListUsers(ctx context.Context, limit, offset int) ([]model.User, int, error)
 	SetBlocked(ctx context.Context, telegramID int64, blocked bool) error
 	SetWhitelisted(ctx context.Context, telegramID int64, on bool) error
+	AddWhitelistID(ctx context.Context, telegramID int64) error
+	RemoveWhitelistID(ctx context.Context, telegramID int64) error
+	IsWhitelistID(ctx context.Context, telegramID int64) (bool, error)
+	ListWhitelistIDs(ctx context.Context) ([]int64, error)
 	DeleteUser(ctx context.Context, telegramID int64) error
 	AllUserIDs(ctx context.Context) ([]int64, error)
 
@@ -1083,4 +1087,52 @@ func (b *base) SetWhitelisted(ctx context.Context, telegramID int64, on bool) er
 		"UPDATE users SET whitelisted = "+b.ph(1)+" WHERE telegram_id = "+b.ph(2),
 		boolToInt(on), telegramID)
 	return err
+}
+
+// AddWhitelistID добавляет Telegram ID в предзаполненный вайтлист (до регистрации).
+func (b *base) AddWhitelistID(ctx context.Context, telegramID int64) error {
+	_, err := b.db.ExecContext(ctx,
+		"INSERT INTO whitelist (telegram_id) VALUES ("+b.ph(1)+") ON CONFLICT(telegram_id) DO NOTHING",
+		telegramID)
+	return err
+}
+
+// RemoveWhitelistID убирает Telegram ID из предзаполненного вайтлиста.
+func (b *base) RemoveWhitelistID(ctx context.Context, telegramID int64) error {
+	_, err := b.db.ExecContext(ctx,
+		"DELETE FROM whitelist WHERE telegram_id = "+b.ph(1), telegramID)
+	return err
+}
+
+// IsWhitelistID сообщает, есть ли Telegram ID в предзаполненном вайтлисте.
+func (b *base) IsWhitelistID(ctx context.Context, telegramID int64) (bool, error) {
+	var x int
+	err := b.db.QueryRowContext(ctx,
+		"SELECT 1 FROM whitelist WHERE telegram_id = "+b.ph(1), telegramID).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ListWhitelistIDs возвращает все ID из предзаполненного вайтлиста.
+func (b *base) ListWhitelistIDs(ctx context.Context) ([]int64, error) {
+	rows, err := b.db.QueryContext(ctx,
+		"SELECT telegram_id FROM whitelist ORDER BY telegram_id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
