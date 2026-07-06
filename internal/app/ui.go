@@ -495,6 +495,7 @@ func (a *App) registerUser(ctx context.Context, chatID int64, firstName, usernam
 	if a.store != nil {
 		_ = a.store.UpsertUser(ctx, chatID)
 		_ = a.store.SetUserInfo(ctx, chatID, username, firstName)
+		a.reconcileWhitelist(ctx, chatID)
 	}
 	if a.guardNewUser(ctx, chatID, firstName, username) {
 		return

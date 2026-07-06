@@ -793,9 +793,10 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 				continue
 			}
 			if a.store != nil {
-				_ = a.store.AddWhitelistID(ctx, id)
 				if u, _ := a.store.GetUser(ctx, id); u != nil {
 					_ = a.store.SetWhitelisted(ctx, id, true)
+				} else {
+					_ = a.store.AddWhitelistID(ctx, id)
 				}
 			}
 		}

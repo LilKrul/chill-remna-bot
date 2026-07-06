@@ -106,6 +106,16 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, i18n.T(lang, "users.title", total, page+1, pages), rows)
 }
 
+func (a *App) reconcileWhitelist(ctx context.Context, chatID int64) {
+	if a.store == nil {
+		return
+	}
+	if ok, _ := a.store.IsWhitelistID(ctx, chatID); ok {
+		_ = a.store.SetWhitelisted(ctx, chatID, true)
+		_ = a.store.RemoveWhitelistID(ctx, chatID)
+	}
+}
+
 func (a *App) showWhitelist(ctx context.Context, chatID int64) {
 	lang := a.lang(chatID)
 	if a.store == nil {
@@ -164,8 +174,14 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	if botBlocked {
 		status = i18n.T(lang, "user.blocked")
 	}
+	whitelisted := u.Whitelisted
+	if !whitelisted && a.store != nil {
+		if ok, _ := a.store.IsWhitelistID(ctx, uid); ok {
+			whitelisted = true
+		}
+	}
 	var wlBtn models.InlineKeyboardButton
-	if u.Whitelisted {
+	if whitelisted {
 		wlBtn = btn(i18n.T(lang, "btn.whitelist_del"), "usr:wloff:"+id)
 	} else {
 		wlBtn = btn(i18n.T(lang, "btn.whitelist_add"), "usr:wlon:"+id)
@@ -281,7 +297,11 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 	case "wlon", "wloff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		if a.store != nil {
-			_ = a.store.SetWhitelisted(ctx, uid, action == "wlon")
+			on := action == "wlon"
+			_ = a.store.SetWhitelisted(ctx, uid, on)
+			if !on {
+				_ = a.store.RemoveWhitelistID(ctx, uid)
+			}
 		}
 		a.showUser(ctx, chatID, uid)
 	case "wlmode":

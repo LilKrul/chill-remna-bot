@@ -55,3 +55,26 @@ func TestDenyAccess_PrefilledWhitelistID(t *testing.T) {
 		t.Fatalf("список вайтлиста должен быть пуст, получили %v", ids)
 	}
 }
+
+func TestReconcileWhitelist_MarkAfterStart(t *testing.T) {
+	a, fs := refTestApp(t)
+	ctx := context.Background()
+
+	// Админ заранее добавил ID в вайтлист (юзер ещё не в боте).
+	_ = fs.AddWhitelistID(ctx, 500)
+
+	// Юзер сделал /start — появилась запись.
+	_ = fs.UpsertUser(ctx, 500)
+	a.reconcileWhitelist(ctx, 500)
+
+	// В карточке должна стоять метка whitelisted.
+	u, _ := fs.GetUser(ctx, 500)
+	if u == nil || !u.Whitelisted {
+		t.Fatal("после старта у предвайтлистнутого юзера должна быть метка whitelisted")
+	}
+	// Из pending-списка ID должен уйти (он теперь обычный юзер с меткой).
+	ids, _ := fs.ListWhitelistIDs(ctx)
+	if len(ids) != 0 {
+		t.Fatalf("после переноса pending-список должен опустеть, got %v", ids)
+	}
+}
