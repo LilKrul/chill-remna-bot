@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"html"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-telegram/bot/models"
 
 	"remnabot/internal/assets"
 	"remnabot/internal/i18n"
+	"remnabot/internal/model"
 )
 
 func (a *App) showBroadcast(ctx context.Context, chatID int64) {
@@ -58,6 +62,40 @@ func (a *App) previewBroadcast(ctx context.Context, chatID int64, text string) {
 	})
 }
 
+// expandBroadcastVars substitutes per-recipient placeholders in a broadcast
+// template: {name}, {username}, {id}, {balance}, {expire}. Every substituted
+// value is HTML-escaped so a user's name or username can't break the Telegram
+// HTML markup of the message. Empty fields fall back to a neutral word.
+func (a *App) expandBroadcastVars(text string, u *model.User, lang string) string {
+	if u == nil || !strings.Contains(text, "{") {
+		return text
+	}
+	fallback := i18n.T(lang, "bcast.var_fallback")
+
+	name := strings.TrimSpace(u.FirstName)
+	if name == "" {
+		name = strings.TrimSpace(u.Username)
+	}
+	if name == "" {
+		name = fallback
+	}
+
+	username := strings.TrimSpace(u.Username)
+	if username != "" {
+		username = "@" + username
+	} else {
+		username = fallback
+	}
+
+	return strings.NewReplacer(
+		"{name}", escapeName(name),
+		"{username}", escapeName(username),
+		"{id}", strconv.FormatInt(u.TelegramID, 10),
+		"{balance}", html.EscapeString(kopecksToRub(u.Balance)),
+		"{expire}", html.EscapeString(formatExpire(u.SubExpireAt, lang)),
+	).Replace(text)
+}
+
 func (a *App) runBroadcast(adminChat int64, text string) {
 	if a.store == nil {
 		return
@@ -82,7 +120,11 @@ func (a *App) runBroadcast(adminChat int64, text string) {
 				return
 			case <-ticker.C:
 			}
-			if a.msg.Send(ctx, id, a.applyPremium(text)) != 0 {
+			out := text
+			if u, err := a.store.GetUser(ctx, id); err == nil && u != nil {
+				out = a.expandBroadcastVars(text, u, a.lang(id))
+			}
+			if a.msg.Send(ctx, id, a.applyPremium(out)) != 0 {
 				sent++
 			} else {
 				failed++
