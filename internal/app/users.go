@@ -43,7 +43,13 @@ func (a *App) denyAccess(ctx context.Context, chatID int64, isAdmin bool) bool {
 	a.mu.Unlock()
 	if wl && a.store != nil {
 		u, _ := a.store.GetUser(ctx, chatID)
-		if u == nil || !u.Whitelisted {
+		allowed := u != nil && u.Whitelisted
+		if !allowed {
+			if ok, _ := a.store.IsWhitelistID(ctx, chatID); ok {
+				allowed = true
+			}
+		}
+		if !allowed {
 			a.send(ctx, chatID, i18n.T(a.lang(chatID), "user.not_whitelisted"))
 			return true
 		}
@@ -78,7 +84,10 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	if wlMode {
 		wlLabel = i18n.T(lang, "users.wl_on")
 	}
-	rows := [][]models.InlineKeyboardButton{{btn(wlLabel, "usr:wlmode")}}
+	rows := [][]models.InlineKeyboardButton{
+		{btn(wlLabel, "usr:wlmode")},
+		{btn(i18n.T(lang, "btn.wl_add_id"), "usr:wladd"), btn(i18n.T(lang, "btn.wl_list"), "usr:wllist")},
+	}
 	for _, u := range users {
 		label := "👤 " + userLabel(&u)
 		if u.Blocked {
@@ -95,6 +104,43 @@ func (a *App) showUsers(ctx context.Context, chatID int64, page int) {
 	rows = append(rows, homeRow(lang))
 
 	a.sendKBSection(ctx, chatID, assets.SectionReferral, i18n.T(lang, "users.title", total, page+1, pages), rows)
+}
+
+func (a *App) reconcileWhitelist(ctx context.Context, chatID int64) {
+	if a.store == nil {
+		return
+	}
+	if ok, _ := a.store.IsWhitelistID(ctx, chatID); ok {
+		_ = a.store.SetWhitelisted(ctx, chatID, true)
+		_ = a.store.RemoveWhitelistID(ctx, chatID)
+	}
+}
+
+func (a *App) showWhitelist(ctx context.Context, chatID int64) {
+	lang := a.lang(chatID)
+	if a.store == nil {
+		return
+	}
+	ids, err := a.store.ListWhitelistIDs(ctx)
+	if err != nil {
+		a.sendHome(ctx, chatID, "❌ "+err.Error())
+		return
+	}
+	rows := [][]models.InlineKeyboardButton{
+		{btn(i18n.T(lang, "btn.wl_add_id"), "usr:wladd")},
+	}
+	for _, id := range ids {
+		sid := strconv.FormatInt(id, 10)
+		rows = append(rows, []models.InlineKeyboardButton{
+			btn("🗑 "+sid, "usr:wldel:"+sid),
+		})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "btn.back"), "menu:users")})
+	title := i18n.T(lang, "wl.list_title", len(ids))
+	if len(ids) == 0 {
+		title = i18n.T(lang, "wl.list_empty")
+	}
+	a.sendKB(ctx, chatID, title, rows)
 }
 
 func (a *App) showUser(ctx context.Context, chatID, uid int64) {
@@ -128,8 +174,14 @@ func (a *App) showUser(ctx context.Context, chatID, uid int64) {
 	if botBlocked {
 		status = i18n.T(lang, "user.blocked")
 	}
+	whitelisted := u.Whitelisted
+	if !whitelisted && a.store != nil {
+		if ok, _ := a.store.IsWhitelistID(ctx, uid); ok {
+			whitelisted = true
+		}
+	}
 	var wlBtn models.InlineKeyboardButton
-	if u.Whitelisted {
+	if whitelisted {
 		wlBtn = btn(i18n.T(lang, "btn.whitelist_del"), "usr:wloff:"+id)
 	} else {
 		wlBtn = btn(i18n.T(lang, "btn.whitelist_add"), "usr:wlon:"+id)
@@ -245,7 +297,11 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 	case "wlon", "wloff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		if a.store != nil {
-			_ = a.store.SetWhitelisted(ctx, uid, action == "wlon")
+			on := action == "wlon"
+			_ = a.store.SetWhitelisted(ctx, uid, on)
+			if !on {
+				_ = a.store.RemoveWhitelistID(ctx, uid)
+			}
 		}
 		a.showUser(ctx, chatID, uid)
 	case "wlmode":
@@ -256,6 +312,18 @@ func (a *App) onUsers(ctx context.Context, chatID int64, val string, srcMsgID in
 		a.mu.Unlock()
 		_ = a.saveBotConfig(ctx)
 		a.showUsers(ctx, chatID, 0)
+	case "wladd":
+		a.getUI(chatID).adminInput = "wl_add"
+		a.askInput(ctx, chatID, i18n.T(a.lang(chatID), "wl.ask_ids"), "menu:users")
+	case "wllist":
+		a.showWhitelist(ctx, chatID)
+	case "wldel":
+		uid, _ := strconv.ParseInt(arg, 10, 64)
+		if a.store != nil && uid != 0 {
+			_ = a.store.RemoveWhitelistID(ctx, uid)
+			_ = a.store.SetWhitelisted(ctx, uid, false)
+		}
+		a.showWhitelist(ctx, chatID)
 	case "p2pon", "p2poff":
 		uid, _ := strconv.ParseInt(arg, 10, 64)
 		allow := action == "p2pon"
@@ -612,11 +680,13 @@ func (a *App) showMySubs(ctx context.Context, chatID int64) {
 	if sup := a.supportURL(); sup != "" {
 		rows = append(rows, []models.InlineKeyboardButton{{Text: i18n.T(lang, "btn.support"), URL: sup}})
 	}
-	rows = append(rows, home)
 	if status == remnawave.StatusDisabled {
+		rows = append(rows, home)
 		a.sendKBSection(ctx, chatID, assets.SectionMySubscription, i18n.T(lang, "subs.blocked"), rows)
 		return
 	}
+	rows = append(rows, []models.InlineKeyboardButton{btn(i18n.T(lang, "dev.btn_reset"), "dev:reset")})
+	rows = append(rows, home)
 	text := a.subActiveText(ctx, chatID, url, expireAt) + a.devicesLine(ctx, chatID, panel)
 	a.sendKBSection(ctx, chatID, assets.SectionMySubscription, text, rows)
 }

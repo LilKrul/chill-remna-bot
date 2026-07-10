@@ -784,6 +784,23 @@ func (a *App) handleAdminText(ctx context.Context, chatID int64, text string) {
 		ui.adminInput = ""
 		ui.linkUID = 0
 		a.adminLinkPanel(ctx, chatID, uid, text)
+	case "wl_add":
+		ui.adminInput = ""
+		raw := strings.NewReplacer(",", " ", "\n", " ", ";", " ").Replace(text)
+		for _, f := range strings.Fields(raw) {
+			id, err := strconv.ParseInt(f, 10, 64)
+			if err != nil || id == 0 {
+				continue
+			}
+			if a.store != nil {
+				if u, _ := a.store.GetUser(ctx, id); u != nil {
+					_ = a.store.SetWhitelisted(ctx, id, true)
+				} else {
+					_ = a.store.AddWhitelistID(ctx, id)
+				}
+			}
+		}
+		a.showWhitelist(ctx, chatID)
 	case "wh_domain":
 		ui.adminInput = ""
 		d := strings.TrimSpace(text)
